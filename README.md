@@ -1,5 +1,5 @@
 # Koru Edit
-A text editor written in my language Rowan and configurable in Koru Scheme.
+A text editor written in my Rust and Guile Scheme
 This editor is inspired by Emacs and Kakoune.
 
 ## Why Koru
