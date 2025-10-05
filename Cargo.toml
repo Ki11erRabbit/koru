@@ -1,4 +1,7 @@
 
 [workspace]
 resolver = "3"
-members = ["guile-rs"]
+members = ["guile-rs","guile-rs-sys"]
+
+[workspace.dependencies]
+guile-rs-sys = { path = "./guile-rs-sys" }

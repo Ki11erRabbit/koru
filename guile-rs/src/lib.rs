@@ -1,14 +1,54 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+use guile_rs_sys;
+
+pub struct SchemeObject {
+    raw: guile_rs_sys::SCM,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+impl SchemeObject {
+    fn new(raw: guile_rs_sys::SCM) -> SchemeObject {
+        unsafe {
+            guile_rs_sys::scm_gc_protect_object(raw);
+        }
+        SchemeObject { raw }
+    }
+}
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+impl From<i8> for SchemeObject {
+    fn from(byte: i8) -> Self {
+        SchemeObject::new(unsafe {
+            guile_rs_sys::scm_from_int8(byte)
+        })
+    }
+}
+
+impl From<i16> for SchemeObject {
+    fn from(short: i16) -> Self {
+        SchemeObject::new(unsafe {
+            guile_rs_sys::scm_from_int16(short)
+        })
+    }
+}
+
+impl From<i32> for SchemeObject {
+    fn from(int: i32) -> Self {
+        SchemeObject::new(unsafe {
+            guile_rs_sys::scm_from_int32(int)
+        })
+    }
+}
+
+impl From<i64> for SchemeObject {
+    fn from(long: i64) -> Self {
+        SchemeObject::new(unsafe {
+            guile_rs_sys::scm_from_int64(long)
+        })
+    }
+}
+
+impl Drop for SchemeObject {
+    fn drop(&mut self) {
+        unsafe {
+            guile_rs_sys::scm_gc_unprotect_object(self.raw);
+        }
     }
 }
