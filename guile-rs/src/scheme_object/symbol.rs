@@ -1,10 +1,14 @@
 use crate::scheme_object::SchemeObject;
 
+/// Represents a Scheme Symbol
+/// This holds the invariance that the type is a Scheme Symbol
 pub struct SchemeSymbol {
     base: SchemeObject,
 }
 
 impl SchemeSymbol {
+    
+    /// Constructor from a Rust string type
     pub fn new<S: AsRef<str>>(value: S) -> SchemeSymbol {
         let value = value.as_ref();
         let cstr = std::ffi::CString::new(value).unwrap();
@@ -14,8 +18,10 @@ impl SchemeSymbol {
         
         SchemeSymbol { base: SchemeObject::from(value) }
     }
-    
-    pub(crate) fn from_base(base: SchemeObject) -> SchemeSymbol {
+
+    /// Internal Constructor
+    /// This should never be called by the user as it would violate invariance.
+    pub(crate) unsafe fn from_base(base: SchemeObject) -> SchemeSymbol {
         SchemeSymbol { base }
     }
 }

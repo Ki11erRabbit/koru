@@ -1,5 +1,6 @@
 #include <libguile.h>
 #include <libguile/pairs.h>
+#include <stdint.h>
 
 
 void *rust_smob_data(SCM obj) {
@@ -32,4 +33,8 @@ SCM rust_car(SCM pair) {
 
 SCM rust_cdr(SCM pair) {
     return SCM_CDR(pair);
+}
+
+SCM scm_make_char(uint32_t c) {
+    return SCM_MAKE_CHAR(c);
 }

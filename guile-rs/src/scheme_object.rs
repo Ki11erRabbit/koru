@@ -6,7 +6,9 @@ mod procedure;
 mod symbol;
 mod string;
 mod hashtable;
+mod character;
 
+pub use crate::scheme_object::character::SchemeChar;
 pub use crate::scheme_object::hashtable::SchemeHashtable;
 pub use crate::scheme_object::list::SchemeList;
 pub use crate::scheme_object::number::SchemeNumber;
@@ -50,7 +52,9 @@ impl SchemeObject {
 
     pub fn cast_cons(self) -> Option<SchemePair> {
         if self.is_pair() {
-            Some(SchemePair::from_base(self))
+            Some(unsafe {
+                SchemePair::from_base(self)
+            })
         } else {
             None
         }
@@ -76,7 +80,9 @@ impl SchemeObject {
 
     pub fn cast_list(self) -> Option<SchemeList> {
         if self.is_list() {
-            Some(SchemeList::from_base(self))
+            Some(unsafe {
+                SchemeList::from_base(self)
+            })
         } else {
             None
         }
@@ -99,7 +105,9 @@ impl SchemeObject {
 
     pub fn cast_vector(self) -> Option<SchemeVector> {
         if self.is_vector() {
-            Some(SchemeVector::from_base(self))
+            Some(unsafe {
+                SchemeVector::from_base(self)
+            })
         } else {
             None
         }
@@ -119,7 +127,9 @@ impl SchemeObject {
 
     pub fn cast_number(self) -> Option<SchemeNumber> {
         if self.is_number() {
-            Some(SchemeNumber::from_base(self))
+            Some(unsafe {
+                SchemeNumber::from_base(self)
+            })
         } else {
             None
         }
@@ -145,7 +155,9 @@ impl SchemeObject {
 
     pub fn cast_procedure(self) -> Option<SchemeProcedure> {
         if self.is_procedure() {
-            Some(SchemeProcedure::from_base(self))
+            Some(unsafe {
+                SchemeProcedure::from_base(self)
+            })
         } else {
             None
         }
@@ -171,7 +183,9 @@ impl SchemeObject {
 
     pub fn cast_symbol(self) -> Option<SchemeSymbol> {
         if self.is_symbol() {
-            Some(SchemeSymbol::from_base(self))
+            Some(unsafe {
+                SchemeSymbol::from_base(self)
+            })
         } else {
             None
         }
@@ -197,7 +211,9 @@ impl SchemeObject {
 
     pub fn cast_string(self) -> Option<SchemeString> {
         if self.is_string() {
-            Some(SchemeString::from_base(self))
+            Some(unsafe {
+                SchemeString::from_base(self)
+            })
         } else {
             None
         }
@@ -206,7 +222,7 @@ impl SchemeObject {
     pub fn hashtable(size: u64) -> SchemeObject {
         SchemeHashtable::new(size).into()
     }
-    
+
     pub fn is_hashtable(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_hash_table_p(self.raw)
@@ -220,10 +236,40 @@ impl SchemeObject {
             true
         }
     }
-    
+
     pub fn cast_hashtable(self) -> Option<SchemeHashtable> {
         if self.is_hashtable() {
-            Some(SchemeHashtable::from_base(self))
+            Some(unsafe {
+                SchemeHashtable::from_base(self)
+            })
+        } else {
+            None
+        }
+    }
+    
+    pub fn character(c: char) -> SchemeObject {
+        SchemeChar::new(c).into()
+    }
+    
+    pub fn is_character(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_char_p(self.raw)
+        };
+        let false_constant = unsafe {
+            guile_rs_sys::rust_bool_false()
+        };
+        if result == false_constant {
+            false
+        } else {
+            true
+        }
+    }
+    
+    pub fn cast_char(self) -> Option<SchemeChar> {
+        if self.is_character() {
+            Some(unsafe {
+                SchemeChar::from_base(self)
+            })
         } else {
             None
         }
@@ -262,6 +308,14 @@ impl From<bool> for SchemeObject {
                 guile_rs_sys::rust_bool_false().into()
             }
         }
+    }
+}
+
+impl From<char> for SchemeObject {
+    fn from(c: char) -> SchemeObject {
+        SchemeObject::new(unsafe {
+            guile_rs_sys::scm_make_char(c as u32)
+        })
     }
 }
 

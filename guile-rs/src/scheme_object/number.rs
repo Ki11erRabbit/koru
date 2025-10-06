@@ -1,17 +1,23 @@
 use crate::scheme_object::{Number, SchemeObject, SchemeProcedure};
 
+/// Represents a Number in Scheme
+/// This type provides a math interface to allow for ease of use while providing invariance.
 pub struct SchemeNumber {
     base: SchemeObject,
 }
 
 impl SchemeNumber {
+    
+    /// Constructor from any Rust number type except u128 or i128
     pub fn new(number: impl Number) -> SchemeNumber {
         SchemeNumber {
             base: number.into()
         }
     }
 
-    pub(crate) fn from_base(x: SchemeObject) -> SchemeNumber {
+    /// Internal Constructor
+    /// This should never be called by the user as it would violate invariance.
+    pub(crate) unsafe fn from_base(x: SchemeObject) -> SchemeNumber {
         SchemeNumber { base: x }
     }
 }
