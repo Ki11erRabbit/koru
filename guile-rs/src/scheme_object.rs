@@ -7,6 +7,7 @@ mod symbol;
 mod string;
 mod hashtable;
 mod character;
+mod smob;
 
 pub use crate::scheme_object::character::SchemeChar;
 pub use crate::scheme_object::hashtable::SchemeHashtable;
@@ -17,7 +18,8 @@ pub use crate::scheme_object::procedure::SchemeProcedure;
 pub use crate::scheme_object::string::SchemeString;
 pub use crate::scheme_object::symbol::SchemeSymbol;
 pub use crate::scheme_object::vector::SchemeVector;
-use crate::Smob;
+use crate::{Smob, SmobData};
+pub use crate::scheme_object::smob::SchemeSmob;
 
 /// Helper trait to allow for numeric types to be converted into SchemeObjects
 pub trait Number: Into<SchemeObject> {}
@@ -315,10 +317,36 @@ impl SchemeObject {
             None
         }
     }
+
+    /// Constructor for a Smob
+    /// To get a SchemeSmob type use SchemeSmob::new instead.
+    pub fn smob<T: SmobData>(tag: Smob<T>, data: T) -> SchemeObject {
+        SchemeSmob::new(tag, data).into()
+    }
     
-    pub fn assert_smob(&self, tag: Smob) {
+    /// Asserts whether or not the SchemeObject matches the Smob Type
+    pub fn assert_smob<T: SmobData>(&self, tag: Smob<T>) {
         unsafe {
             guile_rs_sys::scm_assert_smob_type(tag.tag(), self.raw);
+        }
+    }
+
+    /// Checks if a SchemeObject is the right kind of Smob
+    pub fn is_smob_type<T: SmobData>(&self, tag: Smob<T>) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_is_smob(tag.tag(), self.raw)
+        };
+        result != 0
+    }
+    
+    /// Consumes a SchemeObject and possibly returns a SchemeSmob
+    pub fn cast_smob<T: SmobData>(self, tag: Smob<T>) -> Option<SchemeSmob<T>> {
+        if self.is_smob_type::<T>(tag) {
+            Some(unsafe {
+                SchemeSmob::from_base(self)
+            })
+        } else {
+            None
         }
     }
 }

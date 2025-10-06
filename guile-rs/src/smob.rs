@@ -7,6 +7,7 @@
 use std::{rc, sync};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
 use crate::scheme_object::SchemeObject;
@@ -40,21 +41,21 @@ pub trait SmobEqual {
     }
 }
 
-static SMOB_TAGS: LazyLock<RwLock<HashMap<String, Smob>>> = LazyLock::new(|| {
-    RwLock::new(HashMap::new())
-});
+pub trait SmobData: SmobPrint + SmobDrop + SmobSize + SmobEqual {}
+
 
 /// A container for a Smob Tag
 #[derive(Copy, Clone)]
-pub struct Smob {
+pub struct Smob<T: SmobData> {
     tag: usize,
+    phantom: PhantomData<T>,
 }
 
-impl Smob {
+impl<T: SmobData> Smob<T> {
 
     /// Registers a datatype with the scheme runtime defined by `name`.
     /// `returns` the Smob tag wrapper
-    pub fn register<T: SmobSize + SmobPrint + SmobDrop + SmobEqual, S: AsRef<str>>(name: S) -> Self {
+    pub fn register<S: AsRef<str>>(name: S) -> Self {
         extern "C" fn smob_free<T: Sized + SmobDrop>(obj: guile_rs_sys::SCM) -> usize {
             let data = unsafe {
                 guile_rs_sys::rust_smob_data(obj)
@@ -112,17 +113,14 @@ impl Smob {
             guile_rs_sys::scm_set_smob_equalp(tag, Some(smob_equal::<T>));
         }
 
-        let smob = Smob {
-            tag
-        };
-
-        Self::put_tag(name, smob);
-
-        smob
+        Smob {
+            tag,
+            phantom: PhantomData,
+        }
     }
 
-    /// The requirement on Smob traits is more of a sanity check
-    pub fn make<T: SmobSize + SmobPrint + SmobDrop + SmobEqual>(&self, data: T) -> SchemeObject {
+    /// Creates a SMOB from the provided data
+    pub fn make(&self, data: T) -> SchemeObject {
         let value = unsafe {
             guile_rs_sys::rust_new_smob(self.tag, &data as * const _ as usize)
         };
@@ -132,20 +130,6 @@ impl Smob {
 
     pub fn tag(&self) -> usize {
         self.tag
-    }
-
-    /// Fetches the tag of a previously defined SMOB from a name.
-    pub fn fetch_tag<S: AsRef<str>>(type_name: S) -> Option<Smob> {
-        match SMOB_TAGS.read() {
-            Ok(guard) => {
-                guard.get(type_name.as_ref()).cloned()
-            }
-            Err(_) => None,
-        }
-    }
-
-    fn put_tag<S: AsRef<str>>(type_name: S, obj: Smob) {
-        SMOB_TAGS.write().unwrap().insert(type_name.as_ref().to_owned(), obj);
     }
 }
 
