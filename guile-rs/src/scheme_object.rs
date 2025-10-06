@@ -1,11 +1,22 @@
 mod vector;
 mod list;
 mod pair;
+mod number;
+mod procedure;
+mod symbol;
+mod string;
+mod hashtable;
 
-use guile_rs_sys;
-use crate::scheme_object::list::SchemeList;
-use crate::scheme_object::pair::SchemePair;
-use crate::scheme_object::vector::SchemeVector;
+pub use crate::scheme_object::hashtable::SchemeHashtable;
+pub use crate::scheme_object::list::SchemeList;
+pub use crate::scheme_object::number::SchemeNumber;
+pub use crate::scheme_object::pair::SchemePair;
+pub use crate::scheme_object::procedure::SchemeProcedure;
+pub use crate::scheme_object::string::SchemeString;
+pub use crate::scheme_object::symbol::SchemeSymbol;
+pub use crate::scheme_object::vector::SchemeVector;
+
+pub trait Number: Into<SchemeObject> {}
 
 pub struct SchemeObject {
     raw: guile_rs_sys::SCM,
@@ -22,7 +33,7 @@ impl SchemeObject {
     pub fn cons(x: SchemeObject, y: SchemeObject) -> SchemeObject {
         SchemePair::new(x, y).into()
     }
-    
+
     pub fn is_pair(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_pair_p(self.raw)
@@ -48,7 +59,7 @@ impl SchemeObject {
     pub fn list(items: impl IntoIterator<Item = impl Into<SchemeObject>>) -> SchemeObject {
        SchemeList::new(items).into()
     }
-    
+
     pub fn is_list(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_list_p(self.raw)
@@ -62,7 +73,7 @@ impl SchemeObject {
             true
         }
     }
-    
+
     pub fn cast_list(self) -> Option<SchemeList> {
         if self.is_list() {
             Some(SchemeList::from_base(self))
@@ -74,7 +85,7 @@ impl SchemeObject {
     pub fn vector(items: Vec<impl Into<SchemeObject>>) -> SchemeObject {
         SchemeVector::new(items).into()
     }
-    
+
     pub fn is_vector(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_is_vector(self.raw)
@@ -85,12 +96,145 @@ impl SchemeObject {
             false
         }
     }
-    
+
     pub fn cast_vector(self) -> Option<SchemeVector> {
         if self.is_vector() {
             Some(SchemeVector::from_base(self))
         } else {
             None
+        }
+    }
+
+    pub fn number(number: impl Number) -> SchemeObject {
+        number.into()
+    }
+
+    pub fn is_number(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_is_number(self.raw)
+        };
+
+        result == 1
+    }
+
+    pub fn cast_number(self) -> Option<SchemeNumber> {
+        if self.is_number() {
+            Some(SchemeNumber::from_base(self))
+        } else {
+            None
+        }
+    }
+
+    pub fn procedure<S: AsRef<str>>(name: S) -> SchemeObject {
+        SchemeProcedure::new(name.as_ref()).into()
+    }
+
+    pub fn is_procedure(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_procedure_p(self.raw)
+        };
+        let false_constant = unsafe {
+            guile_rs_sys::rust_bool_false()
+        };
+        if result == false_constant {
+            false
+        } else {
+            true
+        }
+    }
+
+    pub fn cast_procedure(self) -> Option<SchemeProcedure> {
+        if self.is_procedure() {
+            Some(SchemeProcedure::from_base(self))
+        } else {
+            None
+        }
+    }
+
+    pub fn symbol<S: AsRef<str>>(value: S) -> SchemeObject {
+        SchemeSymbol::new(value).into()
+    }
+
+    pub fn is_symbol(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_symbol_p(self.raw)
+        };
+        let false_constant = unsafe {
+            guile_rs_sys::rust_bool_false()
+        };
+        if result == false_constant {
+           false
+        } else {
+            true
+        }
+    }
+
+    pub fn cast_symbol(self) -> Option<SchemeSymbol> {
+        if self.is_symbol() {
+            Some(SchemeSymbol::from_base(self))
+        } else {
+            None
+        }
+    }
+
+    pub fn string<S: AsRef<str>>(value: S) -> SchemeObject {
+        SchemeString::new(value).into()
+    }
+
+    pub fn is_string(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_string_p(self.raw)
+        };
+        let false_constant = unsafe {
+            guile_rs_sys::rust_bool_false()
+        };
+        if result == false_constant {
+            false
+        } else {
+            true
+        }
+    }
+
+    pub fn cast_string(self) -> Option<SchemeString> {
+        if self.is_string() {
+            Some(SchemeString::from_base(self))
+        } else {
+            None
+        }
+    }
+
+    pub fn hashtable(size: u64) -> SchemeObject {
+        SchemeHashtable::new(size).into()
+    }
+    
+    pub fn is_hashtable(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_hash_table_p(self.raw)
+        };
+        let false_constant = unsafe {
+            guile_rs_sys::rust_bool_false()
+        };
+        if result == false_constant {
+            false
+        } else {
+            true
+        }
+    }
+    
+    pub fn cast_hashtable(self) -> Option<SchemeHashtable> {
+        if self.is_hashtable() {
+            Some(SchemeHashtable::from_base(self))
+        } else {
+            None
+        }
+    }
+}
+
+
+impl Drop for SchemeObject {
+    fn drop(&mut self) {
+        unsafe {
+            guile_rs_sys::scm_gc_unprotect_object(self.raw);
         }
     }
 }
@@ -186,19 +330,38 @@ impl From<i64> for SchemeObject {
     }
 }
 
-impl From<&str> for SchemeObject {
-    fn from(string: &str) -> Self {
-        let ctr = std::ffi::CString::new(string).unwrap();
+impl From<usize> for SchemeObject {
+    fn from(int: usize) -> Self {
         SchemeObject::new(unsafe {
-            guile_rs_sys::scm_from_utf8_string(ctr.as_ptr())
+            guile_rs_sys::scm_from_uint64(int as u64)
         })
     }
 }
 
-impl Drop for SchemeObject {
-    fn drop(&mut self) {
-        unsafe {
-            guile_rs_sys::scm_gc_unprotect_object(self.raw);
-        }
+impl From<isize> for SchemeObject {
+    fn from(int: isize) -> Self {
+        SchemeObject::new(unsafe {
+            guile_rs_sys::scm_from_int64(int as i64)
+        })
     }
 }
+
+impl From<f64> for SchemeObject {
+    fn from(double: f64) -> Self {
+        SchemeObject::new(unsafe {
+            guile_rs_sys::scm_from_double(double)
+        })
+    }
+}
+
+
+impl Number for u8 {}
+impl Number for i8 {}
+impl Number for i16 {}
+impl Number for u32 {}
+impl Number for i32 {}
+impl Number for u64 {}
+impl Number for i64 {}
+impl Number for f64 {}
+impl Number for usize {}
+impl Number for isize {}

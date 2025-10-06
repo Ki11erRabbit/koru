@@ -42,18 +42,34 @@ impl SchemeList {
         len
     }
     
-    pub fn car(&self) -> SchemeObject {
+    pub fn head(&self) -> SchemeObject {
         let car = unsafe {
             guile_rs_sys::rust_car(self.base.raw)
         };
         SchemeObject::from(car)
     }
     
-    pub fn cdr(&self) -> SchemeObject {
+    pub fn tail(&self) -> SchemeObject {
         let cdr = unsafe {
             guile_rs_sys::rust_cdr(self.base.raw)
         };
         SchemeObject::from(cdr)
+    }
+    
+    pub fn append(self, other: SchemeList) -> SchemeList {
+        let value = unsafe {
+            let args = guile_rs_sys::scm_list_1(self.base.raw);
+            guile_rs_sys::scm_set_cdr_x(args,  other.base.raw);
+            guile_rs_sys::scm_append(args)
+        };
+        SchemeList { base: SchemeObject::from(value), }
+    }
+    
+    pub fn reverse(self) -> SchemeList {
+        let value = unsafe {
+            guile_rs_sys::scm_reverse(self.base.raw)
+        };
+        SchemeList { base: SchemeObject::from(value), }
     }
 }
 

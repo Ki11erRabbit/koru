@@ -31,6 +31,27 @@ impl SchemeVector {
     pub fn iter(&self) -> VectorIter {
         VectorIter::new(self.base.raw, self.len())
     }
+    
+    pub fn get(&self, index: usize) -> Option<SchemeObject> {
+        if index >= self.len() {
+            None
+        } else {
+            let result = unsafe {
+                guile_rs_sys::scm_vector_ref(self.base.raw, SchemeObject::from(index).raw)
+            };
+            Some(SchemeObject::new(result))
+        }
+    }
+    
+    pub fn set(&self, index: usize, value: impl Into<SchemeObject>) {
+        if index >= self.len() {
+            return;
+        } else {
+            unsafe {
+                guile_rs_sys::scm_vector_set_x(self.base.raw, SchemeObject::from(index).raw, value.into().raw);
+            }
+        }
+    }
 }
 
 impl Into<SchemeObject> for SchemeVector {
