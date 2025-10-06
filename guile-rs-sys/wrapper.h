@@ -1,4 +1,5 @@
 #include <libguile.h>
+#include <libguile/pairs.h>
 
 
 void *rust_smob_data(SCM obj) {
@@ -15,4 +16,20 @@ SCM rust_bool_true() {
 
 SCM rust_bool_false() {
     return SCM_BOOL_F;
+}
+
+SCM scm_eol() {
+    return SCM_EOL;
+}
+
+SCM scm_undefined() {
+    return SCM_UNDEFINED;
+}
+
+SCM rust_car(SCM pair) {
+    return SCM_CAR(pair);
+}
+
+SCM rust_cdr(SCM pair) {
+    return SCM_CDR(pair);
 }

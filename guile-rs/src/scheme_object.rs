@@ -1,4 +1,11 @@
+mod vector;
+mod list;
+mod pair;
+
 use guile_rs_sys;
+use crate::scheme_object::list::SchemeList;
+use crate::scheme_object::pair::SchemePair;
+use crate::scheme_object::vector::SchemeVector;
 
 pub struct SchemeObject {
     raw: guile_rs_sys::SCM,
@@ -11,6 +18,81 @@ impl SchemeObject {
         }
         SchemeObject { raw }
     }
+
+    pub fn cons(x: SchemeObject, y: SchemeObject) -> SchemeObject {
+        SchemePair::new(x, y).into()
+    }
+    
+    pub fn is_pair(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_pair_p(self.raw)
+        };
+        let false_constant = unsafe {
+            guile_rs_sys::rust_bool_false()
+        };
+        if result == false_constant {
+            false
+        } else {
+            true
+        }
+    }
+
+    pub fn cast_cons(self) -> Option<SchemePair> {
+        if self.is_pair() {
+            Some(SchemePair::from_base(self))
+        } else {
+            None
+        }
+    }
+
+    pub fn list(items: impl IntoIterator<Item = impl Into<SchemeObject>>) -> SchemeObject {
+       SchemeList::new(items).into()
+    }
+    
+    pub fn is_list(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_list_p(self.raw)
+        };
+        let false_constant = unsafe {
+            guile_rs_sys::rust_bool_false()
+        };
+        if result == false_constant {
+            false
+        } else {
+            true
+        }
+    }
+    
+    pub fn cast_list(self) -> Option<SchemeList> {
+        if self.is_list() {
+            Some(SchemeList::from_base(self))
+        } else {
+            None
+        }
+    }
+
+    pub fn vector(items: Vec<impl Into<SchemeObject>>) -> SchemeObject {
+        SchemeVector::new(items).into()
+    }
+    
+    pub fn is_vector(&self) -> bool {
+        let result = unsafe {
+            guile_rs_sys::scm_is_vector(self.raw)
+        };
+        if result != 0 {
+            true
+        } else {
+            false
+        }
+    }
+    
+    pub fn cast_vector(self) -> Option<SchemeVector> {
+        if self.is_vector() {
+            Some(SchemeVector::from_base(self))
+        } else {
+            None
+        }
+    }
 }
 
 impl From<guile_rs_sys::SCM> for SchemeObject {
@@ -22,6 +104,20 @@ impl From<guile_rs_sys::SCM> for SchemeObject {
 impl Into<guile_rs_sys::SCM> for SchemeObject {
     fn into(self) -> guile_rs_sys::SCM {
         self.raw
+    }
+}
+
+impl From<bool> for SchemeObject {
+    fn from(raw: bool) -> SchemeObject {
+        if raw {
+            unsafe {
+                guile_rs_sys::rust_bool_true().into()
+            }
+        } else {
+            unsafe {
+                guile_rs_sys::rust_bool_false().into()
+            }
+        }
     }
 }
 
