@@ -18,24 +18,31 @@ pub use crate::scheme_object::string::SchemeString;
 pub use crate::scheme_object::symbol::SchemeSymbol;
 pub use crate::scheme_object::vector::SchemeVector;
 
+/// Helper trait to allow for numeric types to be converted into SchemeObjects
 pub trait Number: Into<SchemeObject> {}
 
+/// Represents a generic Scheme Object that we don't know the variant
 pub struct SchemeObject {
     raw: guile_rs_sys::SCM,
 }
 
 impl SchemeObject {
-    fn new(raw: guile_rs_sys::SCM) -> SchemeObject {
+    /// Base Constructor
+    /// Takes a raw SCM value and prevents garbage collection of it
+    pub fn new(raw: guile_rs_sys::SCM) -> SchemeObject {
         unsafe {
             guile_rs_sys::scm_gc_protect_object(raw);
         }
         SchemeObject { raw }
     }
 
+    /// Constructor for a Pair
+    /// To get a SchemePair type use SchemePair::new instead.
     pub fn cons(x: SchemeObject, y: SchemeObject) -> SchemeObject {
         SchemePair::new(x, y).into()
     }
 
+    /// Conditional Check for Pairs
     pub fn is_pair(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_pair_p(self.raw)
@@ -50,6 +57,7 @@ impl SchemeObject {
         }
     }
 
+    /// Consumes the SchemeObject and turns it into a Pair if it is one
     pub fn cast_cons(self) -> Option<SchemePair> {
         if self.is_pair() {
             Some(unsafe {
@@ -60,10 +68,13 @@ impl SchemeObject {
         }
     }
 
+    /// Constructor for a List
+    /// To get a SchemeList type use SchemeList::new instead.
     pub fn list(items: impl IntoIterator<Item = impl Into<SchemeObject>>) -> SchemeObject {
        SchemeList::new(items).into()
     }
 
+    /// Conditional check for a List value
     pub fn is_list(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_list_p(self.raw)
@@ -78,6 +89,7 @@ impl SchemeObject {
         }
     }
 
+    /// Consumes the SchemeObject to possibly get a SchemeList
     pub fn cast_list(self) -> Option<SchemeList> {
         if self.is_list() {
             Some(unsafe {
@@ -88,10 +100,13 @@ impl SchemeObject {
         }
     }
 
+    /// Constructor for a Vector
+    /// To get a SchemeVector type use SchemeVector::new instead.
     pub fn vector(items: Vec<impl Into<SchemeObject>>) -> SchemeObject {
         SchemeVector::new(items).into()
     }
 
+    /// Conditional check for a vector
     pub fn is_vector(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_is_vector(self.raw)
@@ -103,6 +118,7 @@ impl SchemeObject {
         }
     }
 
+    /// Consumes the SchemeObject to possibly get a SchemeVector
     pub fn cast_vector(self) -> Option<SchemeVector> {
         if self.is_vector() {
             Some(unsafe {
@@ -113,10 +129,13 @@ impl SchemeObject {
         }
     }
 
+    /// Constructor for a Number
+    /// To get a SchemeNumber type use SchemeNumber::new instead.
     pub fn number(number: impl Number) -> SchemeObject {
         number.into()
     }
 
+    /// Check for a number variant.
     pub fn is_number(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_is_number(self.raw)
@@ -125,6 +144,7 @@ impl SchemeObject {
         result == 1
     }
 
+    /// Consumes the SchemeObject to possibly return a SchemeNumber
     pub fn cast_number(self) -> Option<SchemeNumber> {
         if self.is_number() {
             Some(unsafe {
@@ -135,10 +155,13 @@ impl SchemeObject {
         }
     }
 
+    /// Constructor for a Procedure
+    /// To get a SchemeProcedure type use SchemeProcedure::new instead.
     pub fn procedure<S: AsRef<str>>(name: S) -> SchemeObject {
         SchemeProcedure::new(name.as_ref()).into()
     }
 
+    /// Check for a procedure
     pub fn is_procedure(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_procedure_p(self.raw)
@@ -153,6 +176,7 @@ impl SchemeObject {
         }
     }
 
+    /// Consumes the SchemeObject to possibly return a SchemeProcedure
     pub fn cast_procedure(self) -> Option<SchemeProcedure> {
         if self.is_procedure() {
             Some(unsafe {
@@ -163,10 +187,13 @@ impl SchemeObject {
         }
     }
 
+    /// Constructor for a Symbol
+    /// To get a SchemeSymbol type use SchemeSymbol::new instead.
     pub fn symbol<S: AsRef<str>>(value: S) -> SchemeObject {
         SchemeSymbol::new(value).into()
     }
 
+    /// Check for a Symbol variant
     pub fn is_symbol(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_symbol_p(self.raw)
@@ -181,6 +208,7 @@ impl SchemeObject {
         }
     }
 
+    /// Consumes the SchemeObject and possibly returns a SchemeSymbol
     pub fn cast_symbol(self) -> Option<SchemeSymbol> {
         if self.is_symbol() {
             Some(unsafe {
@@ -191,10 +219,13 @@ impl SchemeObject {
         }
     }
 
+    /// Constructor for a String
+    /// To get a SchemeString type use SchemeString::new instead.
     pub fn string<S: AsRef<str>>(value: S) -> SchemeObject {
         SchemeString::new(value).into()
     }
 
+    /// Check for a string
     pub fn is_string(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_string_p(self.raw)
@@ -209,6 +240,7 @@ impl SchemeObject {
         }
     }
 
+    /// Consumes the SchemeObject and possibly returns a SchemeString
     pub fn cast_string(self) -> Option<SchemeString> {
         if self.is_string() {
             Some(unsafe {
@@ -219,10 +251,13 @@ impl SchemeObject {
         }
     }
 
+    /// Constructor for a HashTable
+    /// To get a SchemeHashTable type use SchemeHashTable::new instead.
     pub fn hashtable(size: u64) -> SchemeObject {
         SchemeHashtable::new(size).into()
     }
 
+    /// Check for a HashTable
     pub fn is_hashtable(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_hash_table_p(self.raw)
@@ -237,6 +272,7 @@ impl SchemeObject {
         }
     }
 
+    /// Consumes a SchemeObject to possibly return a SchemeHashtable
     pub fn cast_hashtable(self) -> Option<SchemeHashtable> {
         if self.is_hashtable() {
             Some(unsafe {
@@ -246,11 +282,14 @@ impl SchemeObject {
             None
         }
     }
-    
+
+    /// Constructor for a Character
+    /// To get a SchemeChar type use SchemeChar::new instead.
     pub fn character(c: char) -> SchemeObject {
         SchemeChar::new(c).into()
     }
     
+    // Check for a character
     pub fn is_character(&self) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_char_p(self.raw)
@@ -265,6 +304,7 @@ impl SchemeObject {
         }
     }
     
+    /// Consumes the SchemeObject and possibly returns a SchemeChar
     pub fn cast_char(self) -> Option<SchemeChar> {
         if self.is_character() {
             Some(unsafe {
@@ -278,6 +318,7 @@ impl SchemeObject {
 
 
 impl Drop for SchemeObject {
+    /// Unprotects the scheme value from garbage collection
     fn drop(&mut self) {
         unsafe {
             guile_rs_sys::scm_gc_unprotect_object(self.raw);
