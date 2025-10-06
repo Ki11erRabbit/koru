@@ -17,6 +17,7 @@ pub use crate::scheme_object::procedure::SchemeProcedure;
 pub use crate::scheme_object::string::SchemeString;
 pub use crate::scheme_object::symbol::SchemeSymbol;
 pub use crate::scheme_object::vector::SchemeVector;
+use crate::Smob;
 
 /// Helper trait to allow for numeric types to be converted into SchemeObjects
 pub trait Number: Into<SchemeObject> {}
@@ -312,6 +313,12 @@ impl SchemeObject {
             })
         } else {
             None
+        }
+    }
+    
+    pub fn assert_smob(&self, tag: Smob) {
+        unsafe {
+            guile_rs_sys::scm_assert_smob_type(tag.tag(), self.raw);
         }
     }
 }

@@ -115,17 +115,26 @@ impl Smob {
         let smob = Smob {
             tag
         };
-        
+
         Self::put_tag(name, smob);
-        
+
         smob
+    }
+
+    /// The requirement on Smob traits is more of a sanity check
+    pub fn make<T: SmobSize + SmobPrint + SmobDrop + SmobEqual>(&self, data: T) -> SchemeObject {
+        let value = unsafe {
+            guile_rs_sys::rust_new_smob(self.tag, &data as * const _ as usize)
+        };
+        std::mem::forget(data);
+        SchemeObject::from(value)
     }
 
     pub fn tag(&self) -> usize {
         self.tag
     }
 
-    /// Fetches the tag of a previously defined SMOB from a name. 
+    /// Fetches the tag of a previously defined SMOB from a name.
     pub fn fetch_tag<S: AsRef<str>>(type_name: S) -> Option<Smob> {
         match SMOB_TAGS.read() {
             Ok(guard) => {
@@ -134,7 +143,7 @@ impl Smob {
             Err(_) => None,
         }
     }
-    
+
     fn put_tag<S: AsRef<str>>(type_name: S, obj: Smob) {
         SMOB_TAGS.write().unwrap().insert(type_name.as_ref().to_owned(), obj);
     }

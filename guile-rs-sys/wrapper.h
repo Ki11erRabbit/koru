@@ -38,3 +38,7 @@ SCM rust_cdr(SCM pair) {
 SCM scm_make_char(uint32_t c) {
     return SCM_MAKE_CHAR(c);
 }
+
+SCM rust_new_smob(scm_t_bits tag, scm_t_bits data) {
+    return scm_new_smob(tag, data);
+}
