@@ -1,5 +1,7 @@
 use std::os::raw::{c_char, c_void};
 use guile_rs_sys;
+
+/// Represents a Module under construction
 pub struct Module<D> {
     name: String,
     init: Box<dyn FnOnce(&mut D) + 'static>,
@@ -7,6 +9,10 @@ pub struct Module<D> {
 }
 
 impl<D> Module<D> {
+    
+    /// Base constructor
+    /// `name`: the name of the module
+    /// `init`: a function that initializes any data associated with the module
     pub fn new<S: Into<String>>(name: S, init: Box<dyn FnOnce(&mut D) + 'static>) -> Module<D> {
         Self {
             init,
@@ -15,10 +21,12 @@ impl<D> Module<D> {
         }
     }
 
+    /// Adds an export to the module
     pub fn add_export<S: Into<String>>(&mut self, name: S) {
         self.exports.push(name.into());
     }
 
+    /// Exports everything the module exports
     pub fn export(&self) {
         for name in &self.exports {
             let cstr = std::ffi::CString::new(name.as_str()).unwrap();
@@ -28,6 +36,8 @@ impl<D> Module<D> {
         }
     }
 
+    /// Defines the module
+    /// `data`: the data to initialize the module with
     pub fn define(self, data: &mut D) {
         extern "C" fn trampoline<D>(data: *mut c_void) {
             let data: Box<(Box<dyn FnOnce(&mut D) + 'static>, &mut D)> = unsafe {

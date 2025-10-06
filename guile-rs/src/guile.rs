@@ -1,9 +1,14 @@
 use guile_rs_sys;
 use crate::scheme_object::SchemeObject;
 
+pub type SchemeValue = guile_rs_sys::SCM;
+
 pub struct Guile;
 
 impl Guile {
+    
+    /// Allows for a thread to enter into Scheme Mode
+    /// This can be called in threads and even multiple times in each thread.
     pub fn init<F: FnOnce() + 'static>(f: F) {
         unsafe extern "C" fn trampoline(data: *mut std::os::raw::c_void) -> *mut std::os::raw::c_void {
             let closure: Box<Box<dyn FnOnce() -> *mut std::os::raw::c_void>> = unsafe {
@@ -21,6 +26,7 @@ impl Guile {
         }
     }
 
+    /// Evaluates a string for a scheme expression and returns its value.
     pub fn eval(expr: &str) -> SchemeObject {
         let cstr = std::ffi::CString::new(expr).unwrap();
         unsafe {
@@ -28,6 +34,9 @@ impl Guile {
         }
     }
 
+    /// Boots the system into scheme mode.
+    /// This function will terminate the program if it returns.
+    /// Takes in a mut ref to some data and a function that accepts that data.
     pub fn boot<D, F: FnOnce(&mut D) + 'static>(data: &mut D, main_func: F) -> ! {
         unsafe extern "C" fn trampoline<D, F: FnOnce(&mut D) + 'static>(data: *mut std::os::raw::c_void, _: std::os::raw::c_int, _: *mut *mut std::os::raw::c_char) {
             let data: Box<(&mut D, F)> = unsafe { Box::from_raw(data as *mut (&mut _, _)) };
@@ -56,6 +65,8 @@ impl Guile {
         loop {}
     }
     
+    /// Launch a scheme shell
+    /// When this function returns, it will terminate the program.
     pub fn shell() -> ! {
         let args: Vec<String> = std::env::args().collect();
         let len = args.len();
@@ -71,12 +82,18 @@ impl Guile {
         loop {}
     }
     
+    /// Defines a function to be used in scheme
+    /// `name` is what the function will be called in scheme
+    /// `arg_count` is the number of positional args
+    /// `optional_args` is the number of optional arguments
+    /// `accepts_rest` is whether or not the function is variadic
+    /// `returns` the function
     pub fn define_fn(
         name: &str, 
         arg_count: i32, 
         optional_args: i32, 
         accepts_rest: bool, 
-        func: extern "C" fn(guile_rs_sys::SCM) -> guile_rs_sys::SCM
+        func: extern "C" fn(SchemeValue) -> SchemeValue
     ) -> SchemeObject {
         
         let name = std::ffi::CString::new(name).unwrap();
