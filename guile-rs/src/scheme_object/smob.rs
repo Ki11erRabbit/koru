@@ -3,7 +3,7 @@ use crate::scheme_object::SchemeObject;
 use crate::{Smob, SmobData};
 
 /// Represents a SMOB.
-/// Inforces the invariant of the SMOB's type. This allows us to access the underlying data safely
+/// Enforces the invariant of the SMOB's type. This allows us to access the underlying data safely
 pub struct SchemeSmob<T: SmobData> {
     base: SchemeObject,
     phantom: PhantomData<T>,
