@@ -1,0 +1,12 @@
+[package]
+name = "koru-modules"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mlua = { workspace = true }
+
+[features]
+default = ["lua52"]
+luajit = ["mlua/luajit"]
+lua52 = ["mlua/lua51"]
