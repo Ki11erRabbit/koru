@@ -1,5 +1,7 @@
 mod utils;
 mod state;
+pub mod key;
+mod input_group;
 
 use std::error::Error;
 use std::path::Path;
@@ -19,11 +21,11 @@ pub async fn start_kernel<P: AsRef<Path>>(backend: Arc<dyn Backend>, main_thread
             return Err(Box::new(String::from("TODO: implement a first time wizard to set up the editor")));
         }
     }
-    
+
     state::set_backend(backend);
 
     start_worker(main_thread_code).await?;
-    
+
     Ok(())
 }
 
@@ -31,7 +33,7 @@ pub async fn start_worker<P: AsRef<Path>>(worker_code_path: P) -> Result<(), Box
     if !utils::does_file_exist(worker_code_path) {
         return Err(Box::new(String::from("Main thread code does not exist")));
     }
-    
+
     let lua = Lua::new();
 
     lua.register_module(

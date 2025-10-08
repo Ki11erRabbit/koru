@@ -9,7 +9,7 @@ pub fn does_file_exist<P: AsRef<Path>>(path: P) -> bool {
 }
 
 
-static POSSIBLE_CONFIG_LOCATIONS: [&str; 1] = ["koru/config.lua"];
+static POSSIBLE_CONFIG_LOCATIONS: &[&str] = &["koru/config.lua"];
 
 
 /// Finds 
