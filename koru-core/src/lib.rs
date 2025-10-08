@@ -24,7 +24,7 @@ pub fn koru_main(backend: Arc<dyn Backend>) -> Result<(), Box<dyn std::error::Er
             Err(e) => Err(e),
         }
     })?;
-    
+
     Ok(())
 }
 

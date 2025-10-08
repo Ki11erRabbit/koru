@@ -271,6 +271,5 @@ pub fn key_module(lua: &Lua) -> mlua::Result<mlua::Table> {
     )?;
     exports.set_metatable(Some(meta))?;
     
-    
     Ok(exports)
 }

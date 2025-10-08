@@ -1,7 +1,9 @@
 mod utils;
 mod state;
 pub mod key;
-mod input_group;
+pub mod input_group;
+pub mod modes;
+mod buffer;
 
 use std::error::Error;
 use std::path::Path;

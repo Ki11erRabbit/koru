@@ -2,7 +2,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use mlua::Lua;
 use mlua::prelude::LuaTable;
-use crate::Backend;
+use crate::{key, Backend};
+use crate::kernel::input_group;
 
 static CONFIG_PATH: OnceLock<PathBuf> = OnceLock::new();
 static BACKEND: OnceLock<Arc<dyn Backend>> = OnceLock::new();
@@ -57,6 +58,21 @@ pub fn kernel_mod(lua: &Lua) -> mlua::Result<LuaTable> {
         lua.create_async_function(|_, _: ()| {
             Ok(get_backend().get_keypress_async())
         })?
+    )?;
+    
+    let package = exports.get::<mlua::Table>("package")?;
+    let preload = package.get::<mlua::Table>("preload")?;
+    preload.set(
+        "Key",
+        lua.create_function(|lua, ()| {
+            key::key_module(lua)
+        })?
+    )?;
+    preload.set(
+       "InputGroup",
+       lua.create_function(|lua, ()| {
+           input_group::input_module(lua)
+       })?
     )?;
     
     Ok(exports)
