@@ -1,20 +1,19 @@
 use mlua::{Lua, Table};
-use mlua::prelude::LuaResult;
+use mlua::prelude::{LuaResult, LuaTable};
 
-mod utf8_buffer;
+mod data;
 
-
-pub fn koru_data(lua: &Lua) -> LuaResult<Table> {
+pub fn koru_mod(lua: &Lua) -> LuaResult<LuaTable> {
     let exports = lua.create_table()?;
-    
+
     let package = exports.get::<Table>("package")?;
     let preload = package.get::<Table>("preload")?;
     preload.set(
-        "Utf8Buffer",
+        "KoruData",
         lua.create_function(|lua, ()| {
-            utf8_buffer::utf8_buffer_mod(lua)
+            data::koru_data(lua)
         })?
     )?;
-    
+
     Ok(exports)
 }

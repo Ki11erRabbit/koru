@@ -1,3 +1,5 @@
+mod modules;
+
 use mlua::Lua;
 use mlua::prelude::LuaResult;
 
