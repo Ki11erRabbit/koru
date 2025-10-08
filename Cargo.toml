@@ -1,8 +1,10 @@
 
 [workspace]
 resolver = "3"
-members = ["guile-rs","guile-rs-sys", "koru-modules"]
+members = ["koru-core", "koru-modules"]
 
 [workspace.dependencies]
-guile-rs-sys = { path = "./guile-rs-sys" }
+#guile-rs-sys = { path = "./guile-rs-sys" }
 mlua = "0.11.4"
+koru-modules = { path = "./koru-modules" }
+koru-core = { path = "./koru-core" }

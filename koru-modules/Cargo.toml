@@ -7,6 +7,6 @@ edition = "2024"
 mlua = { workspace = true }
 
 [features]
-default = ["lua52"]
-luajit = ["mlua/luajit"]
-lua52 = ["mlua/lua51"]
+default = []
+luajit = ["mlua/luajit", "mlua/module"]
+lua52 = ["mlua/lua51", "mlua/module"]
