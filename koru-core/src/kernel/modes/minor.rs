@@ -1,6 +1,6 @@
-use mlua::Function;
+use mlua::UserData;
 use crate::kernel::input_group::InputGroup;
-use crate::key::KeyPress;
+use crate::kernel::modes::{Command, KeyBuffer};
 
 pub struct MinorMode {
     input: InputGroup
@@ -11,7 +11,11 @@ impl MinorMode {
         Self { input }
     }
     
-    pub fn try_input(&self, keys: Vec<KeyPress>) -> Option<Function> {
-        
+    pub fn try_input(&self, keys: &KeyBuffer) -> Option<Command> {
+        self.input.get_command(&keys)
     }
 }
+
+impl UserData for MinorMode {}
+
+impl From

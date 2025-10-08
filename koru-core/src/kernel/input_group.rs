@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use mlua::{Function, IntoLua, Lua, UserData, UserDataFields, UserDataMethods};
-use crate::kernel::modes::Command;
+use crate::kernel::modes::{Command, KeyBuffer};
 use crate::key::KeyPress;
 
 pub struct InputGroup {
@@ -30,8 +30,11 @@ impl InputGroup {
         self.keys_to_command.remove(&keys);
     }
 
-    pub fn get_command(&self, keys: &Vec<KeyPress>) -> Option<Command> {
-        self.keys_to_command.get(keys).cloned()
+    pub fn get_command(&self, keys: &KeyBuffer) -> Option<Command> {
+        match self.keys_to_command.get(keys.get()).cloned() {
+            Some(command) => Some(command),
+            None => self.default_command.clone(),
+        }
     }
 }
 
@@ -56,13 +59,8 @@ impl UserData for InputGroup {
     fn add_methods<F: UserDataMethods<Self>>(methods: &mut F) {
         methods.add_function(
             "get_command",
-            |lua, this: &InputGroup, key_press: (Vec<KeyPress>,)| {
-                match this.get_command(&key_press.0) {
-                    Some(key) => key.into_lua(lua),
-                    None => {
-                        this.default_command.as_ref().cloned().into_lua(lua)
-                    }
-                }
+            |lua, this: &InputGroup, key_press: KeyBuffer| {
+                this.get_command(&key_press).into_lua(lua)
             }
         );
         methods.add_function_mut(
