@@ -4,6 +4,7 @@ use mlua::Lua;
 use mlua::prelude::LuaTable;
 use crate::{key, Backend};
 use crate::kernel::input_group;
+use crate::key::KeyPress;
 
 static CONFIG_PATH: OnceLock<PathBuf> = OnceLock::new();
 static BACKEND: OnceLock<Arc<dyn Backend>> = OnceLock::new();

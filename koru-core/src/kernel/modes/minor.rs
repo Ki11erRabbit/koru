@@ -1,6 +1,7 @@
 use mlua::UserData;
+use crate::kernel::buffer::KeyBuffer;
 use crate::kernel::input_group::InputGroup;
-use crate::kernel::modes::{Command, KeyBuffer};
+use crate::kernel::modes::{Command};
 
 pub struct MinorMode {
     input: InputGroup
@@ -17,5 +18,3 @@ impl MinorMode {
 }
 
 impl UserData for MinorMode {}
-
-impl From

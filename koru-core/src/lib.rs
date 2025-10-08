@@ -1,6 +1,7 @@
 mod modules;
 mod kernel;
 
+use std::error::Error;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 
@@ -8,6 +9,11 @@ pub use kernel::key;
 
 pub trait Backend {
     fn shutdown(&self);
+    fn make_input_source(&self) -> Box<dyn InputSource>;
+    async fn main_code(&self) -> Result<(), Box<dyn Error>>;
+}
+
+pub trait InputSource: Send {
     fn get_keypress(&self) -> key::KeyPress;
     async fn get_keypress_async(&self) -> key::KeyPress;
 }

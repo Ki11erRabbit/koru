@@ -13,7 +13,8 @@ use tokio::io::AsyncReadExt;
 use tokio::task::JoinHandle;
 use crate::{modules, Backend};
 
-pub async fn start_kernel<P: AsRef<Path>>(backend: Arc<dyn Backend>, main_thread_code: P) -> Result<(), Box<dyn Error>> {
+
+pub async fn start_kernel(backend: Arc<dyn Backend>) -> Result<(), Box<dyn Error>> {
 
     match utils::locate_config_path() {
         Some(config_path) => {
@@ -24,9 +25,9 @@ pub async fn start_kernel<P: AsRef<Path>>(backend: Arc<dyn Backend>, main_thread
         }
     }
 
-    state::set_backend(backend);
+    state::set_backend(backend.clone());
 
-    start_worker(main_thread_code).await?;
+    backend.main_code().await?;
 
     Ok(())
 }
