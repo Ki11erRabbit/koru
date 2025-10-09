@@ -134,7 +134,7 @@ impl KeyPress {
     pub fn key_string(&self) -> String {
         format!("{}", self.key)
     }
-    
+
     fn match_key_string(key_string: &str) -> Option<Key> {
         let key = match key_string {
             "SPC" => Key::CharacterKey(' '),
@@ -186,7 +186,7 @@ impl KeyPress {
         match strings.as_slice() {
             ["S", key] =>  {
                 let key = Self::match_key_string(*key)?;
-                
+
                 Some(KeyPress::new(key, Some(ModifierKey::Shift)))
             }
             ["C", key] => {
@@ -258,9 +258,9 @@ impl UserData for KeyPress {
 
 pub fn key_module(lua: &Lua) -> mlua::Result<mlua::Table> {
     let exports = lua.create_table()?;
-    
+
     let meta = lua.create_table()?;
-    
+
     meta.set(
         "__call",
         lua.create_function(|lua, string: String| {
@@ -270,6 +270,6 @@ pub fn key_module(lua: &Lua) -> mlua::Result<mlua::Table> {
         })?
     )?;
     exports.set_metatable(Some(meta))?;
-    
+
     Ok(exports)
 }

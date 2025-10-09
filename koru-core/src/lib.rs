@@ -1,11 +1,11 @@
-mod modules;
-mod kernel;
+pub mod kernel;
 
 use std::error::Error;
 use std::sync::Arc;
 use tokio::runtime::Builder;
 
-pub use kernel::key;
+
+use crate::kernel::input::KeyBuffer;
 
 pub trait Backend {
     fn shutdown(&self);
@@ -14,8 +14,7 @@ pub trait Backend {
 }
 
 pub trait InputSource: Send {
-    fn get_keypress(&self) -> key::KeyPress;
-    async fn get_keypress_async(&self) -> key::KeyPress;
+    async fn get_keypress_async(&self) -> KeyBuffer;
 }
 
 
@@ -25,7 +24,7 @@ pub fn koru_main(backend: Arc<dyn Backend>) -> Result<(), Box<dyn std::error::Er
         .build()?;
 
     runtime.block_on(async {
-        match kernel::start_kernel(backend,"koru.lua") {
+        match kernel::start_kernel(backend) {
             Ok(_) => Ok(()),
             Err(e) => Err(e),
         }

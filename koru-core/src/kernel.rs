@@ -1,9 +1,9 @@
 mod utils;
 mod state;
-pub mod key;
-pub mod input_group;
-pub mod modes;
-mod buffer;
+pub mod input;
+mod lua_api;
+mod files;
+mod session;
 
 use std::error::Error;
 use std::path::Path;
@@ -11,7 +11,7 @@ use std::sync::Arc;
 use mlua::Lua;
 use tokio::io::AsyncReadExt;
 use tokio::task::JoinHandle;
-use crate::{modules, Backend};
+use crate::Backend;
 
 
 pub async fn start_kernel(backend: Arc<dyn Backend>) -> Result<(), Box<dyn Error>> {
@@ -41,12 +41,7 @@ pub async fn start_worker<P: AsRef<Path>>(worker_code_path: P) -> Result<(), Box
 
     lua.register_module(
         "Koru",
-        modules::koru_mod(&lua)?
-    )?;
-
-    lua.register_module(
-        "KoruKernel",
-        state::kernel_mod(&lua)?
+        lua_api::kernel_mod(&lua)?
     )?;
 
     let contents = {
