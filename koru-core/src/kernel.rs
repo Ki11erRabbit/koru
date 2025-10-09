@@ -1,3 +1,4 @@
+use crate::UICode;
 mod utils;
 mod state;
 pub mod input;
@@ -11,11 +12,12 @@ use std::path::Path;
 use std::sync::Arc;
 use mlua::Lua;
 use tokio::io::AsyncReadExt;
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
-use crate::Backend;
+use crate::UiBackend;
 
 
-pub async fn start_kernel(backend: Arc<impl Backend>) -> Result<(), Box<dyn Error>> {
+pub fn start_kernel(backend: impl UiBackend) -> Result<(), Box<dyn Error>> {
 
     match utils::locate_config_path() {
         Some(config_path) => {
@@ -25,14 +27,22 @@ pub async fn start_kernel(backend: Arc<impl Backend>) -> Result<(), Box<dyn Erro
             return Err(Box::from(String::from("TODO: implement a first time wizard to set up the editor")));
         }
     }
+    
+    
+    let ui_code = backend.main_code();
+    
+    let backend = Arc::new(Mutex::new(backend));
+    
+    tokio::spawn(async move {
+        message_thread(backend).await;
+    });
+    
+    ui_code()
+}
 
-    state::set_backend(backend.clone());
 
-    backend.main_code().await?;
-
-    backend.shutdown();
-
-    Ok(())
+async fn message_thread(backend: Arc<Mutex<impl UiBackend>>) -> Result<(), Box<dyn Error>> {
+    
 }
 
 pub async fn start_worker<P: AsRef<Path>>(worker_code_path: P) -> Result<(), Box<dyn Error>> {

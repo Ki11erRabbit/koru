@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use koru_core::{koru_main, Backend, InputSource};
+use koru_core::{koru_main, UiBackend, InputSource};
 use koru_core::kernel::input::{KeyBuffer, KeyPress};
 
 
@@ -17,7 +17,7 @@ impl TuirelmBackend {
     }
 }
 
-impl Backend for TuirelmBackend {
+impl UiBackend for TuirelmBackend {
 
     fn make_input_source(&self) -> Box<dyn InputSource> {
         Box::new(TuirelmInput { key_buffer: KeyBuffer::new() })

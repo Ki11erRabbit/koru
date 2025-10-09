@@ -64,7 +64,7 @@ impl OpenFileTable {
         let path = path.canonicalize()?;
         let path = path.to_string_lossy().to_string();
         let Some(index) = self.path_to_index.get(&path) else {
-            return Err(Box::new(String::from("File not found")));
+            return Err(Box::from(String::from("File not found")));
         };
         self.close(*index).await?;
         Ok(())
@@ -72,7 +72,7 @@ impl OpenFileTable {
 
     pub async fn close(&mut self, index: usize) -> Result<(), Box<dyn std::error::Error>> {
         let Some(file) = self.table[index].take() else {
-            return Err(Box::new(String::from("File not found")));
+            return Err(Box::from(String::from("File not found")));
         };
         let file = file.lock().await;
         let path = file.absolute_path();
@@ -88,7 +88,7 @@ impl OpenFileTable {
         let path = path.canonicalize()?;
         let path = path.to_string_lossy().to_string();
         let Some(index) = self.path_to_index.get(&path) else {
-            return Err(Box::new(String::from("File not found")));
+            return Err(Box::from(String::from("File not found")));
         };
         let Some(file) = &self.table[*index] else {
             panic!("file was closed without clearing out data")
@@ -102,7 +102,7 @@ impl OpenFileTable {
         let path = path.canonicalize()?;
         let path = path.to_string_lossy().to_string();
         let Some(index) = self.path_to_index.get(&path) else {
-            return Err(Box::new(String::from("File not found")));
+            return Err(Box::from(String::from("File not found")));
         };
         let Some(file) = &self.table[*index] else {
             panic!("file was closed without clearing out data")
