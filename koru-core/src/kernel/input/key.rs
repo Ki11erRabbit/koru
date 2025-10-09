@@ -224,7 +224,7 @@ impl std::fmt::Display for KeyPress {
 
 impl UserData for KeyPress {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_function(
+        /*methods.add_function(
             "is_shift_pressed",
             |_, this: AnyUserData, _:()| {
                 let this = this.borrow::<KeyPress>()?;
@@ -251,7 +251,7 @@ impl UserData for KeyPress {
                 let this = this.borrow::<KeyPress>()?;
                 Ok(this.key_string())
             }
-        );
+        );*/
     }
 }
 

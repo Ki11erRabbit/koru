@@ -1,7 +1,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
 use std::sync::{Arc, LazyLock};
-use mlua::{UserData, UserDataMethods};
+use mlua::{AnyUserData, UserData, UserDataMethods};
 use tokio::io::AsyncReadExt;
 use tokio::sync::{Mutex, RwLock};
 use crate::kernel::files::open_file::OpenFile;
@@ -148,15 +148,17 @@ impl UserData for OpenFileHandle {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_async_function(
             "save",
-            async |_, this: &OpenFileHandle, ()| {
-                this.save().await?;
+            async |_, (this,): (AnyUserData, )| {
+                let this = this.borrow::<OpenFileHandle>()?;
+                this.save().await.unwrap();
                 Ok(())
             }
         );
         methods.add_async_function(
             "close",
-            async |_, this: &OpenFileHandle, ()| {
-                this.close().await?;
+            async |_, (this,): (AnyUserData, )| {
+                let this = this.borrow::<OpenFileHandle>()?;
+                this.close().await.unwrap();
                 Ok(())
             }
         );
@@ -165,13 +167,13 @@ impl UserData for OpenFileHandle {
 
 pub async fn open_file<P: AsRef<Path>>(path: P) -> Result<OpenFileHandle, Box<dyn std::error::Error>> {
     let mut open_files = OPEN_FILES.write().await;
-    open_files.open_file(path).await?;
-    open_files.get_handle(path).await
+    open_files.open_file(path.as_ref()).await?;
+    open_files.get_handle(path)
 }
 
 pub async fn get_handle<P: AsRef<Path>>(path: P) -> Result<OpenFileHandle, Box<dyn std::error::Error>> {
-    let mut open_files = OPEN_FILES.write().await;
-    open_files.get_handle(path).await
+    let open_files = OPEN_FILES.read().await;
+    open_files.get_handle(path)
 }
 
 pub async fn open_or_get_handle<P: AsRef<Path>>(path: P) -> Result<OpenFileHandle, Box<dyn std::error::Error>> {

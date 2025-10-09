@@ -1,11 +1,106 @@
-use crate::InputSource;
+use std::collections::{HashSet, VecDeque};
+use std::error::Error;
+use std::sync::{LazyLock, Mutex};
+use mlua::Lua;
+
+static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
+    Mutex::new(SessionIdManager::new())
+});
+
+#[derive(Copy, Clone)]
+pub struct SessionId(usize);
+
+pub struct SessionIdManager {
+    next_session_id: usize,
+    free_ids: VecDeque<usize>,
+    active_sessions: HashSet<usize>,
+}
+
+impl SessionIdManager {
+    fn new() -> Self {
+        SessionIdManager {
+            next_session_id: 0,
+            free_ids: VecDeque::new(),
+            active_sessions: HashSet::new(),
+        }
+    }
+    
+    fn next_session_id(&mut self) -> SessionId {
+        if self.next_session_id == usize::MAX {
+            match self.free_ids.pop_front() {
+                Some(id) => {
+                    self.active_sessions.insert(id);
+                    SessionId(id)
+                },
+                None => {
+                    panic!("SessionIdManager free ids exhausted");
+                }
+            }
+        } else {
+            let id = self.next_session_id;
+            self.next_session_id += 1;
+            self.active_sessions.insert(id);
+            SessionId(id)
+        }
+    }
+    
+    fn remove_session_id(&mut self, session_id: SessionId) {
+        self.active_sessions.remove(&session_id.0);
+        self.free_ids.push_back(session_id.0);
+    }
+    
+    pub fn get_new_id() -> SessionId {
+        let Ok(mut id_manager) = ID_MANAGER.lock() else {
+            panic!("SessionIdManager lock poisoned");
+        };
+        
+        id_manager.next_session_id()
+    }
+    
+    pub fn free_id(session_id: SessionId) {
+        let Ok(mut id_manager) = ID_MANAGER.lock() else {
+            panic!("SessionIdManager lock poisoned");
+        };
+        id_manager.remove_session_id(session_id);
+    }
+    
+}
+
+
+
 
 pub struct Session {
-    input_source: Box<dyn InputSource>,
+    session_id: SessionId,
+    lua: Lua,
 }
 
 impl Session {
-    pub fn new(input_source: Box<dyn InputSource>) -> Self {
-        Self { input_source }
+    pub fn new(
+        lua: Lua,
+    ) -> Self {
+        let id = SessionIdManager::get_new_id();
+        Self { 
+            session_id: id,
+            lua
+        }
+    }
+    
+    pub async fn run(&self, session_code: &str) -> Result<(), Box<dyn Error>> {
+        let session_id = self.session_id.0;
+        self.lua.globals().set(
+            "get_session_id",
+            self.lua.create_function(move |_, ()| {
+                Ok(session_id)
+            })?
+        )?;
+        
+        self.lua.load(session_code).exec_async().await?;
+        Ok(())
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        SessionIdManager::free_id(self.session_id);
     }
 }

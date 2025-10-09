@@ -4,6 +4,7 @@ pub mod input;
 mod lua_api;
 mod files;
 mod session;
+mod rpc;
 
 use std::error::Error;
 use std::path::Path;
@@ -14,14 +15,14 @@ use tokio::task::JoinHandle;
 use crate::Backend;
 
 
-pub async fn start_kernel(backend: Arc<dyn Backend>) -> Result<(), Box<dyn Error>> {
+pub async fn start_kernel(backend: Arc<impl Backend>) -> Result<(), Box<dyn Error>> {
 
     match utils::locate_config_path() {
         Some(config_path) => {
             state::set_config(config_path)
         }
         None => {
-            return Err(Box::new(String::from("TODO: implement a first time wizard to set up the editor")));
+            return Err(Box::from(String::from("TODO: implement a first time wizard to set up the editor")));
         }
     }
 
@@ -30,13 +31,13 @@ pub async fn start_kernel(backend: Arc<dyn Backend>) -> Result<(), Box<dyn Error
     backend.main_code().await?;
 
     backend.shutdown();
-    
+
     Ok(())
 }
 
 pub async fn start_worker<P: AsRef<Path>>(worker_code_path: P) -> Result<(), Box<dyn Error>> {
     if !utils::does_file_exist(worker_code_path) {
-        return Err(Box::new(String::from("Main thread code does not exist")));
+        return Err(Box::from(String::from("Main thread code does not exist")));
     }
 
     let lua = Lua::new();

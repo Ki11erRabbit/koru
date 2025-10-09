@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use mlua::{Function, IntoLua, Lua, UserData, UserDataFields, UserDataMethods};
+use mlua::{AnyUserData, Function, IntoLua, Lua, UserData, UserDataFields, UserDataMethods};
 use crate::kernel::input::key::KeyPress;
 use crate::kernel::input::KeyBuffer;
 
@@ -57,11 +57,12 @@ impl UserData for InputGroup {
     }
 
     fn add_methods<F: UserDataMethods<Self>>(methods: &mut F) {
-        methods.add_function(
+        /*methods.add_function(
             "get_command",
-            |lua, this: &InputGroup, key_press: KeyBuffer| {
+            |lua, (this, key_press): (AnyUserData, KeyBuffer)| {
+                
                 this.get_command(&key_press).into_lua(lua)
-            }
+            },
         );
         methods.add_function_mut(
             "add_command",
@@ -76,7 +77,7 @@ impl UserData for InputGroup {
                 this.remove_key(key_press);
                 Ok(())
             }
-        );
+        );*/
     }
 }
 
