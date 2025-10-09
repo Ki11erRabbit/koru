@@ -8,13 +8,13 @@ use tokio::runtime::Builder;
 use crate::kernel::input::KeyBuffer;
 
 pub trait Backend {
-    fn shutdown(&self);
     fn make_input_source(&self) -> Box<dyn InputSource>;
     async fn main_code(&self) -> Result<(), Box<dyn Error>>;
 }
 
 pub trait InputSource: Send {
-    async fn get_keypress_async(&self) -> KeyBuffer;
+    async fn get_keypress_async(&mut self);
+    async fn apply_key_buffer(&mut self, func: Box<dyn FnOnce(&KeyBuffer) -> bool>);
 }
 
 
@@ -29,6 +29,12 @@ pub fn koru_main(backend: Arc<dyn Backend>) -> Result<(), Box<dyn std::error::Er
             Err(e) => Err(e),
         }
     })?;
+
+    Ok(())
+}
+
+pub async fn koru_main_async(backend: Arc<dyn Backend>) -> Result<(), Box<dyn std::error::Error>> {
+    kernel::start_kernel(backend)?;
 
     Ok(())
 }

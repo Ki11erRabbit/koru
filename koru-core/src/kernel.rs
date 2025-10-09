@@ -29,6 +29,8 @@ pub async fn start_kernel(backend: Arc<dyn Backend>) -> Result<(), Box<dyn Error
 
     backend.main_code().await?;
 
+    backend.shutdown();
+    
     Ok(())
 }
 
