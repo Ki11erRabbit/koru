@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 koru-core = { workspace = true }
-tuirealm = "3.1.0"
+iced = { version = "0.13.1", features = ["tokio"]}
+futures = { workspace = true }

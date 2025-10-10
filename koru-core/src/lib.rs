@@ -2,6 +2,7 @@ pub mod kernel;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
+use futures::future::BoxFuture;
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 
 
@@ -14,7 +15,7 @@ use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 ///
 /// If `ui_logic` doesn't start an async runtime, then you **SHOULDN'T** call this function.
 pub fn koru_main_ui<F>(ui_logic: F) -> Result<(), Box<dyn Error>>
-where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>, Box<dyn Future<Output = ()>>) -> Result<(), Box<dyn Error>>
+where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>, BoxFuture<'static, ()>) -> Result<(), Box<dyn Error>>
 {
     kernel::start_kernel_existing_runtime(ui_logic)
 }

@@ -7,3 +7,4 @@ members = ["koru","koru-core"]
 #guile-rs-sys = { path = "./guile-rs-sys" }
 mlua = "0.11.4"
 koru-core = { path = "./koru-core" }
+futures = "0.3.31"

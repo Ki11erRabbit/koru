@@ -36,6 +36,7 @@ pub enum BrokerMessage {
 }
 
 
+#[derive(Debug)]
 pub struct BrokerClient {
     client_id: usize,
     sender: Sender<Message>,
@@ -72,7 +73,6 @@ impl BrokerClient {
 pub struct Broker {
     clients: Vec<Option<Sender<Message>>>,
     free_clients: VecDeque<usize>,
-    next_client: usize,
     receiver: Receiver<Message>,
     sender: Sender<Message>
 }
@@ -83,14 +83,18 @@ impl Broker {
         Broker {
             clients: Vec::new(),
             free_clients: VecDeque::new(),
-            next_client: 0,
             receiver,
             sender,
         }
     }
     
     fn get_next_client_id(&mut self) -> usize {
-        0
+        if let Some(client_id) = self.free_clients.pop_front() {
+            return client_id;
+        } 
+        let id = self.clients.len();
+        self.clients.push(None);
+        id
     }
     
     fn free_client(&mut self, id: usize) {
