@@ -136,22 +136,26 @@ impl App {
                 }
             }
             UiMessage::BrokerMessage(msg) => {
-                match msg.kind {
-                    MessageKind::Broker(BrokerMessage::ConnectedToSession(session_address)) => {
-                        println!("connected to session");
-                        self.session_address = Some(session_address);
-                        let state = std::mem::replace(&mut self.initialization_state, AppInitializationState::Blank);
-                        match state {
-                            AppInitializationState::ConnectingToSession(client) => {
-                                self.initialization_state = AppInitializationState::Initialized(client)
-                            }
-                            _ => unreachable!("We shouldn't in any other state at this point.")
-                        }
-                        Task::none()
-                    }
-                    _ => Task::none()
-                }
+                self.handle_broker_message(msg)
             }
+        }
+    }
+    
+    fn handle_broker_message(&mut self, message: Message) -> Task<UiMessage> {
+        match message.kind {
+            MessageKind::Broker(BrokerMessage::ConnectedToSession(session_address)) => {
+                println!("connected to session");
+                self.session_address = Some(session_address);
+                let state = std::mem::replace(&mut self.initialization_state, AppInitializationState::Blank);
+                match state {
+                    AppInitializationState::ConnectingToSession(client) => {
+                        self.initialization_state = AppInitializationState::Initialized(client)
+                    }
+                    _ => unreachable!("We shouldn't in any other state at this point.")
+                }
+                Task::none()
+            }
+            _ => Task::none()
         }
     }
 
