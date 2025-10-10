@@ -212,9 +212,8 @@ impl App {
                         _ => panic!("invalid character key"),
                     }
                 }
-                Key::Named(Named::Enter) => {
-                    KeyValue::ControlKey(ControlKey::Enter)
-                }
+                Key::Named(Named::Enter) => KeyValue::ControlKey(ControlKey::Enter),
+                Key::Named(Named::Tab) => KeyValue::ControlKey(ControlKey::Tab),
                 Key::Named(Named::Escape) => KeyValue::ControlKey(ControlKey::Escape),
                 Key::Named(Named::Backspace) => KeyValue::ControlKey(ControlKey::Backspace),
                 Key::Named(Named::Delete) => KeyValue::ControlKey(ControlKey::Delete),

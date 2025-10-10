@@ -28,7 +28,6 @@ impl std::fmt::Display for KeyValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             KeyValue::CharacterKey(' ') => write!(f, "SPC"),
-            KeyValue::CharacterKey('\t') => write!(f, "TAB"),
             KeyValue::CharacterKey('-') => write!(f, "DASH"),
             KeyValue::CharacterKey(c) => write!(f, "{}", c),
             KeyValue::ControlKey(c) => write!(f, "{}", c),
@@ -39,6 +38,7 @@ impl std::fmt::Display for KeyValue {
 #[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
 pub enum ControlKey {
     Enter,
+    Tab,
     Escape,
     Backspace,
     Delete,
@@ -91,6 +91,7 @@ impl std::fmt::Display for ControlKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ControlKey::Enter => write!(f, "ENTER"),
+            ControlKey::Tab => write!(f, "TAB"),
             ControlKey::Escape => write!(f, "ESC"),
             ControlKey::Backspace => write!(f, "BS"),
             ControlKey::Delete => write!(f, "DEL"),
