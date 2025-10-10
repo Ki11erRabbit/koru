@@ -1,39 +1,33 @@
 pub mod kernel;
 
 use std::error::Error;
-use std::sync::Arc;
-use tokio::runtime::Builder;
-use tokio::sync::Mutex;
-use crate::kernel::input::KeyBuffer;
-
-pub trait UiBackend: Send + Sync + 'static {
-    fn main_code(&self) -> fn() -> Result<(), Box<dyn Error>>;
-    
-    fn input_events(&self) -> Result<Box<impl InputManager>, Box<dyn Error>>;
-}
-pub trait InputManager {
-    async fn input_event(&mut self) -> Result<(), Box<dyn Error>>;
-}
+use std::sync::mpsc::{Receiver, Sender};
+use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 
 
-pub fn koru_main(backend: Arc<Mutex<impl UiBackend>>) -> Result<(), Box<dyn std::error::Error>> {
-    let runtime = Builder::new_multi_thread()
-        .enable_all()
-        .build()?;
-
-    runtime.block_on(async {
-        match kernel::start_kernel(backend) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
-    })?;
-
-    Ok(())
+/// Starts the Kernel's Runtime
+///
+/// This will not start an async runtime.
+/// We then hand control to the caller via `ui_logic` to then start the ui runtime.
+/// We also pass in a future that will start the Kernel's runtime.
+/// This should be awaited as soon as possible to prevent a deadlock from the kernel's runtime not being ready yet.
+///
+/// If `ui_logic` doesn't start an async runtime, then you **SHOULDN'T** call this function.
+pub fn koru_main_ui<F>(ui_logic: F) -> Result<(), Box<dyn Error>>
+where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>, Box<dyn Future<Output = ()>>) -> Result<(), Box<dyn Error>>
+{
+    kernel::start_kernel_existing_runtime(ui_logic)
 }
 
-pub async fn koru_main_async(backend: Arc<Mutex<impl UiBackend>>) -> Result<(), Box<dyn std::error::Error>> {
-    kernel::start_kernel(backend)?;
-
-    Ok(())
+/// Starts the Kernel's Runtime
+///
+/// This will also start an async runtime for the Kernel's Runtime.
+/// We then hand control to the caller via `ui_logic` to then start the ui runtime.
+///
+/// This should **NOT** be called if `ui_logic` will start an async runtime.
+pub fn koru_main_ui_start_runtime<F>(ui_logic: F) -> Result<(), Box<dyn Error>>
+where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
+{
+    kernel::start_kernel(ui_logic)
 }
 

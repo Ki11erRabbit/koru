@@ -1,8 +1,6 @@
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, OnceLock};
-use mlua::Lua;
-use mlua::prelude::LuaTable;
-use crate::UiBackend;
+use std::sync::OnceLock;
+
 static CONFIG_PATH: OnceLock<PathBuf> = OnceLock::new();
 //static BACKEND: OnceLock<Arc<dyn Backend>> = OnceLock::new();
 

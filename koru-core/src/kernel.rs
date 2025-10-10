@@ -1,4 +1,3 @@
-use crate::UICode;
 mod utils;
 mod state;
 pub mod input;
@@ -6,19 +5,57 @@ mod lua_api;
 mod files;
 mod session;
 mod rpc;
+pub mod client;
+pub mod broker;
 
 use std::error::Error;
-use std::path::Path;
-use std::sync::Arc;
-use mlua::Lua;
-use tokio::io::AsyncReadExt;
-use tokio::sync::Mutex;
-use tokio::task::JoinHandle;
-use crate::UiBackend;
+use std::io;
+use std::sync::mpsc::{Receiver, Sender};
 
 
-pub fn start_kernel(backend: impl UiBackend) -> Result<(), Box<dyn Error>> {
 
+
+use crate::kernel::broker::Broker;
+use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse, ClientConnector};
+
+
+/// Starts the Kernel's Runtime
+/// 
+/// This will also start an async runtime for the Kernel's Runtime.
+/// We then hand control to the caller via `func` to then start the ui runtime.
+/// 
+/// This should **NOT** be called if `func` will start an async runtime.
+pub fn start_kernel<F>(func: F) -> Result<(), Box<dyn Error>>
+where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
+{
+    match utils::locate_config_path() {
+        Some(config_path) => {
+            state::set_config(config_path)
+        }
+        None => {
+            return Err(Box::from(String::from("TODO: implement a first time wizard to set up the editor")));
+        }
+    }
+
+    let (send_message, recv_message) = std::sync::mpsc::channel();
+    let (send_response, recv_response) = std::sync::mpsc::channel();
+
+    start_async_runtime(Some((send_response, recv_message)))?;
+
+    func(send_message, recv_response)
+}
+
+/// Starts the Kernel's Runtime
+///
+/// This will not start an async runtime.
+/// We then hand control to the caller via `func` to then start the ui runtime.
+/// We also pass in a future that will start the Kernel's runtime.
+/// This should be awaited as soon as possible to prevent a deadlock from the kernel's runtime not being ready yet.
+/// 
+/// If `func` doesn't start an async runtime, then you **SHOULDN'T** call this function.
+pub fn start_kernel_existing_runtime<F>(func: F) -> Result<(), Box<dyn Error>>
+where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>, Box<dyn Future<Output = ()>>) -> Result<(), Box<dyn Error>>
+{
     match utils::locate_config_path() {
         Some(config_path) => {
             state::set_config(config_path)
@@ -28,46 +65,69 @@ pub fn start_kernel(backend: impl UiBackend) -> Result<(), Box<dyn Error>> {
         }
     }
     
-    
-    let ui_code = backend.main_code();
-    
-    let backend = Arc::new(Mutex::new(backend));
-    
-    tokio::spawn(async move {
-        message_thread(backend).await;
-    });
-    
-    ui_code()
-}
+    let (send_message, recv_message) = std::sync::mpsc::channel();
+    let (send_response, recv_response) = std::sync::mpsc::channel();
 
+    let runtime = async move {
+        let mut broker = Broker::new();
+        let connector_client = broker.create_client();
 
-async fn message_thread(backend: Arc<Mutex<impl UiBackend>>) -> Result<(), Box<dyn Error>> {
-    
-}
+        tokio::spawn(async move {
+            match broker.run_broker().await {
+                Ok(_) => (),
+                Err(e) => {
+                    eprintln!("{}", e);
+                }
+            }
+        });
 
-pub async fn start_worker<P: AsRef<Path>>(worker_code_path: P) -> Result<(), Box<dyn Error>> {
-    if !utils::does_file_exist(worker_code_path) {
-        return Err(Box::from(String::from("Main thread code does not exist")));
-    }
+        let mut client_connector = ClientConnector::new(connector_client);
 
-    let lua = Lua::new();
-
-    lua.register_module(
-        "Koru",
-        lua_api::kernel_mod(&lua)?
-    )?;
-
-    let contents = {
-        let mut contents = String::new();
-        let mut file = tokio::fs::File::open(worker_code_path).await?;
-        file.read_to_string(&mut contents).await?;
-        contents
+        tokio::spawn(async move {
+            match client_connector.run_connector(Some((send_response, recv_message))).await {
+                Ok(()) => {}
+                Err(e) => {
+                    eprintln!("{}", e);
+                }
+            }
+        });
     };
 
-    lua.load(contents.as_str()).exec_async().await?;
-    Ok(())
+    func(send_message, recv_response, Box::new(runtime))
 }
 
-pub async fn spawn_worker<P: AsRef<Path>>(worker_code_path: P) -> Result<JoinHandle<()>, Box<dyn Error>> {
-    tokio::spawn(start_worker(worker_code_path))?
+
+fn start_async_runtime(
+    local_client: Option<(Sender<ClientConnectingResponse>, Receiver<ClientConnectingMessage>)>
+) -> io::Result<()> {
+    let tokio_runtime = tokio::runtime::Runtime::new()?;
+
+    let mut broker = Broker::new();
+    let connector_client = broker.create_client();
+    
+    let _ = std::thread::Builder::new()
+        .name("runtime".into())
+        .spawn(move || {
+            _ = tokio_runtime.block_on(async move {
+                match broker.run_broker().await {
+                    Ok(_) => (),
+                    Err(e) => {
+                        eprintln!("{}", e);
+                    }
+                }
+            });
+        })?;
+    
+    let mut client_connector = ClientConnector::new(connector_client);
+    
+    tokio::spawn(async move {
+        match client_connector.run_connector(local_client).await {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        }
+    });
+    
+    Ok(())
 }
