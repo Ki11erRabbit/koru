@@ -18,12 +18,8 @@ pkgs.mkShell rec {
     pkgs.xorg.libXrandr
     pkgs.wayland
     pkgs.libxkbcommon
+    pkgs.luajit
   ];
-  LD_LIBRARY_PATH =
-    builtins.foldl' (a: b: "${a}:${b}/lib") "${pkgs.vulkan-loader}/lib" buildInputs;
+  LD_LIBRARY_PATH = builtins.foldl' (a: b: "${a}:${b}/lib") "${pkgs.vulkan-loader}/lib" buildInputs;
 
-  shellHook = ''
-    export GUILE_DIR=${pkgs.guile.dev}/lib
-    export LIBCLANG_PATH=${pkgs.llvmPackages.libclang.lib}/lib
-  '';
 }

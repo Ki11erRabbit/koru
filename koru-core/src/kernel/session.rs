@@ -2,6 +2,7 @@ use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::sync::{LazyLock, Mutex};
 use mlua::Lua;
+use crate::kernel::broker::BrokerClient;
 
 static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
     Mutex::new(SessionIdManager::new())
@@ -72,32 +73,52 @@ impl SessionIdManager {
 pub struct Session {
     session_id: SessionId,
     lua: Lua,
+    broker_client: BrokerClient,
+    client_ids: Vec<usize>,
 }
 
 impl Session {
     pub fn new(
         lua: Lua,
+        broker_client: BrokerClient,
+        client_id: usize,
     ) -> Self {
         let id = SessionIdManager::get_new_id();
         Self { 
             session_id: id,
-            lua
+            lua,
+            broker_client,
+            client_ids: vec![client_id],
         }
     }
     
-    pub async fn run(&self, session_code: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn run(&mut self, session_code: &str) {
         let session_id = self.session_id.0;
         self.lua.globals().set(
             "get_session_id",
             self.lua.create_function(move |_, ()| {
                 Ok(session_id)
-            })?
-        )?;
+            }).unwrap(),
+        ).unwrap();
         
-        self.lua.load(session_code).exec_async().await?;
-        Ok(())
+        self.lua.load(session_code).exec_async().await.unwrap();
+        loop {
+            _ = self.broker_client.recv().await;
+        }
+        // TODO: add a way to send error to the frontend
+    }
+    
+    pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
+        let lua = Lua::new();
+        let mut session = Session::new(lua, broker_client, client_id);
+
+        session.run("print('Hello, World!')").await;
     }
 }
+
+unsafe impl Send for Session {}
+unsafe impl Sync for Session {}
+
 
 impl Drop for Session {
     fn drop(&mut self) {
