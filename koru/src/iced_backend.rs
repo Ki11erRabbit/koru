@@ -1,13 +1,16 @@
 use std::error::Error;
-use std::hint::unreachable_unchecked;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
 use futures::SinkExt;
 use iced::application::View;
 use iced::{Element, Task};
+use iced::keyboard::Key;
+use iced::keyboard::key::Named;
 use iced::widget::text;
-use koru_core::kernel::broker::{BrokerClient, BrokerMessage, Message, MessageKind};
+use iced_futures::Subscription;
+use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
+use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
 
 struct ClientConnector {
     sender: Sender<ClientConnectingMessage>,
@@ -29,11 +32,13 @@ unsafe impl Sync for ClientConnector {}
 
 #[derive(Debug)]
 enum UiMessage {
+    Nop,
     RunKernelRuntime,
     ConnectToKernel,
     RegisterBrokerClient(BrokerClient),
     ConnectToSession,
     BrokerMessage(Message),
+    KeyPress(KeyPress),
 }
 
 enum AppInitializationState {
@@ -73,6 +78,7 @@ impl App {
     fn update(&mut self, message: UiMessage) -> Task<UiMessage>{
 
         match message {
+            UiMessage::Nop => Task::none(),
             UiMessage::RunKernelRuntime => {
                 let state = std::mem::replace(&mut self.initialization_state, AppInitializationState::Blank);
                 match state {
@@ -117,9 +123,9 @@ impl App {
                 match &mut self.initialization_state {
                     AppInitializationState::ConnectingToSession(client) => {
                         let mut stream_client = client.clone();
-                        std::mem::swap(client, &mut stream_client);
                         // Cloning a client only gives us the sender.
                         // Therefore, we must switch the two around
+                        std::mem::swap(client, &mut stream_client);
                         Task::stream(iced::stream::channel(100, async move |mut output| {
                             stream_client.send(MessageKind::Broker(BrokerMessage::ConnectToSession), 0).await.unwrap();
                             loop {
@@ -138,9 +144,24 @@ impl App {
             UiMessage::BrokerMessage(msg) => {
                 self.handle_broker_message(msg)
             }
+            UiMessage::KeyPress(key_press) => {
+                match &self.initialization_state {
+                    AppInitializationState::Initialized(client) => {
+                        let destination = self.session_address.unwrap();
+                        let mut client = client.clone();
+                        Task::future(async move {
+                            match client.send(MessageKind::General(GeneralMessage::KeyEvent(key_press)), destination).await {
+                                _ => {}
+                            }
+                            UiMessage::Nop
+                        })
+                    }
+                    _ => Task::none(),
+                }
+            }
         }
     }
-    
+
     fn handle_broker_message(&mut self, message: Message) -> Task<UiMessage> {
         match message.kind {
             MessageKind::Broker(BrokerMessage::ConnectedToSession(session_address)) => {
@@ -169,6 +190,83 @@ impl App {
             }
         }
     }
+
+    fn subscription(&self) -> Subscription<UiMessage> {
+        iced::keyboard::on_key_press(|key, mods| {
+            let mut modifiers = Vec::new();
+            if mods.shift() {
+                modifiers.push(ModifierKey::Shift);
+            }
+            if mods.control() {
+                modifiers.push(ModifierKey::Control);
+            }
+            if mods.alt() {
+                modifiers.push(ModifierKey::Alt);
+            }
+            let key = match key {
+                Key::Character(c) => {
+                    match c.as_str().chars().next() {
+                        Some(c) => {
+                            KeyValue::CharacterKey(c)
+                        }
+                        _ => panic!("invalid character key"),
+                    }
+                }
+                Key::Named(Named::Enter) => {
+                    KeyValue::ControlKey(ControlKey::Enter)
+                }
+                Key::Named(Named::Escape) => KeyValue::ControlKey(ControlKey::Escape),
+                Key::Named(Named::Backspace) => KeyValue::ControlKey(ControlKey::Backspace),
+                Key::Named(Named::Delete) => KeyValue::ControlKey(ControlKey::Delete),
+                Key::Named(Named::ArrowRight) => KeyValue::ControlKey(ControlKey::Right),
+                Key::Named(Named::ArrowLeft) => KeyValue::ControlKey(ControlKey::Left),
+                Key::Named(Named::ArrowDown) => KeyValue::ControlKey(ControlKey::Down),
+                Key::Named(Named::ArrowUp) => KeyValue::ControlKey(ControlKey::Up),
+                Key::Named(Named::PageUp) => KeyValue::ControlKey(ControlKey::PageUp),
+                Key::Named(Named::PageDown) => KeyValue::ControlKey(ControlKey::PageDown),
+                Key::Named(Named::Home) => KeyValue::ControlKey(ControlKey::Home),
+                Key::Named(Named::End) => KeyValue::ControlKey(ControlKey::End),
+                Key::Named(Named::F1) => KeyValue::ControlKey(ControlKey::F1),
+                Key::Named(Named::F2) => KeyValue::ControlKey(ControlKey::F2),
+                Key::Named(Named::F3) => KeyValue::ControlKey(ControlKey::F3),
+                Key::Named(Named::F4) => KeyValue::ControlKey(ControlKey::F4),
+                Key::Named(Named::F5) => KeyValue::ControlKey(ControlKey::F5),
+                Key::Named(Named::F6) => KeyValue::ControlKey(ControlKey::F6),
+                Key::Named(Named::F7) => KeyValue::ControlKey(ControlKey::F7),
+                Key::Named(Named::F8) => KeyValue::ControlKey(ControlKey::F8),
+                Key::Named(Named::F9) => KeyValue::ControlKey(ControlKey::F9),
+                Key::Named(Named::F10) => KeyValue::ControlKey(ControlKey::F10),
+                Key::Named(Named::F11) => KeyValue::ControlKey(ControlKey::F11),
+                Key::Named(Named::F12) => KeyValue::ControlKey(ControlKey::F12),
+                Key::Named(Named::F13) => KeyValue::ControlKey(ControlKey::F13),
+                Key::Named(Named::F14) => KeyValue::ControlKey(ControlKey::F14),
+                Key::Named(Named::F15) => KeyValue::ControlKey(ControlKey::F15),
+                Key::Named(Named::F16) => KeyValue::ControlKey(ControlKey::F16),
+                Key::Named(Named::F17) => KeyValue::ControlKey(ControlKey::F17),
+                Key::Named(Named::F18) => KeyValue::ControlKey(ControlKey::F18),
+                Key::Named(Named::F19) => KeyValue::ControlKey(ControlKey::F19),
+                Key::Named(Named::F20) => KeyValue::ControlKey(ControlKey::F20),
+                Key::Named(Named::F21) => KeyValue::ControlKey(ControlKey::F21),
+                Key::Named(Named::F22) => KeyValue::ControlKey(ControlKey::F22),
+                Key::Named(Named::F23) => KeyValue::ControlKey(ControlKey::F23),
+                Key::Named(Named::F24) => KeyValue::ControlKey(ControlKey::F24),
+                Key::Named(Named::F25) => KeyValue::ControlKey(ControlKey::F25),
+                Key::Named(Named::F26) => KeyValue::ControlKey(ControlKey::F26),
+                Key::Named(Named::F27) => KeyValue::ControlKey(ControlKey::F27),
+                Key::Named(Named::F28) => KeyValue::ControlKey(ControlKey::F28),
+                Key::Named(Named::F29) => KeyValue::ControlKey(ControlKey::F29),
+                Key::Named(Named::F30) => KeyValue::ControlKey(ControlKey::F30),
+                Key::Named(Named::F31) => KeyValue::ControlKey(ControlKey::F31),
+                Key::Named(Named::F32) => KeyValue::ControlKey(ControlKey::F32),
+                Key::Named(Named::F33) => KeyValue::ControlKey(ControlKey::F33),
+                Key::Named(Named::F34) => KeyValue::ControlKey(ControlKey::F34),
+                Key::Named(Named::F35) => KeyValue::ControlKey(ControlKey::F35),
+                _ => return None,
+            };
+            
+            Some(UiMessage::KeyPress(KeyPress::new(key, modifiers)))
+        })
+    }
 }
 
 pub fn true_main(
@@ -176,7 +274,7 @@ pub fn true_main(
     client_receiver: Receiver<ClientConnectingResponse>,
     runtime_future: BoxFuture<'static, ()>
 ) -> Result<(), Box<dyn Error>> {
-    iced::application("Koru", App::update, App::view).run_with(move || {
+    iced::application("Koru", App::update, App::view).subscription(App::subscription).run_with(move || {
         (App::new(runtime_future, client_connector, client_receiver), Task::future(async {
             UiMessage::RunKernelRuntime
         }))

@@ -103,11 +103,16 @@ impl Session {
         
         self.lua.load(session_code).exec_async().await.unwrap();
         loop {
-            _ = self.broker_client.recv().await;
+            match self.broker_client.recv().await {
+                Some(message) => {
+                    println!("Received message: {:?}", message);
+                }
+                _ => {}
+            }
         }
         // TODO: add a way to send error to the frontend
     }
-    
+
     pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
         let lua = Lua::new();
         let mut session = Session::new(lua, broker_client, client_id);

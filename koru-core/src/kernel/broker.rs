@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::error::Error;
 use tokio::sync::mpsc::{Receiver, Sender};
+use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
 
 #[derive(Debug)]
@@ -27,7 +28,7 @@ pub enum MessageKind {
 
 #[derive(Debug)]
 pub enum GeneralMessage {
-    KeyEvent,
+    KeyEvent(KeyPress),
     MouseEvent,
     Command,
 }

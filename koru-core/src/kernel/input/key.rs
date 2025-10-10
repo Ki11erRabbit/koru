@@ -1,7 +1,7 @@
 use std::num::NonZeroU8;
 use mlua::{AnyUserData, Lua, UserData, UserDataMethods};
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
 pub enum ModifierKey {
     Shift,
     Control,
@@ -18,28 +18,27 @@ impl std::fmt::Display for ModifierKey {
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash)]
-pub enum Key {
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
+pub enum KeyValue {
     CharacterKey(char),
     ControlKey(ControlKey),
 }
 
-impl std::fmt::Display for Key {
+impl std::fmt::Display for KeyValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Key::CharacterKey(' ') => write!(f, "SPC"),
-            Key::CharacterKey('\t') => write!(f, "TAB"),
-            Key::CharacterKey('\n') => write!(f, "LF"),
-            Key::CharacterKey('\r') => write!(f, "LF"),
-            Key::CharacterKey('-') => write!(f, "DASH"),
-            Key::CharacterKey(c) => write!(f, "{}", c),
-            Key::ControlKey(c) => write!(f, "{}", c),
+            KeyValue::CharacterKey(' ') => write!(f, "SPC"),
+            KeyValue::CharacterKey('\t') => write!(f, "TAB"),
+            KeyValue::CharacterKey('-') => write!(f, "DASH"),
+            KeyValue::CharacterKey(c) => write!(f, "{}", c),
+            KeyValue::ControlKey(c) => write!(f, "{}", c),
         }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
 pub enum ControlKey {
+    Enter,
     Escape,
     Backspace,
     Delete,
@@ -51,12 +50,47 @@ pub enum ControlKey {
     PageDown,
     Home,
     End,
-    F(NonZeroU8),
+    F1,
+    F2,
+    F3,
+    F4,
+    F5,
+    F6,
+    F7,
+    F8,
+    F9,
+    F10,
+    F11,
+    F12,
+    F13,
+    F14,
+    F15,
+    F16,
+    F17,
+    F18,
+    F19,
+    F20,
+    F21,
+    F22,
+    F23,
+    F24,
+    F25,
+    F26,
+    F27,
+    F28,
+    F29,
+    F30,
+    F31,
+    F32,
+    F33,
+    F34,
+    F35,
 }
 
 impl std::fmt::Display for ControlKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ControlKey::Enter => write!(f, "ENTER"),
             ControlKey::Escape => write!(f, "ESC"),
             ControlKey::Backspace => write!(f, "BS"),
             ControlKey::Delete => write!(f, "DEL"),
@@ -68,66 +102,101 @@ impl std::fmt::Display for ControlKey {
             ControlKey::PageDown => write!(f, "PAGEDOWN"),
             ControlKey::Home => write!(f, "HOME"),
             ControlKey::End => write!(f, "END"),
-            ControlKey::F(n) => write!(f, "F{}", n.get()),
+            ControlKey::F1 => write!(f, "F1"),
+            ControlKey::F2 => write!(f, "F2"),
+            ControlKey::F3 => write!(f, "F3"),
+            ControlKey::F4 => write!(f, "F4"),
+            ControlKey::F5 => write!(f, "F5"),
+            ControlKey::F6 => write!(f, "F6"),
+            ControlKey::F7 => write!(f, "F7"),
+            ControlKey::F8 => write!(f, "F8"),
+            ControlKey::F9 => write!(f, "F9"),
+            ControlKey::F10 => write!(f, "F10"),
+            ControlKey::F11 => write!(f, "F11"),
+            ControlKey::F12 => write!(f, "F12"),
+            ControlKey::F13 => write!(f, "F13"),
+            ControlKey::F14 => write!(f, "F14"),
+            ControlKey::F15 => write!(f, "F15"),
+            ControlKey::F16 => write!(f, "F16"),
+            ControlKey::F17 => write!(f, "F17"),
+            ControlKey::F18 => write!(f, "F18"),
+            ControlKey::F19 => write!(f, "F19"),
+            ControlKey::F20 => write!(f, "F20"),
+            ControlKey::F21 => write!(f, "F21"),
+            ControlKey::F22 => write!(f, "F22"),
+            ControlKey::F23 => write!(f, "F23"),
+            ControlKey::F24 => write!(f, "F24"),
+            ControlKey::F25 => write!(f, "F25"),
+            ControlKey::F26 => write!(f, "F26"),
+            ControlKey::F27 => write!(f, "F27"),
+            ControlKey::F28 => write!(f, "F28"),
+            ControlKey::F29 => write!(f, "F29"),
+            ControlKey::F30 => write!(f, "F30"),
+            ControlKey::F31 => write!(f, "F31"),
+            ControlKey::F32 => write!(f, "F32"),
+            ControlKey::F33 => write!(f, "F33"),
+            ControlKey::F34 => write!(f, "F34"),
+            ControlKey::F35 => write!(f, "F35"),
         }
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug)]
 pub struct KeyPress {
-    pub key: Key,
-    pub modifier: Option<ModifierKey>,
+    pub key: KeyValue,
+    pub modifiers: Vec<ModifierKey>,
 }
 
 impl KeyPress {
-    pub fn new(key: Key, modifier: Option<ModifierKey>) -> KeyPress {
-        KeyPress { key, modifier }
+    pub fn new(key: KeyValue, modifiers: Vec<ModifierKey>) -> KeyPress {
+        KeyPress { key, modifiers }
     }
 
     pub fn is_shift_pressed(&self) -> bool {
-        match self.modifier {
-            Some(ModifierKey::Shift) => return true,
-            _ => {}
+        if self.modifiers.contains(&ModifierKey::Shift) {
+            return true;
         }
 
         match self.key {
-            Key::CharacterKey('!') => true,
-            Key::CharacterKey('@') => true,
-            Key::CharacterKey('#') => true,
-            Key::CharacterKey('$') => true,
-            Key::CharacterKey('%') => true,
-            Key::CharacterKey('^') => true,
-            Key::CharacterKey('&') => true,
-            Key::CharacterKey('*') => true,
-            Key::CharacterKey('(') => true,
-            Key::CharacterKey(')') => true,
-            Key::CharacterKey('{') => true,
-            Key::CharacterKey('}') => true,
-            Key::CharacterKey('~') => true,
-            Key::CharacterKey('?') => true,
-            Key::CharacterKey('"') => true,
-            Key::CharacterKey('|') => true,
-            Key::CharacterKey('_') => true,
-            Key::CharacterKey(':') => true,
-            Key::CharacterKey('+') => true,
-            Key::CharacterKey('<') => true,
-            Key::CharacterKey('>') => true,
-            Key::CharacterKey(key) => key.is_uppercase(),
+            KeyValue::CharacterKey('!') => true,
+            KeyValue::CharacterKey('@') => true,
+            KeyValue::CharacterKey('#') => true,
+            KeyValue::CharacterKey('$') => true,
+            KeyValue::CharacterKey('%') => true,
+            KeyValue::CharacterKey('^') => true,
+            KeyValue::CharacterKey('&') => true,
+            KeyValue::CharacterKey('*') => true,
+            KeyValue::CharacterKey('(') => true,
+            KeyValue::CharacterKey(')') => true,
+            KeyValue::CharacterKey('{') => true,
+            KeyValue::CharacterKey('}') => true,
+            KeyValue::CharacterKey('~') => true,
+            KeyValue::CharacterKey('?') => true,
+            KeyValue::CharacterKey('"') => true,
+            KeyValue::CharacterKey('|') => true,
+            KeyValue::CharacterKey('_') => true,
+            KeyValue::CharacterKey(':') => true,
+            KeyValue::CharacterKey('+') => true,
+            KeyValue::CharacterKey('<') => true,
+            KeyValue::CharacterKey('>') => true,
+            KeyValue::CharacterKey(key) => key.is_uppercase(),
             _ => false,
         }
     }
 
     pub fn is_control_pressed(&self) -> bool {
-        match self.modifier {
-            Some(ModifierKey::Control) => true,
-            _ => false,
+        if self.modifiers.contains(&ModifierKey::Control) {
+            true
+        } else {
+            false
         }
     }
 
     pub fn is_alt_pressed(&self) -> bool {
-        match self.modifier {
-            Some(ModifierKey::Alt) => true,
-            _ => false,
+        if self.modifiers.contains(&ModifierKey::Alt) {
+            true
+        } else {
+            false
         }
     }
 
@@ -135,47 +204,58 @@ impl KeyPress {
         format!("{}", self.key)
     }
 
-    fn match_key_string(key_string: &str) -> Option<Key> {
+    fn match_key_string(key_string: &str) -> Option<KeyValue> {
         let key = match key_string {
-            "SPC" => Key::CharacterKey(' '),
-            "TAB" => Key::CharacterKey('\t'),
-            "LF" => Key::CharacterKey('\n'),
-            "DASH" => Key::CharacterKey('-'),
-            "ESC" => Key::ControlKey(ControlKey::Escape),
-            "BS" => Key::ControlKey(ControlKey::Backspace),
-            "DEL" => Key::ControlKey(ControlKey::Delete),
-            "UP" => Key::ControlKey(ControlKey::Up),
-            "DOWN" => Key::ControlKey(ControlKey::Down),
-            "LEFT" => Key::ControlKey(ControlKey::Left),
-            "RIGHT" => Key::ControlKey(ControlKey::Right),
-            "HOME" => Key::ControlKey(ControlKey::Home),
-            "END" => Key::ControlKey(ControlKey::End),
-            "PAGEUP" => Key::ControlKey(ControlKey::PageUp),
-            "PAGEDOWN" => Key::ControlKey(ControlKey::PageDown),
-            "F1" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F2" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F3" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F4" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F5" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F6" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F7" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F8" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F9" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F10" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F11" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F12" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F13" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F14" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F15" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F16" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F17" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F18" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F19" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F20" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F21" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F22" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F23" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
-            "F24" => Key::ControlKey(ControlKey::F(NonZeroU8::new(1).unwrap())),
+            "SPC" => KeyValue::CharacterKey(' '),
+            "TAB" => KeyValue::CharacterKey('\t'),
+            "LF" => KeyValue::CharacterKey('\n'),
+            "DASH" => KeyValue::CharacterKey('-'),
+            "ESC" => KeyValue::ControlKey(ControlKey::Escape),
+            "BS" => KeyValue::ControlKey(ControlKey::Backspace),
+            "DEL" => KeyValue::ControlKey(ControlKey::Delete),
+            "UP" => KeyValue::ControlKey(ControlKey::Up),
+            "DOWN" => KeyValue::ControlKey(ControlKey::Down),
+            "LEFT" => KeyValue::ControlKey(ControlKey::Left),
+            "RIGHT" => KeyValue::ControlKey(ControlKey::Right),
+            "HOME" => KeyValue::ControlKey(ControlKey::Home),
+            "END" => KeyValue::ControlKey(ControlKey::End),
+            "PAGEUP" => KeyValue::ControlKey(ControlKey::PageUp),
+            "PAGEDOWN" => KeyValue::ControlKey(ControlKey::PageDown),
+            "F1" => KeyValue::ControlKey(ControlKey::F1),
+            "F2" => KeyValue::ControlKey(ControlKey::F2),
+            "F3" => KeyValue::ControlKey(ControlKey::F3),
+            "F4" => KeyValue::ControlKey(ControlKey::F4),
+            "F5" => KeyValue::ControlKey(ControlKey::F5),
+            "F6" => KeyValue::ControlKey(ControlKey::F6),
+            "F7" => KeyValue::ControlKey(ControlKey::F7),
+            "F8" => KeyValue::ControlKey(ControlKey::F8),
+            "F9" => KeyValue::ControlKey(ControlKey::F9),
+            "F10" => KeyValue::ControlKey(ControlKey::F10),
+            "F11" => KeyValue::ControlKey(ControlKey::F11),
+            "F12" => KeyValue::ControlKey(ControlKey::F12),
+            "F13" => KeyValue::ControlKey(ControlKey::F13),
+            "F14" => KeyValue::ControlKey(ControlKey::F14),
+            "F15" => KeyValue::ControlKey(ControlKey::F15),
+            "F16" => KeyValue::ControlKey(ControlKey::F16),
+            "F17" => KeyValue::ControlKey(ControlKey::F17),
+            "F18" => KeyValue::ControlKey(ControlKey::F18),
+            "F19" => KeyValue::ControlKey(ControlKey::F19),
+            "F20" => KeyValue::ControlKey(ControlKey::F20),
+            "F21" => KeyValue::ControlKey(ControlKey::F21),
+            "F22" => KeyValue::ControlKey(ControlKey::F22),
+            "F23" => KeyValue::ControlKey(ControlKey::F23),
+            "F24" => KeyValue::ControlKey(ControlKey::F24),
+            "F25" => KeyValue::ControlKey(ControlKey::F25),
+            "F26" => KeyValue::ControlKey(ControlKey::F26),
+            "F27" => KeyValue::ControlKey(ControlKey::F27),
+            "F28" => KeyValue::ControlKey(ControlKey::F28),
+            "F29" => KeyValue::ControlKey(ControlKey::F29),
+            "F30" => KeyValue::ControlKey(ControlKey::F30),
+            "F31" => KeyValue::ControlKey(ControlKey::F31),
+            "F32" => KeyValue::ControlKey(ControlKey::F32),
+            "F33" => KeyValue::ControlKey(ControlKey::F33),
+            "F34" => KeyValue::ControlKey(ControlKey::F34),
+            "F35" => KeyValue::ControlKey(ControlKey::F35),
             _ => return None,
         };
         Some(key)
@@ -183,7 +263,7 @@ impl KeyPress {
 
     pub fn from_string(string: &str) -> Option<KeyPress> {
         let strings = string.split('-').collect::<Vec<&str>>();
-        match strings.as_slice() {
+        /*match strings.as_slice() {
             ["S", key] =>  {
                 let key = Self::match_key_string(*key)?;
 
@@ -202,22 +282,19 @@ impl KeyPress {
                 Some(KeyPress::new(key, None))
             }
             _ => None,
-        }
+        }*/
+        None
 
     }
 }
 
 impl std::fmt::Display for KeyPress {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match &self.modifier {
-            Some(modifier) => {
-                modifier.fmt(f)?;
-                write!(f, "-")?;
-            },
-            None => {
-                write!(f, "")?;
-            },
+        for modify in &self.modifiers {
+            modify.fmt(f)?;
+            write!(f, "-")?;
         }
+        
         write!(f, "{}", self.key)
     }
 }
