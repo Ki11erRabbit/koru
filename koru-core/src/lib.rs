@@ -1,4 +1,5 @@
 pub mod kernel;
+pub mod styled_text;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};

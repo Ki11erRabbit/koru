@@ -1,145 +1,754 @@
-use iced::advanced::{Layout, Widget};
-use iced::{Element, Length, Rectangle, Size};
-use iced::advanced::graphics::text::cosmic_text::Color;
-use iced::advanced::layout::{Limits, Node};
-use iced::advanced::renderer::Style;
-use iced::advanced::widget::Tree;
-use iced::mouse::Cursor;
-use iced_core::{alignment, text, Point, Text, Theme};
-use iced_core::text::{LineHeight, Wrapping};
-use iced_core::widget::text::Catalog;
-
-pub struct EditorViewContent {
-    lines: Vec<String>,
-}
-
-impl EditorViewContent {
-    pub fn new() -> Self {
-        EditorViewContent { lines: Vec::new() }
-    }
-
-    pub fn longest_line_len(&self) -> usize {
-        let mut longest_len = 0;
-        for line in &self.lines {
-            let current = line.chars().count();
-            if current > longest_len {
-                longest_len = current;
-            }
-        }
-        longest_len
-    }
-
-    pub fn line_count(&self) -> usize {
-        self.lines.len()
-    }
-}
-
-impl From<String> for EditorViewContent {
-    fn from(s: String) -> Self {
-        let split = s.split('\n');
-        EditorViewContent { lines: split.map(String::from).collect() }
-    }
-}
-
-impl From<&str> for EditorViewContent {
-    fn from(s: &str) -> Self {
-        let split = s.split('\n');
-        EditorViewContent { lines: split.map(String::from).collect() }
-    }
-}
 
 
-pub struct EditorView<'a, Theme: Catalog> {
-    content: &'a EditorViewContent,
+
+use std::cell::RefCell;
+use std::fmt;
+use std::ops::DerefMut;
+use std::time::{Duration, Instant};
+use iced::advanced::widget;
+use iced::{event, window, Element};
+use iced::widget::text_editor::{Catalog};
+use iced_core::{layout, mouse, renderer, text, Clipboard, Event, Layout, Length, Padding, Pixels, Rectangle, Shell, Size, Widget};
+use iced_core::layout::Node;
+use iced_core::text::{highlighter, Editor, LineHeight, Wrapping};
+
+use iced_core::widget::operation;
+
+#[allow(missing_debug_implementations)]
+pub struct EditorView<
+    'a,
+    Highlighter,
+    Theme = iced::Theme,
+    Renderer = iced::Renderer,
+> where
+    Highlighter: text::Highlighter,
+    Theme: Catalog,
+    Renderer: text::Renderer,
+{
+    content: &'a Content<Renderer>,
+    font: Option<Renderer::Font>,
+    text_size: Option<Pixels>,
+    line_height: LineHeight,
     width: Length,
     height: Length,
-    class: Theme::Class<'a>
+    padding: Padding,
+    wrapping: Wrapping,
+    class: Theme::Class<'a>,
+    highlighter_settings: Highlighter::Settings,
+    highlighter_format: fn(
+        &Highlighter::Highlight,
+        &Theme,
+    ) -> highlighter::Format<Renderer::Font>,
 }
 
-impl<'a, Theme: Catalog> EditorView<'a, Theme> {
-    pub fn new(content: &'a EditorViewContent) -> Self {
+impl<'a, Theme, Renderer>
+EditorView<'a, highlighter::PlainText, Theme, Renderer>
+where
+    Theme: Catalog,
+    Renderer: text::Renderer,
+{
+    /// Creates new [`EditorView`] with the given [`Content`].
+    pub fn new(content: &'a Content<Renderer>) -> Self {
         Self {
             content,
+            font: None,
+            text_size: None,
+            line_height: LineHeight::default(),
             width: Length::Fill,
-            height: Length::Fill,
-            class: Theme::default()
+            height: Length::Shrink,
+            padding: Padding::new(5.0),
+            wrapping: Wrapping::default(),
+            class: Theme::default(),
+            highlighter_settings: (),
+            highlighter_format: |_highlight, _theme| {
+                highlighter::Format::default()
+            },
         }
     }
 }
-impl<'a, Message, Theme, Renderer> Widget<Message, Theme, Renderer> for EditorView<'a, Theme>
+
+impl<'a, Highlighter, Theme, Renderer>
+EditorView<'a, Highlighter, Theme, Renderer>
 where
-    Renderer: iced::advanced::text::Renderer,
-    Theme: Catalog
+    Highlighter: text::Highlighter,
+    Theme: Catalog,
+    Renderer: text::Renderer,
 {
-    fn size(&self) -> Size<Length> {
-        Size {
-            width: Length::Fill,
-            height: Length::Fill,
+
+    /// Sets the height of the [`EditorView`].
+    pub fn height(mut self, height: impl Into<Length>) -> Self {
+        self.height = height.into();
+        self
+    }
+
+    /// Sets the width of the [`EditorView`].
+    pub fn width(mut self, width: impl Into<Pixels>) -> Self {
+        self.width = Length::from(width.into());
+        self
+    }
+    
+    /// Sets the [`Font`] of the [`EditorView`].
+    ///
+    /// [`Font`]: text::Renderer::Font
+    pub fn font(mut self, font: impl Into<Renderer::Font>) -> Self {
+        self.font = Some(font.into());
+        self
+    }
+
+    /// Sets the text size of the [`EditorView`].
+    pub fn size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into());
+        self
+    }
+
+    /// Sets the [`text::LineHeight`] of the [`EditorView`].
+    pub fn line_height(
+        mut self,
+        line_height: impl Into<text::LineHeight>,
+    ) -> Self {
+        self.line_height = line_height.into();
+        self
+    }
+
+    /// Sets the [`Padding`] of the [`EditorView`].
+    pub fn padding(mut self, padding: impl Into<Padding>) -> Self {
+        self.padding = padding.into();
+        self
+    }
+
+    /// Sets the [`Wrapping`] strategy of the [`EditorView`].
+    pub fn wrapping(mut self, wrapping: Wrapping) -> Self {
+        self.wrapping = wrapping;
+        self
+    }
+
+    /// Highlights the [`EditorView`] using the given syntax and theme.
+    #[cfg(feature = "highlighter")]
+    pub fn highlight(
+        self,
+        syntax: &str,
+        theme: iced_highlighter::Theme,
+    ) -> EditorView<'a, iced_highlighter::Highlighter, Message, Theme, Renderer>
+    where
+        Renderer: text::Renderer<Font = crate::core::Font>,
+    {
+        self.highlight_with::<iced_highlighter::Highlighter>(
+            iced_highlighter::Settings {
+                theme,
+                token: syntax.to_owned(),
+            },
+            |highlight, _theme| highlight.to_format(),
+        )
+    }
+
+    /// Highlights the [`EditorView`] with the given [`Highlighter`] and
+    /// a strategy to turn its highlights into some text format.
+    pub fn highlight_with<H: text::Highlighter>(
+        self,
+        settings: H::Settings,
+        to_format: fn(
+            &H::Highlight,
+            &Theme,
+        ) -> highlighter::Format<Renderer::Font>,
+    ) -> EditorView<'a, H, Theme, Renderer> {
+        EditorView {
+            content: self.content,
+            font: self.font,
+            text_size: self.text_size,
+            line_height: self.line_height,
+            width: self.width,
+            height: self.height,
+            padding: self.padding,
+            wrapping: self.wrapping,
+            class: self.class,
+            highlighter_settings: settings,
+            highlighter_format: to_format,
         }
     }
 
-    fn layout(&self, _tree: &mut Tree, _renderer: &Renderer, limits: &Limits) -> Node {
+    /// Sets the style class of the [`EditorView`].
+    #[must_use]
+    pub fn class(mut self, class: impl Into<Theme::Class<'a>>) -> Self {
+        self.class = class.into();
+        self
+    }
+}
 
+/// The content of a [`EditorView`].
+pub struct Content<R = iced::Renderer>(RefCell<Internal<R>>)
+where
+    R: text::Renderer;
+
+struct Internal<R>
+where
+    R: text::Renderer,
+{
+    editor: R::Editor,
+    is_dirty: bool,
+}
+
+impl<R> Content<R>
+where
+    R: text::Renderer,
+{
+    /// Creates an empty [`Content`].
+    pub fn new() -> Self {
+        Self::with_text("")
+    }
+
+    /// Creates a [`Content`] with the given text.
+    pub fn with_text(text: &str) -> Self {
+        Self(RefCell::new(Internal {
+            editor: R::Editor::with_text(text),
+            is_dirty: true,
+        }))
+    }
+
+    /// Returns the amount of lines of the [`Content`].
+    pub fn line_count(&self) -> usize {
+        self.0.borrow().editor.line_count()
+    }
+
+    /// Returns the text of the line at the given index, if it exists.
+    pub fn line(
+        &self,
+        index: usize,
+    ) -> Option<impl std::ops::Deref<Target = str> + '_> {
+        std::cell::Ref::filter_map(self.0.borrow(), |internal| {
+            internal.editor.line(index)
+        })
+            .ok()
+    }
+
+    /// Returns an iterator of the text of the lines in the [`Content`].
+    pub fn lines(
+        &self,
+    ) -> impl Iterator<Item = impl std::ops::Deref<Target = str> + '_> {
+        struct Lines<'a, Renderer: text::Renderer> {
+            internal: std::cell::Ref<'a, Internal<Renderer>>,
+            current: usize,
+        }
+
+        impl<'a, Renderer: text::Renderer> Iterator for Lines<'a, Renderer> {
+            type Item = std::cell::Ref<'a, str>;
+
+            fn next(&mut self) -> Option<Self::Item> {
+                let line = std::cell::Ref::filter_map(
+                    std::cell::Ref::clone(&self.internal),
+                    |internal| internal.editor.line(self.current),
+                )
+                    .ok()?;
+
+                self.current += 1;
+
+                Some(line)
+            }
+        }
+
+        Lines {
+            internal: self.0.borrow(),
+            current: 0,
+        }
+    }
+
+    /// Returns the text of the [`Content`].
+    ///
+    /// Lines are joined with `'\n'`.
+    pub fn text(&self) -> String {
+        let mut text = self.lines().enumerate().fold(
+            String::new(),
+            |mut contents, (i, line)| {
+                if i > 0 {
+                    contents.push('\n');
+                }
+
+                contents.push_str(&line);
+
+                contents
+            },
+        );
+
+        if !text.ends_with('\n') {
+            text.push('\n');
+        }
+
+        text
+    }
+
+    /// Returns the selected text of the [`Content`].
+    pub fn selection(&self) -> Option<String> {
+        self.0.borrow().editor.selection()
+    }
+
+    /// Returns the current cursor position of the [`Content`].
+    pub fn cursor_position(&self) -> (usize, usize) {
+        self.0.borrow().editor.cursor_position()
+    }
+}
+
+impl<Renderer> Default for Content<Renderer>
+where
+    Renderer: text::Renderer,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<Renderer> fmt::Debug for Content<Renderer>
+where
+    Renderer: text::Renderer,
+    Renderer::Editor: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let internal = self.0.borrow();
+
+        f.debug_struct("Content")
+            .field("editor", &internal.editor)
+            .field("is_dirty", &internal.is_dirty)
+            .finish()
+    }
+}
+
+/// The state of a [`EditorView`].
+#[derive(Debug)]
+pub struct State<Highlighter: text::Highlighter> {
+    focus: Option<Focus>,
+    last_click: Option<mouse::Click>,
+    drag_click: Option<mouse::click::Kind>,
+    partial_scroll: f32,
+    highlighter: RefCell<Highlighter>,
+    highlighter_settings: Highlighter::Settings,
+    highlighter_format_address: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Focus {
+    updated_at: Instant,
+    now: Instant,
+    is_window_focused: bool,
+}
+
+impl Focus {
+    const CURSOR_BLINK_INTERVAL_MILLIS: u128 = 500;
+
+    fn now() -> Self {
+        let now = Instant::now();
+
+        Self {
+            updated_at: now,
+            now,
+            is_window_focused: true,
+        }
+    }
+
+    fn is_cursor_visible(&self) -> bool {
+        self.is_window_focused
+            && ((self.now - self.updated_at).as_millis()
+            / Self::CURSOR_BLINK_INTERVAL_MILLIS)
+            % 2
+            == 0
+    }
+}
+
+impl<Highlighter: text::Highlighter> State<Highlighter> {
+    /// Returns whether the [`EditorView`] is currently focused or not.
+    pub fn is_focused(&self) -> bool {
+        self.focus.is_some()
+    }
+}
+
+impl<Highlighter: text::Highlighter> operation::Focusable
+for State<Highlighter>
+{
+    fn is_focused(&self) -> bool {
+        self.focus.is_some()
+    }
+
+    fn focus(&mut self) {
+        self.focus = Some(Focus::now());
+    }
+
+    fn unfocus(&mut self) {
+        self.focus = None;
+    }
+}
+
+impl<'a, Highlighter, Message, Theme, Renderer> Widget<Message, Theme, Renderer>
+for EditorView<'a, Highlighter, Theme, Renderer>
+where
+    Highlighter: text::Highlighter,
+    Theme: Catalog,
+    Renderer: text::Renderer,
+{
+    fn tag(&self) -> widget::tree::Tag {
+        widget::tree::Tag::of::<State<Highlighter>>()
+    }
+
+    fn state(&self) -> widget::tree::State {
+        widget::tree::State::new(State {
+            focus: None,
+            last_click: None,
+            drag_click: None,
+            partial_scroll: 0.0,
+            highlighter: RefCell::new(Highlighter::new(
+                &self.highlighter_settings,
+            )),
+            highlighter_settings: self.highlighter_settings.clone(),
+            highlighter_format_address: self.highlighter_format as usize,
+        })
+    }
+
+    fn size(&self) -> Size<Length> {
+        Size {
+            width: self.width,
+            height: self.height,
+        }
+    }
+
+    fn layout(
+        &self,
+        tree: &mut widget::Tree,
+        renderer: &Renderer,
+        limits: &layout::Limits,
+    ) -> Node {
+        let mut internal = self.content.0.borrow_mut();
+        let state = tree.state.downcast_mut::<State<Highlighter>>();
+
+        if state.highlighter_format_address != self.highlighter_format as usize
+        {
+            state.highlighter.borrow_mut().change_line(0);
+
+            state.highlighter_format_address = self.highlighter_format as usize;
+        }
+
+        if state.highlighter_settings != self.highlighter_settings {
+            state
+                .highlighter
+                .borrow_mut()
+                .update(&self.highlighter_settings);
+
+            state.highlighter_settings = self.highlighter_settings.clone();
+        }
 
         let limits = limits.width(self.width).height(self.height);
 
-        Node::new(limits.max())
+        internal.editor.update(
+            limits.shrink(self.padding).max(),
+            self.font.unwrap_or_else(|| renderer.default_font()),
+            self.text_size.unwrap_or_else(|| renderer.default_size()),
+            self.line_height,
+            self.wrapping,
+            state.highlighter.borrow_mut().deref_mut(),
+        );
+
+        match self.height {
+            Length::Fill | Length::FillPortion(_) | Length::Fixed(_) => {
+                layout::Node::new(limits.max())
+            }
+            Length::Shrink => {
+                let min_bounds = internal.editor.min_bounds();
+
+                layout::Node::new(
+                    limits
+                        .height(min_bounds.height)
+                        .max()
+                        .expand(Size::new(0.0, self.padding.vertical())),
+                )
+            }
+        }
+    }
+
+    fn on_event(
+        &mut self,
+        tree: &mut widget::Tree,
+        event: Event,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _renderer: &Renderer,
+        clipboard: &mut dyn Clipboard,
+        shell: &mut Shell<'_, Message>,
+        _viewport: &Rectangle,
+    ) -> event::Status {
+
+        let state = tree.state.downcast_mut::<State<Highlighter>>();
+
+        match event {
+            Event::Window(window::Event::Unfocused) => {
+                if let Some(focus) = &mut state.focus {
+                    focus.is_window_focused = false;
+                }
+            }
+            Event::Window(window::Event::Focused) => {
+                if let Some(focus) = &mut state.focus {
+                    focus.is_window_focused = true;
+                    focus.updated_at = Instant::now();
+
+                    shell.request_redraw(window::RedrawRequest::NextFrame);
+                }
+            }
+            Event::Window(window::Event::RedrawRequested(now)) => {
+                if let Some(focus) = &mut state.focus {
+                    if focus.is_window_focused {
+                        focus.now = now;
+
+                        let millis_until_redraw =
+                            Focus::CURSOR_BLINK_INTERVAL_MILLIS
+                                - (now - focus.updated_at).as_millis()
+                                % Focus::CURSOR_BLINK_INTERVAL_MILLIS;
+
+                        shell.request_redraw(window::RedrawRequest::At(
+                            now + Duration::from_millis(
+                                millis_until_redraw as u64,
+                            ),
+                        ));
+                    }
+                }
+            }
+            _ => {}
+        }
+        /*match update {
+            Update::Click(click) => {
+                let action = match click.kind() {
+                    mouse::click::Kind::Single => {
+                        Action::Click(click.position())
+                    }
+                    mouse::click::Kind::Double => Action::SelectWord,
+                    mouse::click::Kind::Triple => Action::SelectLine,
+                };
+
+                state.focus = Some(Focus::now());
+                state.last_click = Some(click);
+                state.drag_click = Some(click.kind());
+
+                shell.publish(on_edit(action));
+            }
+            Update::Drag(position) => {
+                shell.publish(on_edit(Action::Drag(position)));
+            }
+            Update::Release => {
+                state.drag_click = None;
+            }
+            Update::Scroll(lines) => {
+                let bounds = self.content.0.borrow().editor.bounds();
+
+                if bounds.height >= i32::MAX as f32 {
+                    return event::Status::Ignored;
+                }
+
+                let lines = lines + state.partial_scroll;
+                state.partial_scroll = lines.fract();
+
+                shell.publish(on_edit(Action::Scroll {
+                    lines: lines as i32,
+                }));
+            }
+            Update::Binding(binding) => {
+                fn apply_binding<
+                    H: text::Highlighter,
+                    R: text::Renderer,
+                    Message,
+                >(
+                    binding: Binding<Message>,
+                    content: &Content<R>,
+                    state: &mut State<H>,
+                    on_edit: &dyn Fn(Action) -> Message,
+                    clipboard: &mut dyn Clipboard,
+                    shell: &mut Shell<'_, Message>,
+                ) {
+                    let mut publish = |action| shell.publish(on_edit(action));
+
+                    match binding {
+                        Binding::Unfocus => {
+                            state.focus = None;
+                            state.drag_click = None;
+                        }
+                        Binding::Copy => {
+                            if let Some(selection) = content.selection() {
+                                clipboard.write(
+                                    clipboard::Kind::Standard,
+                                    selection,
+                                );
+                            }
+                        }
+                        Binding::Cut => {
+                            if let Some(selection) = content.selection() {
+                                clipboard.write(
+                                    clipboard::Kind::Standard,
+                                    selection,
+                                );
+
+                                publish(Action::Edit(Edit::Delete));
+                            }
+                        }
+                        Binding::Paste => {
+                            if let Some(contents) =
+                                clipboard.read(clipboard::Kind::Standard)
+                            {
+                                publish(Action::Edit(Edit::Paste(Arc::new(
+                                    contents,
+                                ))));
+                            }
+                        }
+                        Binding::Move(motion) => {
+                            publish(Action::Move(motion));
+                        }
+                        Binding::Select(motion) => {
+                            publish(Action::Select(motion));
+                        }
+                        Binding::SelectWord => {
+                            publish(Action::SelectWord);
+                        }
+                        Binding::SelectLine => {
+                            publish(Action::SelectLine);
+                        }
+                        Binding::SelectAll => {
+                            publish(Action::SelectAll);
+                        }
+                        Binding::Insert(c) => {
+                            publish(Action::Edit(Edit::Insert(c)));
+                        }
+                        Binding::Enter => {
+                            publish(Action::Edit(Edit::Enter));
+                        }
+                        Binding::Backspace => {
+                            publish(Action::Edit(Edit::Backspace));
+                        }
+                        Binding::Delete => {
+                            publish(Action::Edit(Edit::Delete));
+                        }
+                        Binding::Sequence(sequence) => {
+                            for binding in sequence {
+                                apply_binding(
+                                    binding, content, state, on_edit,
+                                    clipboard, shell,
+                                );
+                            }
+                        }
+                        Binding::Custom(message) => {
+                            shell.publish(message);
+                        }
+                    }
+                }
+
+                apply_binding(
+                    binding,
+                    self.content,
+                    state,
+                    on_edit,
+                    clipboard,
+                    shell,
+                );
+
+                if let Some(focus) = &mut state.focus {
+                    focus.updated_at = Instant::now();
+                }
+            }
+        }*/
+
+        event::Status::Captured
     }
 
     fn draw(
         &self,
-        tree: &Tree,
+        tree: &widget::Tree,
         renderer: &mut Renderer,
         theme: &Theme,
-        style: &Style,
+        _defaults: &renderer::Style,
         layout: Layout<'_>,
-        cursor: Cursor,
-        viewport: &Rectangle
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
     ) {
-        let mut bounds = layout.bounds();
+        let bounds = layout.bounds();
 
-        let font = renderer.default_font();
+        let mut internal = self.content.0.borrow_mut();
+        let state = tree.state.downcast_ref::<State<Highlighter>>();
 
-        //let longest_line_len = self.content.longest_line_len();
-        //let height = self.content.line_count();
+        let font = self.font.unwrap_or_else(|| renderer.default_font());
 
-        for line in &self.content.lines {
-            renderer.fill_text(
-                Text {
-                    content: line.clone(),
-                    bounds: bounds.size(),
-                    size: renderer.default_size(),
-                    line_height: LineHeight::default(),
-                    font,
-                    horizontal_alignment: alignment::Horizontal::Left,
-                    vertical_alignment: alignment::Vertical::Top,
-                    shaping: text::Shaping::Advanced,
-                    wrapping: Wrapping::None,
-                },
-                bounds.position(),
-                iced_core::Color::from_rgb8(0, 0, 0),
-                bounds
-            );
+        internal.editor.highlight(
+            font,
+            state.highlighter.borrow_mut().deref_mut(),
+            |highlight| (self.highlighter_format)(highlight, theme),
+        );
 
-            let line_height = LineHeight::default();
-            match line_height {
-                LineHeight::Relative(height) => {
-                    bounds = Rectangle::new(Point::new(bounds.x, bounds.y + height), Size::new(bounds.width, bounds.height));
-                }
-                _ => unreachable!("lin height pixels")
-            }
+        //let is_disabled = self.on_edit.is_none();
+        let is_mouse_over = cursor.is_over(bounds);
+
+        /*let status = if is_disabled {
+            Status::Disabled
+        } else if state.focus.is_some() {
+            Status::Focused
+        } else if is_mouse_over {
+            Status::Hovered
+        } else {
+            Status::Active
+        };*/
+
+        let style = theme.style(&self.class, iced::widget::text_editor::Status::Active);
+
+        renderer.fill_quad(
+            renderer::Quad {
+                bounds,
+                border: style.border,
+                ..renderer::Quad::default()
+            },
+            style.background,
+        );
+
+        let text_bounds = bounds.shrink(self.padding);
+
+        renderer.fill_editor(
+            &internal.editor,
+            text_bounds.position(),
+            style.value,
+            text_bounds,
+        );
+    }
+
+    fn mouse_interaction(
+        &self,
+        _state: &widget::Tree,
+        layout: Layout<'_>,
+        cursor: mouse::Cursor,
+        _viewport: &Rectangle,
+        _renderer: &Renderer,
+    ) -> mouse::Interaction {
+
+        if cursor.is_over(layout.bounds()) {
+            mouse::Interaction::Text
+        } else {
+            mouse::Interaction::default()
         }
-        
+    }
+
+    fn operate(
+        &self,
+        tree: &mut widget::Tree,
+        _layout: Layout<'_>,
+        _renderer: &Renderer,
+        operation: &mut dyn widget::Operation,
+    ) {
+        let state = tree.state.downcast_mut::<State<Highlighter>>();
+
+        operation.focusable(state, None);
     }
 }
 
-impl<'a, Message, Theme, Renderer> From<EditorView<'a, Theme>> for Element<'a, Message, Theme, Renderer>
+impl<'a, Highlighter, Message, Theme, Renderer>
+From<EditorView<'a, Highlighter, Theme, Renderer>>
+for Element<'a, Message, Theme, Renderer>
 where
+    Highlighter: text::Highlighter,
     Message: 'a,
-    Theme: 'a + Catalog,
+    Theme: iced::widget::text_editor::Catalog + 'a,
     Renderer: text::Renderer,
 {
-    fn from(widget: EditorView<'a, Theme>) -> Self {
-        Self::new(widget)
+    fn from(
+        text_editor: EditorView<'a, Highlighter, Theme, Renderer>,
+    ) -> Self {
+        Self::new(text_editor)
     }
 }
+
+

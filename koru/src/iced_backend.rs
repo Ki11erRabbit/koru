@@ -1,16 +1,13 @@
 mod widgets;
-mod components;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
 use futures::SinkExt;
-use iced::application::View;
 use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
-use iced::widget::{text, Column, Row};
-use iced_core::alignment::{Horizontal, Vertical};
+use iced::widget::{text};
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
@@ -62,7 +59,7 @@ enum AppInitializationState {
 struct App {
     initialization_state: AppInitializationState,
     session_address: Option<usize>,
-    content: widgets::editor_view::EditorViewContent
+    content: widgets::editor_view::Content
 }
 
 impl App {
@@ -77,7 +74,7 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
-            content: widgets::editor_view::EditorViewContent::from("hello\nworld\n")
+            content: widgets::editor_view::Content::with_text("Hello Koru!"),
         }
     }
 
@@ -189,8 +186,8 @@ impl App {
     fn view(&self) -> Element<UiMessage> {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
-                Row::with_children([text("Connected to Koru").into(), text("Connected to Koru").into(), text("Connected to Koru").into()]).into()
-                //widgets::editor_view::EditorView::new(&self.content).into()
+                //Row::with_children([text("Connected to Koru").into(), text("Connected to Koru").into(), text("Connected to Koru").into()]).into()
+                widgets::editor_view::EditorView::new(&self.content).into()
                 //text("Connected to Koru").size(20).into()
             }
             _ => {

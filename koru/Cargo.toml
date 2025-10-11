@@ -7,5 +7,6 @@ edition = "2024"
 koru-core = { workspace = true }
 iced = { version = "0.13.1", features = ["tokio", "advanced"]}
 iced_core = "0.13.2"
+iced_tiny_skia = "0.13.0"
 iced_futures = "0.13.1"
 futures = { workspace = true }
