@@ -30,7 +30,7 @@ impl ClientConnector {
 unsafe impl Send for ClientConnector {}
 unsafe impl Sync for ClientConnector {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum UiMessage {
     Nop,
     RunKernelRuntime,

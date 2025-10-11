@@ -4,7 +4,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
     destination: usize,
     source: usize,
@@ -20,20 +20,20 @@ impl Message {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum MessageKind {
     General(GeneralMessage),
     Broker(BrokerMessage),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum GeneralMessage {
     KeyEvent(KeyPress),
     MouseEvent,
     Command,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BrokerMessage {
     /// This tells the broker to shut down the connection to this client
     Shutdown,
