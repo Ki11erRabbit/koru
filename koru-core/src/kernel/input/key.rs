@@ -1,20 +1,47 @@
-use std::num::NonZeroU8;
-use mlua::{AnyUserData, Lua, UserData, UserDataMethods};
+use std::ops::BitAnd;
+use bitflags::bitflags;
+use mlua::{Lua, UserData, UserDataMethods};
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
-pub enum ModifierKey {
-    Shift,
-    Control,
-    Alt,
+
+
+bitflags! {
+    #[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
+    pub struct ModifierKey: u8 {
+        const Shift = 0b0000_0001;
+        const Control = 0b0000_0010;
+        const Alt = 0b0000_0100;
+        const Meta = 0b0000_1000;
+    }
 }
 
 impl std::fmt::Display for ModifierKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ModifierKey::Shift => write!(f, "S"),
-            ModifierKey::Control => write!(f, "C"),
-            ModifierKey::Alt => write!(f, "A"),
+        let mut written_once = false;
+        if *self & ModifierKey::Meta == ModifierKey::Meta {
+            written_once = true;
+            write!(f, "M")?;
         }
+        if *self & ModifierKey::Shift == ModifierKey::Shift {
+            if written_once {
+                write!(f, "-")?;
+            }
+            written_once = true;
+            write!(f, "S")?;
+        }
+        if *self & ModifierKey::Control == ModifierKey::Control {
+            if written_once {
+                write!(f, "-")?;
+            }
+            written_once = true;
+            write!(f, "C")?;
+        }
+        if *self & ModifierKey::Alt == ModifierKey::Alt {
+            if written_once {
+                write!(f, "-")?;
+            }
+            write!(f, "A")?;
+        }
+        Ok(())
     }
 }
 
@@ -27,7 +54,6 @@ pub enum KeyValue {
 impl std::fmt::Display for KeyValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            KeyValue::CharacterKey(' ') => write!(f, "SPC"),
             KeyValue::CharacterKey('-') => write!(f, "DASH"),
             KeyValue::CharacterKey(c) => write!(f, "{}", c),
             KeyValue::ControlKey(c) => write!(f, "{}", c),
@@ -39,6 +65,7 @@ impl std::fmt::Display for KeyValue {
 pub enum ControlKey {
     Enter,
     Tab,
+    Space,
     Escape,
     Backspace,
     Delete,
@@ -92,6 +119,7 @@ impl std::fmt::Display for ControlKey {
         match self {
             ControlKey::Enter => write!(f, "ENTER"),
             ControlKey::Tab => write!(f, "TAB"),
+            ControlKey::Space => write!(f, "SPC"),
             ControlKey::Escape => write!(f, "ESC"),
             ControlKey::Backspace => write!(f, "BS"),
             ControlKey::Delete => write!(f, "DEL"),
@@ -145,16 +173,16 @@ impl std::fmt::Display for ControlKey {
 #[derive(Eq, PartialEq, Clone, Hash, Debug)]
 pub struct KeyPress {
     pub key: KeyValue,
-    pub modifiers: Vec<ModifierKey>,
+    pub modifiers: ModifierKey,
 }
 
 impl KeyPress {
-    pub fn new(key: KeyValue, modifiers: Vec<ModifierKey>) -> KeyPress {
+    pub fn new(key: KeyValue, modifiers: ModifierKey) -> KeyPress {
         KeyPress { key, modifiers }
     }
 
     pub fn is_shift_pressed(&self) -> bool {
-        if self.modifiers.contains(&ModifierKey::Shift) {
+        if self.modifiers & ModifierKey::Shift == ModifierKey::Shift {
             return true;
         }
 
@@ -186,7 +214,7 @@ impl KeyPress {
     }
 
     pub fn is_control_pressed(&self) -> bool {
-        if self.modifiers.contains(&ModifierKey::Control) {
+        if self.modifiers & ModifierKey::Control == ModifierKey::Control {
             true
         } else {
             false
@@ -194,7 +222,15 @@ impl KeyPress {
     }
 
     pub fn is_alt_pressed(&self) -> bool {
-        if self.modifiers.contains(&ModifierKey::Alt) {
+        if self.modifiers & ModifierKey::Alt == ModifierKey::Alt {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_meta_pressed(&self) -> bool {
+        if self.modifiers & ModifierKey::Meta == ModifierKey::Meta {
             true
         } else {
             false
@@ -207,9 +243,9 @@ impl KeyPress {
 
     fn match_key_string(key_string: &str) -> Option<KeyValue> {
         let key = match key_string {
-            "SPC" => KeyValue::CharacterKey(' '),
-            "TAB" => KeyValue::CharacterKey('\t'),
-            "LF" => KeyValue::CharacterKey('\n'),
+            "SPC" => KeyValue::ControlKey(ControlKey::Space),
+            "TAB" => KeyValue::ControlKey(ControlKey::Tab),
+            "ENTER" => KeyValue::ControlKey(ControlKey::Enter),
             "DASH" => KeyValue::CharacterKey('-'),
             "ESC" => KeyValue::ControlKey(ControlKey::Escape),
             "BS" => KeyValue::ControlKey(ControlKey::Backspace),
@@ -264,37 +300,28 @@ impl KeyPress {
 
     pub fn from_string(string: &str) -> Option<KeyPress> {
         let strings = string.split('-').collect::<Vec<&str>>();
-        /*match strings.as_slice() {
-            ["S", key] =>  {
-                let key = Self::match_key_string(*key)?;
-
-                Some(KeyPress::new(key, Some(ModifierKey::Shift)))
+        let mut modifiers = ModifierKey::empty();
+        for (i, string) in strings.iter().enumerate() {
+            if i < strings.len() - 1 {
+                match *string {
+                    "S" => modifiers |= ModifierKey::Shift,
+                    "C" => modifiers |= ModifierKey::Control,
+                    "A" => modifiers |= ModifierKey::Alt,
+                    "M" => modifiers |= ModifierKey::Meta,
+                    _ => return None,
+                }
+            } else {
+                let key = Self::match_key_string(string)?;
+                return Some(KeyPress::new(key, modifiers));
             }
-            ["C", key] => {
-                let key = Self::match_key_string(*key)?;
-                Some(KeyPress::new(key, Some(ModifierKey::Control)))
-            }
-            ["A", key] => {
-                let key = Self::match_key_string(*key)?;
-                Some(KeyPress::new(key, Some(ModifierKey::Alt)))
-            }
-            [key] => {
-                let key = Self::match_key_string(*key)?;
-                Some(KeyPress::new(key, None))
-            }
-            _ => None,
-        }*/
+        }
         None
-
     }
 }
 
 impl std::fmt::Display for KeyPress {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for modify in &self.modifiers {
-            modify.fmt(f)?;
-            write!(f, "-")?;
-        }
+        write!(f, "{}", self.modifiers)?;
         
         write!(f, "{}", self.key)
     }

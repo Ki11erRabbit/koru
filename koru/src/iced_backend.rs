@@ -193,15 +193,18 @@ impl App {
 
     fn subscription(&self) -> Subscription<UiMessage> {
         iced::keyboard::on_key_press(|key, mods| {
-            let mut modifiers = Vec::new();
+            let mut modifiers = ModifierKey::empty();
+            if mods.logo() {
+                modifiers |= ModifierKey::Meta;
+            }
             if mods.shift() {
-                modifiers.push(ModifierKey::Shift);
+                modifiers |= ModifierKey::Shift;
             }
             if mods.control() {
-                modifiers.push(ModifierKey::Control);
+                modifiers |= ModifierKey::Control;
             }
             if mods.alt() {
-                modifiers.push(ModifierKey::Alt);
+                modifiers |= ModifierKey::Alt;
             }
             let key = match key {
                 Key::Character(c) => {
@@ -214,6 +217,7 @@ impl App {
                 }
                 Key::Named(Named::Enter) => KeyValue::ControlKey(ControlKey::Enter),
                 Key::Named(Named::Tab) => KeyValue::ControlKey(ControlKey::Tab),
+                Key::Named(Named::Space) => KeyValue::ControlKey(ControlKey::Space),
                 Key::Named(Named::Escape) => KeyValue::ControlKey(ControlKey::Escape),
                 Key::Named(Named::Backspace) => KeyValue::ControlKey(ControlKey::Backspace),
                 Key::Named(Named::Delete) => KeyValue::ControlKey(ControlKey::Delete),
