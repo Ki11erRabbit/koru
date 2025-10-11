@@ -1,3 +1,5 @@
+mod widgets;
+
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
@@ -58,6 +60,7 @@ enum AppInitializationState {
 struct App {
     initialization_state: AppInitializationState,
     session_address: Option<usize>,
+    content: widgets::editor_view::EditorViewContent
 }
 
 impl App {
@@ -72,6 +75,7 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
+            content: widgets::editor_view::EditorViewContent::from("hello\nworld\n")
         }
     }
 
@@ -183,7 +187,8 @@ impl App {
     fn view(&self) -> Element<UiMessage> {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
-                text("Connected to Koru").size(20).into()
+                widgets::editor_view::EditorView::new(&self.content).into()
+                //text("Connected to Koru").size(20).into()
             }
             _ => {
                 text("Koru").size(20).into()
