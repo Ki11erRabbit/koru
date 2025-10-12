@@ -2,8 +2,10 @@ pub mod kernel;
 pub mod styled_text;
 
 use std::error::Error;
+use std::process::Output;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
+use tokio::task::JoinHandle;
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 
 
@@ -28,8 +30,15 @@ where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingRespon
 ///
 /// This should **NOT** be called if `ui_logic` will start an async runtime.
 pub fn koru_main_ui_start_runtime<F>(ui_logic: F) -> Result<(), Box<dyn Error>>
-where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
+where F: AsyncFnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
 {
     kernel::start_kernel(ui_logic)
 }
 
+/// Spawn an asynchronous task and run it to completion
+/// 
+/// This should be called when using `koru_main_ui_start_runtime`.
+pub fn spawn_task<F>(future: F) 
+where F: Future<Output = ()> + Send + 'static {
+    tokio::spawn(future);
+}

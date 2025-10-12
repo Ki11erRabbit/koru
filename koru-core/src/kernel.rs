@@ -40,7 +40,7 @@ unsafe impl Sync for ChannelPair {}
 ///
 /// This should **NOT** be called if `func` will start an async runtime.
 pub fn start_kernel<F>(func: F) -> Result<(), Box<dyn Error>>
-where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
+where F: AsyncFnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
 {
     /*match utils::locate_config_path() {
         Some(config_path) => {
@@ -50,13 +50,7 @@ where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingRespon
             return Err(Box::from(String::from("TODO: implement a first time wizard to set up the editor")));
         }
     }*/
-
-    let (send_message, recv_message) = std::sync::mpsc::channel();
-    let (send_response, recv_response) = std::sync::mpsc::channel();
-
-    start_async_runtime(Some((send_response, recv_message)))?;
-
-    func(send_message, recv_response)
+    start_async_runtime(func)
 }
 
 /// Starts the Kernel's Runtime
@@ -117,41 +111,27 @@ async fn start_runtime(pair: ChannelPair) {
 }
 
 
-fn start_async_runtime(
-    local_client: Option<(Sender<ClientConnectingResponse>, Receiver<ClientConnectingMessage>)>
-) -> io::Result<()> {
+fn start_async_runtime<F>(
+    func: F,
+) -> Result<(), Box<dyn Error>>
+where F: AsyncFnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
+{
     let tokio_runtime = tokio::runtime::Runtime::new()?;
+    let (send_message, recv_message) = std::sync::mpsc::channel();
+    let (send_response, recv_response) = std::sync::mpsc::channel();
 
-    let mut broker = Broker::new();
-    let connector_client = broker.create_client();
+    let channel_pair = ChannelPair::new(send_response, recv_message);
 
-    let _ = std::thread::Builder::new()
-        .name("runtime".into())
-        .spawn(move || {
-            _ = tokio_runtime.block_on(async move {
-                let mut client_connector = ClientConnector::new(connector_client);
+    let runtime = async move {
+        start_runtime(channel_pair).await;
+        match func(send_message, recv_response).await {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("{}", e);
+            }
+        }
+    };
 
-                tokio::spawn(async move {
-                    match client_connector.run_connector(local_client).await {
-                        Ok(()) => {}
-                        Err(e) => {
-                            eprintln!("{}", e);
-                        }
-                    }
-                });
-                tokio::spawn(async move {
-                    match broker.run_broker().await {
-                        Ok(_) => (),
-                        Err(e) => {
-                            eprintln!("{}", e);
-                        }
-                    }
-                });
-            });
-            loop {}
-        })?;
-
-
-
+    tokio_runtime.block_on(runtime);
     Ok(())
 }

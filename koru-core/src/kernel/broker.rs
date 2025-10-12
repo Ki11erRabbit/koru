@@ -6,7 +6,7 @@ use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
 use crate::styled_text::{ColorDefinition, StyledFile};
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, Hash)]
 pub struct Message {
     destination: usize,
     source: usize,
@@ -19,6 +19,12 @@ impl Message {
     }
     pub fn make_response(self, kind: MessageKind) -> Self {
         Self { destination: self.source, source: self.destination, kind }
+    }
+}
+
+impl PartialEq for Message {
+    fn eq(&self, _: &Self) -> bool {
+        true
     }
 }
 
