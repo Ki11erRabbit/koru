@@ -4,7 +4,6 @@ pub mod input;
 mod lua_api;
 mod files;
 mod session;
-mod rpc;
 pub mod client;
 pub mod broker;
 

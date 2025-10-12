@@ -3,6 +3,7 @@ use std::error::Error;
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
+use crate::styled_text::{ColorDefinition, StyledFile};
 
 #[derive(Debug, Clone)]
 pub struct Message {
@@ -31,6 +32,8 @@ pub enum GeneralMessage {
     KeyEvent(KeyPress),
     MouseEvent,
     Command,
+    Draw(StyledFile),
+    SetColorDef(ColorDefinition),
 }
 
 #[derive(Debug, Clone)]
