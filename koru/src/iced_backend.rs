@@ -8,13 +8,12 @@ use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
 use iced::widget::{text, Scrollable};
-use iced::widget::text::Rich;
-use iced_core::text::Span;
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
 use koru_core::styled_text::{StyledFile, StyledText};
+use crate::common::UiMessage;
 
 struct ClientConnector {
     sender: Sender<ClientConnectingMessage>,
@@ -33,17 +32,6 @@ impl ClientConnector {
 
 unsafe impl Send for ClientConnector {}
 unsafe impl Sync for ClientConnector {}
-
-#[derive(Debug, Clone)]
-enum UiMessage {
-    Nop,
-    RunKernelRuntime,
-    ConnectToKernel,
-    RegisterBrokerClient(BrokerClient),
-    ConnectToSession,
-    BrokerMessage(Message),
-    KeyPress(KeyPress),
-}
 
 enum AppInitializationState {
     KernelNotStarted {

@@ -1,7 +1,7 @@
 use bitflags::bitflags;
 
 bitflags! {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
     pub struct TextAttribute: u8 {
         const Italic = 0b0000_0001;
         const Bold = 0b0000_0010;
@@ -10,7 +10,7 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ColorType {
     Base,
     SecondaryBase,
@@ -106,7 +106,7 @@ impl TryFrom<&str> for ColorType {
 }
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum StyledText {
     None(String),
     Style {
@@ -116,7 +116,7 @@ pub enum StyledText {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct StyledFile {
     lines: Vec<Vec<StyledText>>,
 }
@@ -145,7 +145,7 @@ impl From<String> for StyledFile {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ColorValue {
     Rgb {
         r: u8,
@@ -155,7 +155,7 @@ pub enum ColorValue {
     Ansi(u8),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ColorDefinition {
     color: ColorType,
     value: ColorValue,

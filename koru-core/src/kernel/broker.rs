@@ -1,11 +1,12 @@
 use std::collections::VecDeque;
 use std::error::Error;
+use std::hash::Hash;
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
 use crate::styled_text::{ColorDefinition, StyledFile};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Message {
     destination: usize,
     source: usize,
@@ -21,13 +22,13 @@ impl Message {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum MessageKind {
     General(GeneralMessage),
     Broker(BrokerMessage),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum GeneralMessage {
     KeyEvent(KeyPress),
     MouseEvent,
@@ -36,7 +37,7 @@ pub enum GeneralMessage {
     SetColorDef(ColorDefinition),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum BrokerMessage {
     /// This tells the broker to shut down the connection to this client
     Shutdown,
@@ -77,6 +78,20 @@ impl BrokerClient {
     
     pub fn id(&self) -> usize {
         self.client_id
+    }
+}
+
+impl PartialEq for BrokerClient {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
+}
+
+impl Eq for BrokerClient {}
+
+impl Hash for BrokerClient {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id().hash(state);
     }
 }
 

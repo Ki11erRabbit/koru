@@ -42,14 +42,14 @@ unsafe impl Sync for ChannelPair {}
 pub fn start_kernel<F>(func: F) -> Result<(), Box<dyn Error>>
 where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingResponse>) -> Result<(), Box<dyn Error>>
 {
-    match utils::locate_config_path() {
+    /*match utils::locate_config_path() {
         Some(config_path) => {
             state::set_config(config_path)
         }
         None => {
             return Err(Box::from(String::from("TODO: implement a first time wizard to set up the editor")));
         }
-    }
+    }*/
 
     let (send_message, recv_message) = std::sync::mpsc::channel();
     let (send_response, recv_response) = std::sync::mpsc::channel();
@@ -129,6 +129,16 @@ fn start_async_runtime(
         .name("runtime".into())
         .spawn(move || {
             _ = tokio_runtime.block_on(async move {
+                let mut client_connector = ClientConnector::new(connector_client);
+
+                tokio::spawn(async move {
+                    match client_connector.run_connector(local_client).await {
+                        Ok(()) => {}
+                        Err(e) => {
+                            eprintln!("{}", e);
+                        }
+                    }
+                });
                 match broker.run_broker().await {
                     Ok(_) => (),
                     Err(e) => {
@@ -138,16 +148,7 @@ fn start_async_runtime(
             });
         })?;
 
-    let mut client_connector = ClientConnector::new(connector_client);
-
-    tokio::spawn(async move {
-        match client_connector.run_connector(local_client).await {
-            Ok(()) => {}
-            Err(e) => {
-                eprintln!("{}", e);
-            }
-        }
-    });
+    
 
     Ok(())
 }
