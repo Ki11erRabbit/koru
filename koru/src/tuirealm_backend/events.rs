@@ -8,7 +8,7 @@ use tuirealm::ratatui::crossterm::event::{poll, Event, KeyCode, KeyEventKind, Ke
 use koru_core::kernel::broker::BrokerClient;
 use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
 use crate::common::UiMessage;
-use crate::tuirelm_backend::App;
+use crate::tuirealm_backend::App;
 
 pub fn handle_event(state: &mut App) -> io::Result<Option<UiMessage>> {
     if poll(Duration::from_millis(100))? {

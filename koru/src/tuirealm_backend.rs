@@ -14,7 +14,7 @@ use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Mes
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::styled_text::{StyledFile, StyledText};
 use crate::common::UiMessage;
-use crate::tuirelm_backend::events::BrokerPort;
+use crate::tuirealm_backend::events::BrokerPort;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum Id {
