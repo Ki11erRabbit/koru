@@ -139,16 +139,19 @@ fn start_async_runtime(
                         }
                     }
                 });
-                match broker.run_broker().await {
-                    Ok(_) => (),
-                    Err(e) => {
-                        eprintln!("{}", e);
+                tokio::spawn(async move {
+                    match broker.run_broker().await {
+                        Ok(_) => (),
+                        Err(e) => {
+                            eprintln!("{}", e);
+                        }
                     }
-                }
+                });
             });
+            loop {}
         })?;
 
-    
+
 
     Ok(())
 }
