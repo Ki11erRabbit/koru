@@ -195,7 +195,7 @@ impl App {
             AppInitializationState::Initialized(_) => {
                 //Row::with_children([text("Connected to Koru").into(), text("Connected to Koru").into(), text("Connected to Koru").into()]).into()
                 //text("Connected to Koru").size(20).into()
-                Scrollable::new(styled_text::rich(&self.text.lines())).into()
+                Scrollable::new(styled_text::rich(&self.text.lines()).font(iced::font::Font::MONOSPACE)).into()
                 //let rich = Rich::with_spans([Span::new("Hello")]);
                 //rich.into()
             }
