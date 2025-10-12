@@ -1,4 +1,4 @@
-mod widgets;
+mod styled_text;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
@@ -8,10 +8,13 @@ use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
 use iced::widget::{text};
+use iced::widget::text::Rich;
+use iced_core::text::Span;
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
+use koru_core::styled_text::StyledText;
 
 struct ClientConnector {
     sender: Sender<ClientConnectingMessage>,
@@ -59,7 +62,7 @@ enum AppInitializationState {
 struct App {
     initialization_state: AppInitializationState,
     session_address: Option<usize>,
-    content: widgets::editor_view::Content
+    text: Vec<Vec<StyledText>>,
 }
 
 impl App {
@@ -74,7 +77,10 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
-            content: widgets::editor_view::Content::with_text("Hello Koru!"),
+            text: vec![
+                vec![StyledText::None(String::from("Hello, Koru!")), StyledText::None(String::from("Hello, Koru!\n"))],
+                vec![StyledText::None(String::from("Hello, Koru!")), StyledText::None(String::from("Hello, Koru!\n"))]
+            ]
         }
     }
 
@@ -187,8 +193,10 @@ impl App {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
                 //Row::with_children([text("Connected to Koru").into(), text("Connected to Koru").into(), text("Connected to Koru").into()]).into()
-                widgets::editor_view::EditorView::new(&self.content).into()
                 //text("Connected to Koru").size(20).into()
+                styled_text::rich(&self.text).into()
+                //let rich = Rich::with_spans([Span::new("Hello")]);
+                //rich.into()
             }
             _ => {
                 text("Koru").size(20).into()
