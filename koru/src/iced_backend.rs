@@ -7,14 +7,14 @@ use futures::SinkExt;
 use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
-use iced::widget::{text};
+use iced::widget::{text, Scrollable};
 use iced::widget::text::Rich;
 use iced_core::text::Span;
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
-use koru_core::styled_text::StyledText;
+use koru_core::styled_text::{StyledFile, StyledText};
 
 struct ClientConnector {
     sender: Sender<ClientConnectingMessage>,
@@ -62,7 +62,7 @@ enum AppInitializationState {
 struct App {
     initialization_state: AppInitializationState,
     session_address: Option<usize>,
-    text: Vec<Vec<StyledText>>,
+    text: StyledFile,
 }
 
 impl App {
@@ -77,10 +77,7 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
-            text: vec![
-                vec![StyledText::None(String::from("Hello, Koru!")), StyledText::None(String::from("Hello, Koru!\n"))],
-                vec![StyledText::None(String::from("Hello, Koru!")), StyledText::None(String::from("Hello, Koru!\n"))]
-            ]
+            text: StyledFile::new(),
         }
     }
 
@@ -185,6 +182,10 @@ impl App {
                 }
                 Task::none()
             }
+            MessageKind::General(GeneralMessage::Draw(styled_file)) => {
+                self.text = styled_file;
+                Task::none()
+            }
             _ => Task::none()
         }
     }
@@ -194,7 +195,7 @@ impl App {
             AppInitializationState::Initialized(_) => {
                 //Row::with_children([text("Connected to Koru").into(), text("Connected to Koru").into(), text("Connected to Koru").into()]).into()
                 //text("Connected to Koru").size(20).into()
-                styled_text::rich(&self.text).into()
+                Scrollable::new(styled_text::rich(&self.text.lines())).into()
                 //let rich = Rich::with_spans([Span::new("Hello")]);
                 //rich.into()
             }

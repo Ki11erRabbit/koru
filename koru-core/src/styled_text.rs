@@ -137,6 +137,14 @@ impl StyledFile {
     }
 }
 
+impl From<String> for StyledFile {
+    fn from(text: String) -> Self {
+        Self {
+            lines: text.lines().map(ToString::to_string).map(|mut x| {x.push('\n'); x}).map(StyledText::None).map(|x| vec![x]).collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum ColorValue {
     Rgb {

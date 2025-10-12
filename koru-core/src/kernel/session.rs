@@ -2,7 +2,11 @@ use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::sync::{LazyLock, Mutex};
 use mlua::Lua;
-use crate::kernel::broker::BrokerClient;
+use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
+use crate::kernel::files;
+use crate::kernel::files::{OpenFileHandle, OpenFileTable};
+use crate::kernel::input::{KeyPress, KeyValue};
+use crate::styled_text::StyledFile;
 
 static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
     Mutex::new(SessionIdManager::new())
@@ -75,6 +79,7 @@ pub struct Session {
     lua: Lua,
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
+    open_file: Vec<OpenFileHandle>,
 }
 
 impl Session {
@@ -89,6 +94,7 @@ impl Session {
             lua,
             broker_client,
             client_ids: vec![client_id],
+            open_file: Vec::new(),
         }
     }
     
@@ -104,6 +110,13 @@ impl Session {
         self.lua.load(session_code).exec_async().await.unwrap();
         loop {
             match self.broker_client.recv().await {
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
+                    let file = files::open_file("koru-core/src/kernel.rs").await.unwrap();
+                    let text = file.get_text().await;
+                    self.open_file.push(file);
+                    let styled_file = StyledFile::from(text);
+                    self.broker_client.send(MessageKind::General(GeneralMessage::Draw(styled_file)), self.client_ids[0]).await.unwrap();
+                }
                 Some(message) => {
                     println!("Received message: {:?}", message);
                 }

@@ -142,6 +142,10 @@ impl OpenFileHandle {
         open_files.close(self.index).await?;
         Ok(())
     }
+    
+    pub async fn get_text(&self) -> String {
+        self.file.lock().await.get_text()
+    }
 }
 
 impl UserData for OpenFileHandle {

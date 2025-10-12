@@ -33,4 +33,8 @@ impl OpenFile {
     pub fn absolute_path(&self) -> &Path {
         &self.absolute_path
     }
+    
+    pub fn get_text(&self) -> String {
+        self.buffer.clone()
+    }
 }
