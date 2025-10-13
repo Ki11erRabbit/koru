@@ -37,6 +37,7 @@ impl Component<UiMessage, UiMessage> for Input {
             },
             Event::Keyboard(key_event) => {
                 let key = match key_event.code {
+                    Key::Esc => KeyValue::ControlKey(ControlKey::Escape),
                     Key::Enter => KeyValue::ControlKey(ControlKey::Enter),
                     Key::Backspace => KeyValue::ControlKey(ControlKey::Backspace),
                     Key::Tab => KeyValue::ControlKey(ControlKey::Tab),

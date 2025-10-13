@@ -1,13 +1,12 @@
 use tuirealm::{AttrValue, Attribute, Component, Event, Frame, MockComponent, Props, State, StateValue};
 use tuirealm::command::{Cmd, CmdResult, Direction};
-use tuirealm::event::{Key, KeyModifiers};
+use tuirealm::event::Key;
 use tuirealm::ratatui::layout::Rect;
 use koru_core::styled_text::{StyledFile, StyledText};
 use tuirealm::props::{TextSpan};
 use tuirealm::ratatui::prelude::Text;
 use tuirealm::ratatui::text::{Line, Span};
 use tuirealm::ratatui::widgets::Paragraph;
-use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
 use crate::tuirealm_backend::UiMessage;
 
 pub struct TextView {

@@ -5,7 +5,9 @@ mod components;
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
-use tuirealm::{Application, Attribute, EventListenerCfg, PollStrategy, Sub, SubClause, SubEventClause, Update};
+use tuirealm::{Application, AttrValue, Attribute, EventListenerCfg, PollStrategy, Sub, SubClause, SubEventClause, Update};
+use tuirealm::props::TextSpan;
+use tuirealm::ratatui::layout::{Constraint, Direction, Layout};
 use tuirealm::ratatui::style::Styled;
 use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalBridge};
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
@@ -26,6 +28,7 @@ pub enum UiMessage {
 enum Id {
     Input,
     Buffer,
+    MessageBar,
 }
 
 struct App {
@@ -35,15 +38,27 @@ struct App {
     pub broker_client: BrokerClient,
     session_address: Option<usize>,
     text: StyledFile,
+    message_bar: String,
 }
 
 impl App {
     pub fn view(&mut self, app: &mut Application<Id, UiMessage, UiMessage>) {
         
         app.attr(&Id::Buffer, Attribute::Text, components::TextView::lines(&self.text)).expect("Invalid attribute");
+        app.attr(&Id::MessageBar, Attribute::Text, AttrValue::String(self.message_bar.clone())).expect("Invalid attribute");
         
         self.terminal.draw(|frame| {
-            app.view(&Id::Buffer, frame, frame.area())
+            
+            let mut text_area = frame.area();
+            text_area.height -= 1;
+            
+            let mut message_area = frame.area();
+            message_area.height = 1;
+            message_area.y += text_area.height;
+            
+            app.view(&Id::Buffer, frame, text_area);
+            app.view(&Id::MessageBar, frame, message_area);
+            
         }).unwrap();
     }
     
@@ -61,6 +76,11 @@ impl App {
             MessageKind::General(GeneralMessage::Draw(file)) => {
                 self.redraw = true;
                 self.text = file;
+                Ok(())
+            }
+            MessageKind::General(GeneralMessage::UpdateMessageBar(bar)) => {
+                self.redraw = true;
+                self.message_bar = bar;
                 Ok(())
             }
             _ => Ok(())
@@ -143,6 +163,14 @@ pub async fn real_main(
             Sub::new(SubEventClause::Any, SubClause::Always),
         ]
     ).expect("Failed to mount textview");
+
+    application.mount(
+        Id::MessageBar,
+        Box::from(components::MessageBar::new()),
+        vec![
+            Sub::new(SubEventClause::Any, SubClause::Always),
+        ]
+    ).expect("Failed to mount textview");
     
     let mut app = App {
         quit: false,
@@ -150,7 +178,8 @@ pub async fn real_main(
         terminal: TerminalBridge::new_crossterm().unwrap(),
         broker_client: client,
         session_address: None,
-        text: StyledFile::new()
+        text: StyledFile::new(),
+        message_bar: String::new(),
     };
 
     let _ = app.terminal.enter_alternate_screen()?;
