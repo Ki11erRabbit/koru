@@ -1,24 +1,31 @@
 mod events;
 mod input;
+mod components;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
-use tuirealm::{Application, EventListenerCfg, PollStrategy, Sub, SubClause, SubEventClause, Update};
-
+use tuirealm::{Application, Attribute, EventListenerCfg, PollStrategy, Sub, SubClause, SubEventClause, Update};
 use tuirealm::ratatui::style::Styled;
-use tuirealm::ratatui::widgets::canvas::Label;
-use tuirealm::ratatui::widgets::Paragraph;
 use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalBridge};
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
-use koru_core::styled_text::{StyledFile, StyledText};
-use crate::common::UiMessage;
+use koru_core::kernel::input::KeyPress;
+use koru_core::styled_text::{StyledFile};
 use crate::tuirealm_backend::events::BrokerPort;
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum UiMessage {
+    RegisterBrokerClient(BrokerClient),
+    BrokerMessage(Message),
+    KeyPress(KeyPress),
+    Redraw,
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum Id {
     Input,
+    Buffer,
 }
 
 struct App {
@@ -32,20 +39,11 @@ struct App {
 
 impl App {
     pub fn view(&mut self, app: &mut Application<Id, UiMessage, UiMessage>) {
-        let mut buffer = String::new();
-        for line in self.text.lines() {
-            for item in line {
-                match item {
-                    StyledText::None(string) => {
-                        buffer.push_str(string);
-                    }
-                    _ => {}
-                }
-            }
-        }
+        
+        app.attr(&Id::Buffer, Attribute::Text, components::TextView::lines(&self.text)).expect("Invalid attribute");
         
         self.terminal.draw(|frame| {
-            frame.render_widget(Paragraph::new(buffer), frame.area());
+            app.view(&Id::Buffer, frame, frame.area())
         }).unwrap();
     }
     
@@ -77,8 +75,6 @@ impl Update<UiMessage> for App {
                 self.handle_broker_message(msg).ok()?;
                 None
             }
-            Some(UiMessage::Nop) | Some(UiMessage::ConnectToKernel) |
-            Some(UiMessage::RunKernelRuntime) | Some(UiMessage::ConnectToSession) |
             Some(UiMessage::RegisterBrokerClient(..)) => None,
             Some(UiMessage::KeyPress(key_press)) => {
                 let mut client = self.broker_client.clone();
@@ -91,6 +87,10 @@ impl Update<UiMessage> for App {
                         Err(e) => println!("Error sending key: {}", e),
                     }
                 });
+                None
+            }
+            Some(UiMessage::Redraw) => {
+                self.redraw = true;
                 None
             }
             None => None,
@@ -130,8 +130,19 @@ pub async fn real_main(
     application.mount(
         Id::Input, 
         Box::from(input::Input),
-        vec![Sub::new(SubEventClause::User(UiMessage::BrokerMessage(Message::new(0, 0, MessageKind::Broker(BrokerMessage::Shutdown)))), SubClause::Always)]
+        vec![
+            Sub::new(SubEventClause::User(UiMessage::BrokerMessage(Message::new(0, 0, MessageKind::Broker(BrokerMessage::Shutdown)))), SubClause::Always),
+            Sub::new(SubEventClause::Any, SubClause::Always),
+        ]
     ).unwrap();
+    
+    application.mount(
+        Id::Buffer,
+        Box::from(components::TextView::new()),
+        vec![
+            Sub::new(SubEventClause::Any, SubClause::Always),
+        ]
+    ).expect("Failed to mount textview");
     
     let mut app = App {
         quit: false,
@@ -147,8 +158,6 @@ pub async fn real_main(
     
 
     while !app.quit {
-        let message = events::handle_event(&mut app)?;
-        let _ = app.update(message);
         match application.tick(PollStrategy::Once) {
             Err(err) => {
                 app.terminal.disable_raw_mode()?;

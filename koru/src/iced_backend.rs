@@ -13,7 +13,18 @@ use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Mes
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
 use koru_core::styled_text::{StyledFile, StyledText};
-use crate::common::UiMessage;
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum UiMessage {
+    Nop,
+    RunKernelRuntime,
+    ConnectToKernel,
+    RegisterBrokerClient(BrokerClient),
+    ConnectToSession,
+    BrokerMessage(Message),
+    KeyPress(KeyPress),
+}
+
 
 struct ClientConnector {
     sender: Sender<ClientConnectingMessage>,

@@ -118,7 +118,7 @@ impl Session {
                     self.broker_client.send(MessageKind::General(GeneralMessage::Draw(styled_file)), self.client_ids[0]).await.unwrap();
                 }
                 Some(message) => {
-                    println!("Received message: {:?}", message);
+                    //println!("Received message: {:?}", message);
                 }
                 _ => {}
             }

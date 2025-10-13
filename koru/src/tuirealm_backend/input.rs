@@ -3,7 +3,7 @@ use tuirealm::command::{Cmd, CmdResult};
 use tuirealm::event::{Key, KeyModifiers};
 use tuirealm::ratatui::layout::Rect;
 use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
-use crate::common::UiMessage;
+use crate::tuirealm_backend::UiMessage;
 
 pub struct Input;
 
