@@ -5,7 +5,7 @@ use mlua::Lua;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::files;
 use crate::kernel::files::{OpenFileHandle, OpenFileTable};
-use crate::kernel::input::{KeyPress, KeyValue};
+use crate::kernel::input::{ControlKey, KeyPress, KeyValue};
 use crate::styled_text::StyledFile;
 
 static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
@@ -71,7 +71,10 @@ impl SessionIdManager {
     
 }
 
-
+pub enum CommandState {
+    None,
+    EnteringCommand(String),
+}
 
 
 pub struct Session {
@@ -80,6 +83,7 @@ pub struct Session {
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
     open_file: Vec<OpenFileHandle>,
+    command_state: CommandState,
 }
 
 impl Session {
@@ -95,6 +99,22 @@ impl Session {
             broker_client,
             client_ids: vec![client_id],
             open_file: Vec::new(),
+            command_state: CommandState::None,
+        }
+    }
+    
+    async fn notify_clients(&mut self, msg: MessageKind) {
+        let mut dead_clients = Vec::new();
+        for (i, client) in self.client_ids.iter().enumerate() {
+            match self.broker_client.send(msg.clone(), *client).await {
+                Ok(_) => {}
+                Err(_) => {
+                    dead_clients.push(i);
+                }
+            }
+        }
+        for client in dead_clients.into_iter().rev() {
+            self.client_ids.remove(client);
         }
     }
     
@@ -115,9 +135,49 @@ impl Session {
                     let text = file.get_text().await;
                     self.open_file.push(file);
                     let styled_file = StyledFile::from(text);
-                    self.broker_client.send(MessageKind::General(GeneralMessage::Draw(styled_file)), self.client_ids[0]).await.unwrap();
+                    self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+                }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {
+                    match &mut self.command_state {
+                        CommandState::None => {
+                            match key {
+                                KeyValue::CharacterKey(';') => {
+                                    self.command_state = CommandState::EnteringCommand(String::from(": "));
+                                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(String::from(": ")))).await;
+                                }
+                                _ => {}
+                            }
+                        }
+                        CommandState::EnteringCommand(cmd) => {
+                            let msg = match key {
+                                KeyValue::CharacterKey(c) => {
+                                    cmd.push(c);
+                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(cmd.clone())))
+                                }
+                                KeyValue::ControlKey(ControlKey::Escape) => {
+                                    self.command_state = CommandState::None;
+                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(String::new())))
+                                }
+                                KeyValue::ControlKey(ControlKey::Backspace) => {
+                                    cmd.pop();
+                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(cmd.clone())))
+                                }
+                                KeyValue::ControlKey(ControlKey::Space) => {
+                                    cmd.push(' ');
+                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(cmd.clone())))
+                                }
+                                _ => {
+                                    None
+                                }
+                            };
+                            if let Some(msg) = msg {
+                                self.notify_clients(msg).await;
+                            }
+                        }
+                    }
                 }
                 Some(message) => {
+                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(format!("{:?}", message)))).await;
                     //println!("Received message: {:?}", message);
                 }
                 _ => {}

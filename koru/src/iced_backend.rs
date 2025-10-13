@@ -7,12 +7,13 @@ use futures::SinkExt;
 use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
-use iced::widget::{text, Scrollable};
+use iced::widget::{column, text, Scrollable};
+use iced_core::Length;
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
-use koru_core::styled_text::{StyledFile, StyledText};
+use koru_core::styled_text::{StyledFile};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {
@@ -62,6 +63,7 @@ struct App {
     initialization_state: AppInitializationState,
     session_address: Option<usize>,
     text: StyledFile,
+    message_bar: String,
 }
 
 impl App {
@@ -77,6 +79,7 @@ impl App {
             },
             session_address: None,
             text: StyledFile::new(),
+            message_bar: String::from("Hello world!"),
         }
     }
 
@@ -185,6 +188,11 @@ impl App {
                 self.text = styled_file;
                 Task::none()
             }
+            MessageKind::General(GeneralMessage::UpdateMessageBar(message_bar)) => {
+                println!("update message bar");
+                self.message_bar = message_bar;
+                Task::none()
+            }
             _ => Task::none()
         }
     }
@@ -194,9 +202,13 @@ impl App {
             AppInitializationState::Initialized(_) => {
                 //Row::with_children([text("Connected to Koru").into(), text("Connected to Koru").into(), text("Connected to Koru").into()]).into()
                 //text("Connected to Koru").size(20).into()
-                Scrollable::new(styled_text::rich(&self.text.lines()).font(iced::font::Font::MONOSPACE)).into()
+
                 //let rich = Rich::with_spans([Span::new("Hello")]);
                 //rich.into()
+                column!(
+                    Scrollable::new(styled_text::rich(&self.text.lines()).font(iced::font::Font::MONOSPACE)).height(Length::Fill),
+                    text(&self.message_bar)
+                ).into()
             }
             _ => {
                 text("Koru").size(20).into()

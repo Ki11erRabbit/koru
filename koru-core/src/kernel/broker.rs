@@ -41,6 +41,7 @@ pub enum GeneralMessage {
     Command,
     Draw(StyledFile),
     SetColorDef(ColorDefinition),
+    UpdateMessageBar(String),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
