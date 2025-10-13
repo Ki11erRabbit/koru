@@ -200,13 +200,11 @@ impl App {
     fn view(&self) -> Element<UiMessage> {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
-                //Row::with_children([text("Connected to Koru").into(), text("Connected to Koru").into(), text("Connected to Koru").into()]).into()
-                //text("Connected to Koru").size(20).into()
-
-                //let rich = Rich::with_spans([Span::new("Hello")]);
-                //rich.into()
                 column!(
-                    Scrollable::new(styled_text::rich(&self.text.lines()).font(iced::font::Font::MONOSPACE)).height(Length::Fill),
+                    Scrollable::new(styled_text::rich(&self.text.lines())
+                        .font(iced::font::Font::MONOSPACE))
+                        .height(Length::Fill)
+                        .width(Length::Fill),
                     text(&self.message_bar)
                 ).into()
             }
