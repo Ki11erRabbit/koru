@@ -1,4 +1,5 @@
 use iced::widget::text::Rich;
+use iced_core::Color;
 use iced_core::text::Span;
 use koru_core::styled_text::StyledText;
 use crate::iced_backend::UiMessage;
@@ -17,9 +18,13 @@ where
                     spans.push(span)
                 }
                 StyledText::Style {
+                    text,
                     ..
                 } => {
-                    todo!("implement styling by looking up the color name and applying it")
+                    let span = Span::new(text)
+                        .background(Color::from_rgb8(100, 100, 100))
+                        .color(Color::from_rgb8(255, 255, 255));
+                    spans.push(span);
                 }
             }
         }
