@@ -42,6 +42,7 @@ pub enum GeneralMessage {
     Draw(StyledFile),
     SetColorDef(ColorDefinition),
     UpdateMessageBar(String),
+    FlushKeyBuffer,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

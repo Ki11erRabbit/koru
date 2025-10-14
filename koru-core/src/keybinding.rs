@@ -25,7 +25,7 @@ impl<Command: Clone> Keybinding<Command> {
             },
         }
     }
-    
+
     pub fn lookup(&self, mut keys: &[KeyPress]) -> Option<Command> {
         let mut node = &self.keys_to_command;
         while keys.len() > 0 {
@@ -44,7 +44,7 @@ impl<Command: Clone> Keybinding<Command> {
         }
         None
     }
-    
+
     pub fn add_binding(&mut self, mut keys: Vec<KeyPress>, command: Command) {
         // Reversing keys for faster popping
         keys.reverse();
@@ -64,7 +64,7 @@ impl<Command: Clone> Keybinding<Command> {
                 KeyBindingNode::Leaf { .. } => {
                     let mut map = HashMap::new();
                     map.insert(keys.last().unwrap().clone(), KeyBindingNode::Node { children: HashMap::new(), phantom: PhantomData });
-                    
+
                     *node = KeyBindingNode::Node {
                         children: map,
                         phantom: PhantomData,
@@ -72,7 +72,7 @@ impl<Command: Clone> Keybinding<Command> {
                     let KeyBindingNode::Node { children, .. } = node else {
                         unreachable!("we should be this value because we just set it to this value");
                     };
-                    
+
                     node = children.get_mut(keys.last().unwrap()).unwrap();
                     keys.pop();
                 }

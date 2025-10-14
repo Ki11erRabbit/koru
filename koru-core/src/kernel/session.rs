@@ -5,7 +5,8 @@ use mlua::Lua;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::files;
 use crate::kernel::files::{OpenFileHandle, OpenFileTable};
-use crate::kernel::input::{ControlKey, KeyPress, KeyValue};
+use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
+use crate::keybinding::Keybinding;
 use crate::styled_text::StyledFile;
 
 static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
@@ -84,6 +85,8 @@ pub struct Session {
     client_ids: Vec<usize>,
     open_file: Vec<OpenFileHandle>,
     command_state: CommandState,
+    key_buffer: KeyBuffer,
+    keybinding: Keybinding<mlua::Function>,
 }
 
 impl Session {
@@ -100,6 +103,8 @@ impl Session {
             client_ids: vec![client_id],
             open_file: Vec::new(),
             command_state: CommandState::None,
+            key_buffer: KeyBuffer::new(),
+            keybinding: Keybinding::new(),
         }
     }
     
@@ -130,6 +135,9 @@ impl Session {
         self.lua.load(session_code).exec_async().await.unwrap();
         loop {
             match self.broker_client.recv().await {
+                Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
+                    self.key_buffer.clear();
+                }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     let file = files::open_file("koru-core/src/kernel.rs").await.unwrap();
                     let text = file.get_text().await;

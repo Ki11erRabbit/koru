@@ -1,6 +1,6 @@
 pub mod kernel;
 pub mod styled_text;
-mod keybinding;
+pub mod keybinding;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};

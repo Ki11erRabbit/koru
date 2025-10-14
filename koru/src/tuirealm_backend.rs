@@ -6,13 +6,12 @@ use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 use tuirealm::{Application, AttrValue, Attribute, EventListenerCfg, PollStrategy, Sub, SubClause, SubEventClause, Update};
-use tuirealm::props::TextSpan;
-use tuirealm::ratatui::layout::{Constraint, Direction, Layout};
 use tuirealm::ratatui::style::Styled;
 use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalBridge};
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
-use koru_core::kernel::input::KeyPress;
+use koru_core::kernel::input::{KeyBuffer, KeyPress};
+use koru_core::keybinding::Keybinding;
 use koru_core::styled_text::{StyledFile};
 use crate::tuirealm_backend::events::BrokerPort;
 
@@ -39,6 +38,8 @@ struct App {
     session_address: Option<usize>,
     text: StyledFile,
     message_bar: String,
+    key_buffer: KeyBuffer,
+    keybinding: Keybinding<UiMessage>,
 }
 
 impl App {
@@ -81,6 +82,10 @@ impl App {
             MessageKind::General(GeneralMessage::UpdateMessageBar(bar)) => {
                 self.redraw = true;
                 self.message_bar = bar;
+                Ok(())
+            }
+            MessageKind::General(GeneralMessage::FlushKeyBuffer) => {
+                self.key_buffer.clear();
                 Ok(())
             }
             _ => Ok(())
@@ -180,12 +185,13 @@ pub async fn real_main(
         session_address: None,
         text: StyledFile::new(),
         message_bar: String::new(),
+        key_buffer: KeyBuffer::new(),
+        keybinding: Keybinding::new(),
     };
 
     let _ = app.terminal.enter_alternate_screen()?;
     let _ = app.terminal.enable_raw_mode()?;
     
-
     while !app.quit {
         match application.tick(PollStrategy::Once) {
             Err(err) => {
@@ -193,17 +199,14 @@ pub async fn real_main(
                 app.terminal.leave_alternate_screen()?;
                 eprintln!("{}", err);
             }
-            
             Ok(messages) => {
                 if messages.len() != 0 {
                     for message in messages {
                         _ = app.update(Some(message));
                     }
                 }
-                
             }
         }
-        
         
         if app.redraw {
             let _ = app.view(&mut application);
