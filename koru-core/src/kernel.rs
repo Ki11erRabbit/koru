@@ -6,6 +6,7 @@ mod files;
 mod session;
 pub mod client;
 pub mod broker;
+pub mod cursor;
 
 use std::error::Error;
 use std::io;

@@ -3,6 +3,7 @@ use std::error::Error;
 use std::sync::{LazyLock, Mutex};
 use mlua::Lua;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
+use crate::kernel::cursor::Cursor;
 use crate::kernel::files;
 use crate::kernel::files::{OpenFileHandle, OpenFileTable};
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
@@ -77,13 +78,18 @@ pub enum CommandState {
     EnteringCommand(String),
 }
 
+pub struct OpenFileData {
+    handle: OpenFileHandle,
+    cursors: Vec<Cursor>,
+}
+
 
 pub struct Session {
     session_id: SessionId,
     lua: Lua,
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
-    open_file: Vec<OpenFileHandle>,
+    open_files: Vec<OpenFileData>,
     command_state: CommandState,
     key_buffer: KeyBuffer,
     keybinding: Keybinding<mlua::Function>,
@@ -101,7 +107,7 @@ impl Session {
             lua,
             broker_client,
             client_ids: vec![client_id],
-            open_file: Vec::new(),
+            open_files: Vec::new(),
             command_state: CommandState::None,
             key_buffer: KeyBuffer::new(),
             keybinding: Keybinding::new(),
@@ -141,8 +147,17 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     let file = files::open_file("koru-core/src/kernel.rs").await.unwrap();
                     let text = file.get_text().await;
-                    self.open_file.push(file);
+                    let cursor = Cursor::new(0, 1);
+                    
                     let styled_file = StyledFile::from(text);
+                    
+                    let styled_file = styled_file.place_cursors(&[cursor]);
+                    
+                    let data = OpenFileData {
+                        cursors: vec![cursor],
+                        handle: file,
+                    };
+                    self.open_files.push(data);
                     self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {

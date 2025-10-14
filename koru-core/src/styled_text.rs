@@ -1,7 +1,8 @@
 use bitflags::bitflags;
+use crate::kernel::cursor::Cursor;
 
 bitflags! {
-    #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+    #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
     pub struct TextAttribute: u8 {
         const Italic = 0b0000_0001;
         const Bold = 0b0000_0010;
@@ -10,7 +11,7 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ColorType {
     Base,
     SecondaryBase,
@@ -110,7 +111,8 @@ impl TryFrom<&str> for ColorType {
 pub enum StyledText {
     None(String),
     Style {
-        color: ColorType,
+        fg_color: ColorType,
+        bg_color: ColorType,
         attribute: TextAttribute,
         text: String,
     }
@@ -135,6 +137,89 @@ impl StyledFile {
     pub fn push_line(&mut self, line: Vec<StyledText>) {
         self.lines.push(line);
     }
+    
+    /// Cursors must be in order they are logically in the file
+    pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
+        let mut index = 0;
+        let mut cursor_index = 0;
+        let mut lines = Vec::new();
+        for line in self.lines {
+            let mut current_line = Vec::new();
+            for segment in line {
+                match segment {
+                    StyledText::None(text) => {
+                        let mut buffer = String::new();
+                        for ch in text.chars() {
+                            if cursor_index < cursors.len() {
+                                if index == cursors[cursor_index].start() {
+                                    current_line.push(StyledText::None(buffer));
+                                    buffer = String::new();
+                                }
+                                if index == cursors[cursor_index].stop() {
+                                    cursor_index += 1;
+                                    current_line.push(StyledText::Style {
+                                        bg_color: ColorType::Cursor,
+                                        fg_color: ColorType::Text,
+                                        attribute: TextAttribute::empty(),
+                                        text: buffer,
+                                    });
+                                    buffer = String::new();
+                                }
+                            }
+                            buffer.push(ch);
+                            index += 1;
+                        }
+                        current_line.push(StyledText::None(buffer));
+                    }
+                    StyledText::Style {
+                        fg_color,
+                        bg_color,
+                        attribute,
+                        text,
+                    } => {
+                        let mut buffer = String::new();
+                        for ch in text.chars() {
+                            if cursor_index < cursors.len() {
+                                if index == cursors[cursor_index].start() {
+                                    current_line.push(StyledText::Style {
+                                        fg_color,
+                                        bg_color,
+                                        attribute,
+                                        text: buffer,
+                                    });
+                                    buffer = String::new();
+                                }
+                                if index == cursors[cursor_index].stop() {
+                                    cursor_index += 1;
+                                    current_line.push(StyledText::Style {
+                                        bg_color: ColorType::Cursor,
+                                        fg_color,
+                                        attribute,
+                                        text: buffer,
+                                    });
+                                    buffer = String::new();
+                                }
+                            }
+                            
+                            buffer.push(ch);
+                            index += 1;
+                        }
+                        current_line.push(StyledText::Style {
+                            fg_color,
+                            bg_color,
+                            attribute: attribute.clone(),
+                            text: buffer,
+                        });
+                    }
+                }
+            }
+            lines.push(current_line);
+        }
+        Self {
+            lines,
+        }
+    }
+    
 }
 
 impl From<String> for StyledFile {
