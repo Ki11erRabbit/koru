@@ -3,7 +3,7 @@ use tuirealm::command::{Cmd, CmdResult, Direction};
 use tuirealm::event::Key;
 use tuirealm::ratatui::layout::Rect;
 use koru_core::styled_text::{StyledFile, StyledText};
-use tuirealm::props::{TextSpan};
+use tuirealm::props::{Color, TextSpan};
 use tuirealm::ratatui::prelude::Text;
 use tuirealm::ratatui::text::{Line, Span};
 use tuirealm::ratatui::widgets::Paragraph;
@@ -32,7 +32,9 @@ impl TextView {
                     StyledText::None(string) => {
                         new_line.push(TextSpan::new(string));
                     }
-                    StyledText::Style {..} => {}
+                    StyledText::Style { text, .. } => {
+                        new_line.push(TextSpan::new(text).bg(Color::Gray).fg(Color::Black));
+                    }
                 }
             }
             lines.push(new_line);
