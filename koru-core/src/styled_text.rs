@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use mlua::{AnyUserData, UserData, UserDataMethods};
 use crate::kernel::cursor::Cursor;
 
 bitflags! {
@@ -118,6 +119,10 @@ pub enum StyledText {
     }
 }
 
+impl UserData for StyledText {
+    
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct StyledFile {
     lines: Vec<Vec<StyledText>>,
@@ -136,6 +141,14 @@ impl StyledFile {
 
     pub fn push_line(&mut self, line: Vec<StyledText>) {
         self.lines.push(line);
+    }
+    
+    pub fn prepend_segment(&mut self, line: usize, text: StyledText) {
+        self.lines[line].insert(0, text);
+    }
+    
+    pub fn append_segment(&mut self, line: usize, text: StyledText) {
+        self.lines[line].push(text);
     }
     
     /// Cursors must be in order they are logically in the file
@@ -227,6 +240,20 @@ impl From<String> for StyledFile {
         Self {
             lines: text.lines().map(ToString::to_string).map(|mut x| {x.push('\n'); x}).map(StyledText::None).map(|x| vec![x]).collect(),
         }
+    }
+}
+
+impl UserData for StyledFile {
+    fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
+        methods.add_method_mut(
+            "prepend_segment",
+            |lua, this, (line, text): (mlua::Integer, AnyUserData)| {
+                let text = text.take::<StyledText>()?;
+                let line = line as usize;
+                this.prepend_segment(line, text);
+                Ok(())
+            }
+        )
     }
 }
 
