@@ -1,10 +1,10 @@
 use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::sync::{LazyLock, Mutex};
-use mlua::Lua;
+use mlua::{AnyUserData, Lua, Table};
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::cursor::Cursor;
-use crate::kernel::files;
+use crate::kernel::{files, lua_api};
 use crate::kernel::files::{OpenFileHandle, OpenFileTable};
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
 use crate::keybinding::Keybinding;
@@ -138,6 +138,37 @@ impl Session {
             }).unwrap(),
         ).unwrap();
         
+        self.lua.globals().set(
+            "set_major_mode",
+            self.lua.create_function(|lua, (mode,): (AnyUserData,)| {
+                lua.globals().set(
+                    "major_mode",
+                    mode
+                )
+            }).unwrap()
+        ).unwrap();
+        
+        let preload = self.lua.create_table().unwrap();
+        
+        preload.set(
+            "Koru",
+            self.lua.create_function(|lua, _:()| {
+                lua_api::kernel_mod(&lua)
+            }).unwrap()
+        ).unwrap();
+        
+        let package = self.lua.globals().get::<Table>("package").unwrap();
+
+        package.set(
+            "preload",
+            preload,
+        ).unwrap();
+
+        self.lua.globals().set(
+            "package",
+            package
+        ).unwrap();
+        
         self.lua.load(session_code).exec_async().await.unwrap();
         loop {
             match self.broker_client.recv().await {
@@ -213,7 +244,14 @@ impl Session {
         let lua = Lua::new();
         let mut session = Session::new(lua, broker_client, client_id);
 
-        session.run("print('Hello, World!')").await;
+        session.run("\
+local koru = require \"Koru\"\
+local command = require \"Koru.Command\"\
+koru.hello()
+local command = command('hello', 'prints hello', function()
+    print('hello')
+end, {})
+        ").await;
     }
 }
 

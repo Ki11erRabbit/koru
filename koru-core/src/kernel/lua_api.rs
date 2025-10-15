@@ -1,8 +1,10 @@
+mod major_mode;
+
 use std::collections::HashMap;
-use mlua::{AnyUserData, Function, Lua, MultiValue, UserData, UserDataMethods, Value};
+use mlua::{AnyUserData, Function, Lua, MultiValue, Table, UserData, UserDataMethods, Value};
 use mlua::prelude::LuaTable;
 use std::borrow::Borrow;
-
+use crate::styled_text::styled_text_module;
 
 pub enum ArgumentDef {
     Text,
@@ -82,7 +84,7 @@ impl UserData for Command {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_async_method(
             "apply",
-            async |lua, this, _: ()| {
+            async |_, this, _: ()| {
                 let this = this.borrow();
                 let value: () = this.function.call_async(()).await?;
                 Ok(value)
@@ -91,21 +93,18 @@ impl UserData for Command {
         methods.add_method(
             "name",
             |_, this, _: ()| {
-                let this = this.borrow();
                 Ok(this.name.clone())
             }
         );
         methods.add_method(
             "description",
             |_, this, _: ()| {
-                let this = this.borrow();
                 Ok(this.description.clone())
             }
         );
         methods.add_method(
             "argument_description",
             |_, this, _: ()| {
-                let this = this.borrow();
                 let list = this.arguments
                     .iter().map(|arg| {
                     <&ArgumentDef as Into<&str>>::into(arg).to_string()
@@ -117,98 +116,11 @@ impl UserData for Command {
     }
 }
 
-pub struct MajorMode {
-    commands: Vec<Command>,
-    aliases: HashMap<String, usize>
-}
-
-impl MajorMode {
-    pub fn new() -> Self {
-        MajorMode {
-            commands: Vec::new(),
-            aliases: HashMap::new()
-        }
-    }
-    
-    pub fn register_command(&mut self, name: String, command: Command) {
-        let index = self.commands.len();
-        self.commands.push(command);
-        self.aliases.insert(name, index);
-    }
-    
-    pub fn register_alias(&mut self, name: impl AsRef<str>, alias: String) {
-        if let Some(index) = self.aliases.get(name.as_ref()) {
-            self.aliases.insert(alias, *index);
-        }
-    }
-}
-
-impl UserData for MajorMode {
-    fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_method_mut(
-            "register_command",
-            |lua, this, (arg,): (AnyUserData,)| {
-                let command = arg.take::<Command>()?;
-                this.register_command(command.name.clone(), command);
-                Ok(())
-            }
-        );
-        methods.add_method_mut(
-            "register_alias",
-            |lua, this, (command_name, alias): (mlua::String, mlua::String)| {
-                let command_name = command_name.to_str()?.to_string();
-                let alias = alias.to_str()?.to_string();
-                this.register_alias(command_name, alias);
-                Ok(())
-            }
-        );
-    }
-}
-
 
 pub fn kernel_mod(lua: &Lua) -> mlua::Result<LuaTable> {
     let exports = lua.create_table()?;
     
-    let command_module = lua.create_table()?;
-    let command_metatable = lua.create_table()?;
-
-    command_metatable.set(
-        "__call",
-        lua.create_function(|lua, args: MultiValue| {
-            let (pos, _) = args.as_slices();
-            let command = match pos {
-                [Value::String(name), Value::String(description),
-                Value::Function(fun), Value::Table(table)] => {
-                    let arguments = table.sequence_values::<mlua::String>()
-                        .map(|x| {
-                        x.map(|x| {
-                            x.to_str().map(|x| {
-                                TryFrom::try_from(x.to_string().as_str())
-                            })
-                        })
-                    }).collect::<Result<Result<Result<Vec<_>, _>, _>, _>>()??.unwrap();
-
-                    Command {
-                        name: name.to_str()?.to_string(),
-                        description: description.to_str()?.to_string(),
-                        function: fun.clone(),
-                        arguments
-                    }
-                }
-                _ => return Err(mlua::Error::runtime("Invalid call"))
-            };
-            Ok(command)
-        })?
-    )?;
     
-    command_module.set_metatable(Some(command_metatable))?;
-    
-    exports.set(
-        "Command",
-        command_module
-    )?;
-
-
     /*exports.set(
         "open_file",
         lua.create_async_function(async |lua, path: String| {
@@ -217,15 +129,73 @@ pub fn kernel_mod(lua: &Lua) -> mlua::Result<LuaTable> {
         })?,
     )?;*/
 
-    let package = exports.get::<mlua::Table>("package")?;
-    let preload = package.get::<mlua::Table>("preload")?;
-    /*preload.set(
-        "Key",
-        lua.create_function(|lua, ()| {
-            key::key_module(lua)
+    let package = lua.globals().get::<Table>("package")?;
+    let preload = package.get::<Table>("preload")?;
+
+    preload.set(
+        "Koru.StyledText",
+        lua.create_function(|lua, _:()| {
+            styled_text_module(lua)
         })?
-    )?;*/
+    )?;
+    preload.set(
+        "Koru.Command",
+        lua.create_function(|lua, _:()| {
+            let command_module = lua.create_table()?;
+            let command_metatable = lua.create_table()?;
+
+            command_metatable.set(
+                "__call",
+                lua.create_function(|lua, args: MultiValue| {
+                    let (pos, _) = args.as_slices();
+                    let command = match pos {
+                        [_, Value::String(name), Value::String(description),
+                        Value::Function(fun), Value::Table(table)] => {
+                            let arguments = table.sequence_values::<mlua::String>()
+                                .map(|x| {
+                                    x.map(|x| {
+                                        x.to_str().map(|x| {
+                                            TryFrom::try_from(x.to_string().as_str())
+                                        })
+                                    })
+                                }).collect::<Result<Result<Result<Vec<_>, _>, _>, _>>()??.unwrap();
+
+                            Command {
+                                name: name.to_str()?.to_string(),
+                                description: description.to_str()?.to_string(),
+                                function: fun.clone(),
+                                arguments
+                            }
+                        }
+                        x => todo!("Handle invalid call properly: {x:?}")
+                    };
+                    lua.create_userdata(command)
+                })?
+            )?;
+
+            command_module.set_metatable(Some(command_metatable))?;
+            Ok(command_module)
+        })?
+    )?;
+    preload.set(
+        "Koru.MajorMode",
+        lua.create_function(|lua, _:()| {
+            let table = major_mode::major_mode_module(lua)?;
+            Ok(table)
+        })?
+    )?;
+    exports.set(
+        "package",
+        package
+    )?;
     
+    exports.set(
+        "hello",
+        lua.create_function(|_, _: ()| {
+            println!("hello");
+            Ok(())
+        })?
+    )?;
 
     Ok(exports)
 }

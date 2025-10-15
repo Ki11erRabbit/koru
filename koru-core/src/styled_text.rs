@@ -299,11 +299,12 @@ impl UserData for ColorDefinition {
 pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
     let exports = lua.create_table()?;
 
-    let package = exports.get::<mlua::Table>("package")?;
-    let preload = package.get::<mlua::Table>("preload")?;
+
+    let package = lua.globals().get::<Table>("package")?;
+    let preload = package.get::<Table>("preload")?;
     
     preload.set(
-        "StyledText",
+        "Koru.StyledText.StyledText",
         lua.create_function(|lua, _:()| {
             let styled_text_module = lua.create_table()?;
             let styled_text_metatable = lua.create_table()?;
@@ -311,6 +312,8 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
                 "__call",
                 lua.create_function(|lua, args: mlua::MultiValue| {
                     let (args, vaargs) = args.as_slices();
+                    let args = &args[1..];
+                    
                     let text = if let Some(Value::String(string)) = args.first() {
                         string.to_str()?.to_string()
                     } else {
@@ -360,7 +363,7 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
     )?;
     
     preload.set(
-        "StyledFile",
+        "Koru.StyledText.StyledFile",
         lua.create_function(|lua, _:()| {
             let styled_file_metatable = lua.create_table()?;
             let styled_file_module = lua.create_table()?;
@@ -378,7 +381,7 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
     )?;
     
     preload.set(
-        "ColorValue",
+        "Koru.StyledText.ColorValue",
         lua.create_function(|lua, _:()| {
             let color_value_metatable = lua.create_table()?;
             let color_value_module = lua.create_table()?;
@@ -388,10 +391,10 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
                 lua.create_function(|lua, args: mlua::MultiValue| {
                     let (args, _) = args.as_slices();
                     let color = match args {
-                        [Value::Integer(ansi)] => {
+                        [_, Value::Integer(ansi)] => {
                             ColorValue::Ansi(*ansi as u8)
                         }
-                        [Value::Integer(r), Value::Integer(g), Value::Integer(b)] => {
+                        [_, Value::Integer(r), Value::Integer(g), Value::Integer(b)] => {
                             ColorValue::Rgb {
                                 r: *r as u8,
                                 g: *g as u8,
@@ -410,14 +413,14 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
     )?;
     
     preload.set(
-        "ColorDefinition",
+        "Koru.StyledText.ColorDefinition",
         lua.create_function(|lua, _:()| {
             let color_definition = lua.create_table()?;
             let color_definition_metatable = lua.create_table()?;
             
             color_definition_metatable.set(
                 "__call",
-                lua.create_function(|lua, (def, value): (mlua::String, AnyUserData)| {
+                lua.create_function(|lua, (_, def, value): (Table, mlua::String, AnyUserData)| {
                     let value = value.take::<ColorValue>()?;
                     let def = def.to_str()?.to_string();
                     let def = ColorType::try_from(def.as_str()).unwrap();
@@ -434,7 +437,10 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
             Ok(color_definition)
         })?
     )?;
-    
+    exports.set(
+        "package",
+        package
+    )?;
     
     Ok(exports)
 }
