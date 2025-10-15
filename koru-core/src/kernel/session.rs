@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::sync::{LazyLock, Mutex};
-use mlua::{AnyUserData, Lua, Table};
+use mlua::{AnyUserData, Function, Lua, Table};
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::cursor::Cursor;
 use crate::kernel::{files, lua_api};
@@ -114,6 +114,53 @@ impl Session {
         }
     }
     
+    fn set_globals(&self) -> Result<(), Box<dyn Error>> {
+        let session_id = self.session_id.0;
+        self.lua.globals().set(
+            "get_session_id",
+            self.lua.create_function(move |_, ()| {
+                Ok(session_id)
+            })?,
+        )?;
+
+        self.lua.globals().set(
+            "major_mode",
+            self.lua.create_table()?
+        )?;
+
+        self.lua.globals().set(
+            "set_major_mode",
+            self.lua.create_function(|lua, (file_index, mode): (mlua::Integer, mlua::Value)| {
+                lua.globals().get::<Table>("major_mode")?.set(file_index, mode)
+            })?
+        )?;
+
+        self.lua.globals().set(
+            "file_open_hooks",
+            self.lua.create_table()?
+        )?;
+
+        self.lua.globals().set(
+            "add_file_open_hook",
+            self.lua.create_function(|lua, (hook_name, mode): (mlua::String, Function)| {
+                lua.globals().get::<Table>("file_open_hooks")?.set(hook_name, mode)
+            })?
+        )?;
+
+        let package = self.lua.globals().get::<Table>("package").unwrap();
+        let preload = package.get::<Table>("preload").unwrap();
+
+        preload.set(
+            "Koru",
+            self.lua.create_function(|lua, _:()| {
+                lua_api::kernel_mod(&lua)
+            })?
+        )?;
+
+        self.lua.load(include_str!("../../../lua/textviewmode.lua")).exec()?;
+        Ok(())
+    }
+    
     async fn notify_clients(&mut self, msg: MessageKind) {
         let mut dead_clients = Vec::new();
         for (i, client) in self.client_ids.iter().enumerate() {
@@ -129,47 +176,38 @@ impl Session {
         }
     }
     
+    async fn file_opened_hook(&self, file_index: usize, file_ext: &str) {
+        let file_open_hooks = self.lua.globals().get::<Table>("file_open_hooks").unwrap();
+        for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {
+            let (_, function) = hook.unwrap();
+            match function.call::<()>((file_index as i64, file_ext.to_string())) {
+                Ok(_) => {}
+                Err(e) => {
+                    eprintln!("{}", e);
+                    panic!("file_open_hook failed");
+                }
+            }
+        }
+    }
+    
+    
     pub async fn run(&mut self, session_code: &str) {
-        let session_id = self.session_id.0;
-        self.lua.globals().set(
-            "get_session_id",
-            self.lua.create_function(move |_, ()| {
-                Ok(session_id)
-            }).unwrap(),
-        ).unwrap();
         
-        self.lua.globals().set(
-            "set_major_mode",
-            self.lua.create_function(|lua, (mode,): (AnyUserData,)| {
-                lua.globals().set(
-                    "major_mode",
-                    mode
-                )
-            }).unwrap()
-        ).unwrap();
+        match self.set_globals() {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("{}", e);
+                panic!("set_globals failed");
+            }
+        }
         
-        let preload = self.lua.create_table().unwrap();
-        
-        preload.set(
-            "Koru",
-            self.lua.create_function(|lua, _:()| {
-                lua_api::kernel_mod(&lua)
-            }).unwrap()
-        ).unwrap();
-        
-        let package = self.lua.globals().get::<Table>("package").unwrap();
-
-        package.set(
-            "preload",
-            preload,
-        ).unwrap();
-
-        self.lua.globals().set(
-            "package",
-            package
-        ).unwrap();
-        
-        self.lua.load(session_code).exec_async().await.unwrap();
+        match self.lua.load(session_code).exec_async().await {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("{}", e);
+                panic!("executing config failed");
+            }
+        }
         loop {
             match self.broker_client.recv().await {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
@@ -188,7 +226,9 @@ impl Session {
                         cursors: vec![cursor],
                         handle: file,
                     };
+                    let index = self.open_files.len();
                     self.open_files.push(data);
+                    self.file_opened_hook(index, "rs").await;
                     self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {

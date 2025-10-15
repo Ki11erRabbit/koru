@@ -119,28 +119,19 @@ impl UserData for Command {
 
 pub fn kernel_mod(lua: &Lua) -> mlua::Result<LuaTable> {
     let exports = lua.create_table()?;
-    
-    
-    /*exports.set(
-        "open_file",
-        lua.create_async_function(async |lua, path: String| {
-            let handle = open_or_get_handle(path).await.unwrap();
-            lua.create_userdata(handle)
-        })?,
-    )?;*/
 
     let package = lua.globals().get::<Table>("package")?;
     let preload = package.get::<Table>("preload")?;
 
     preload.set(
         "Koru.StyledText",
-        lua.create_function(|lua, _:()| {
+        lua.create_function(|lua, _: mlua::String| {
             styled_text_module(lua)
         })?
     )?;
     preload.set(
         "Koru.Command",
-        lua.create_function(|lua, _:()| {
+        lua.create_function(|lua, _: mlua::String| {
             let command_module = lua.create_table()?;
             let command_metatable = lua.create_table()?;
 
@@ -179,14 +170,10 @@ pub fn kernel_mod(lua: &Lua) -> mlua::Result<LuaTable> {
     )?;
     preload.set(
         "Koru.MajorMode",
-        lua.create_function(|lua, _:()| {
+        lua.create_function(|lua, _: mlua::String| {
             let table = major_mode::major_mode_module(lua)?;
             Ok(table)
         })?
-    )?;
-    exports.set(
-        "package",
-        package
     )?;
     
     exports.set(
