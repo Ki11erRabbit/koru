@@ -142,6 +142,10 @@ impl StyledFile {
         self.lines.push(line);
     }
     
+    pub fn line_count(&self) -> usize {
+        self.lines.len()
+    }
+    
     pub fn prepend_segment(&mut self, line: usize, text: StyledText) {
         while self.lines.len() <= line {
             self.lines.push(Vec::new());
@@ -436,10 +440,6 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
             
             Ok(color_definition)
         })?
-    )?;
-    exports.set(
-        "package",
-        package
     )?;
     
     Ok(exports)

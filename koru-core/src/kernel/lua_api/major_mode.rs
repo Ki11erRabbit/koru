@@ -49,6 +49,12 @@ impl LuaUserData for MajorMode {
                 Ok(())
             }
         );
+        methods.add_method(
+            "modify_line",
+            |_, _, (_styled_file, _total_lines): (AnyUserData, mlua::Integer)| {
+                Ok(())
+            }
+        );
     }
 }
 

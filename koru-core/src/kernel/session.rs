@@ -1,7 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::sync::{LazyLock, Mutex};
-use mlua::{AnyUserData, Function, Lua, Table};
+use mlua::{AnyUserData, Function, Lua, ObjectLike, Table};
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::cursor::Cursor;
 use crate::kernel::{files, lua_api};
@@ -190,6 +190,21 @@ impl Session {
         }
     }
     
+    async fn send_draw(&mut self, index: usize) {
+
+        let styled_file = StyledFile::from(self.open_files[index].handle.get_text().await);
+        
+        let major_mode = self.lua.globals().get::<Table>("major_mode")
+            .unwrap().get::<Table>(index as i64).unwrap();
+        
+        let line_count = styled_file.line_count();
+        
+        let styled_file: AnyUserData = major_mode.call_method("modify_line", (styled_file, line_count as i64)).unwrap();
+        let styled_file = styled_file.take().unwrap();
+
+        self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+    }
+    
     
     pub async fn run(&mut self, session_code: &str) {
         
@@ -229,7 +244,7 @@ impl Session {
                     let index = self.open_files.len();
                     self.open_files.push(data);
                     self.file_opened_hook(index, "rs").await;
-                    self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+                    self.send_draw(index).await;
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {
                     match &mut self.command_state {
