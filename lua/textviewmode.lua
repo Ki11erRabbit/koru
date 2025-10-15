@@ -4,10 +4,11 @@ local StyledText = require "Koru.StyledText"
 local StyledText = require "Koru.StyledText.StyledText"
 
 TextViewMode = {}
+TextViewMode.__index = TextViewMode
+setmetatable(TextViewMode, { __index = MajorMode })
 function TextViewMode:new()
-    TextViewMode.__index = TextViewMode
-    setmetatable(TextViewMode, { __index = MajorMode })
     local obj = MajorMode()
+    obj = MajorMode.extend(obj, MajorMode)
     setmetatable(obj, TextViewMode)
     obj.line_number = true
     return obj

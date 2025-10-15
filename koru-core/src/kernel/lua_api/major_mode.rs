@@ -61,62 +61,152 @@ impl LuaUserData for MajorMode {
 pub fn major_mode_module(lua: &Lua) -> mlua::Result<LuaTable> {
     let exports = lua.create_table()?;
     let metatable = lua.create_table()?;
-    
+
     metatable.set(
         "__call",
-        lua.create_function(|lua,(this_table,): (Table,)| {
+        lua.create_function(|lua, (this_table,): (Table,)| {
             let user_data = lua.create_userdata(MajorMode::new())?;
             let proxy = lua.create_table()?;
             proxy.set("__userdata", user_data.clone())?;
             proxy.set("__class", this_table)?;
 
-            let method_names = vec!["modify_line", "register_command", "register_alias"];
+            // DON'T pre-populate methods - let __index handle everything
 
-            for method_name in method_names {
-                if let Ok(method) = user_data.get::<mlua::Function>(method_name) {
-                    let ud_clone = user_data.clone();
-                    let wrapped = lua.create_function(move |_, (_self, args): (mlua::Value, mlua::MultiValue)| {
-                        // Ignore _self (the proxy table), use userdata instead
+            let mt = lua.create_table()?;
+            let ud_for_index = user_data.clone();
+
+            mt.set(
+                "__index",
+                lua.create_function(move |lua, (table, key): (Table, mlua::String)| {
+                    // Check __class for derived/override methods
+                    if let Ok(class) = table.get::<Table>("__class") {
+                        if let Ok(value) = class.get::<mlua::Value>(key.clone()) {
+                            if !matches!(value, mlua::Value::Nil) {
+                                return Ok(value);
+                            }
+                        }
+                    }
+
+                    // Then check userdata and wrap the method
+                    if let Ok(method) = ud_for_index.get::<mlua::Function>(key.clone()) {
+                        let ud_clone = ud_for_index.clone();
+                        return Ok(mlua::Value::Function(
+                            lua.create_function(move |_, (_self, args): (mlua::Value, mlua::MultiValue)| {
+                                let mut call_args = mlua::MultiValue::new();
+                                call_args.push_front(mlua::Value::UserData(ud_clone.clone()));
+                                for arg in args {
+                                    call_args.push_back(arg);
+                                }
+                                method.call::<mlua::MultiValue>(call_args)
+                            })?
+                        ));
+                    }
+
+                    Ok(mlua::Value::Nil)
+                })?
+            )?;
+
+            mt.set(
+                "__newindex",
+                lua.create_function(move |_, (table, key, value): (Table, mlua::Value, mlua::Value)| {
+                    table.raw_set(key, value)?;
+                    Ok(())
+                })?
+            )?;
+
+            proxy.set_metatable(Some(mt));
+
+            Ok(proxy)
+        })?
+    )?;
+
+    // Add an extend/inherit helper function
+    exports.set(
+        "extend",
+        lua.create_function(|lua, (base_instance, derived_class): (Table, Table)| {
+            // Get the Rust metatable using Lua's getmetatable
+            let getmetatable: mlua::Function = lua.globals().get("getmetatable")?;
+            let rust_mt: Table = getmetatable.call(base_instance.clone())?;
+
+            let rust_index = rust_mt.get::<mlua::Function>("__index")?;
+            let rust_newindex = rust_mt.get::<mlua::Function>("__newindex")?;
+
+            // Create new metatable that chains to derived class
+            let new_mt = lua.create_table()?;
+
+            let derived_clone = derived_class.clone();
+            let index_fn = lua.create_function(move |lua, (table, key): (Table, mlua::Value)| {
+                // Check derived class first
+                if let Ok(value) = derived_clone.get::<mlua::Value>(key.clone()) {
+                    if !matches!(value, mlua::Value::Nil) {
+                        return Ok(value);
+                    }
+                }
+
+                // Fall back to Rust index
+                rust_index.call::<mlua::Value>((table, key))
+            })?;
+
+            new_mt.set("__index", index_fn)?;
+            new_mt.set("__newindex", rust_newindex)?;
+
+            // Use Lua's setmetatable
+            let setmetatable: mlua::Function = lua.globals().get("setmetatable")?;
+            setmetatable.call::<()>((base_instance.clone(), new_mt))?;
+
+            Ok(base_instance)
+        })?
+    )?;
+
+    exports.set_metatable(Some(metatable))?;
+
+    Ok(exports)
+}
+
+fn create_proxy_metatable(lua: &Lua, proxy: &Table, user_data: mlua::AnyUserData) -> mlua::Result<()> {
+    let mt = lua.create_table()?;
+    let ud_for_index = user_data.clone();
+
+    mt.set(
+        "__index",
+        lua.create_function(move |lua, (table, key): (Table, mlua::String)| {
+            // Check __class for derived/override methods
+            if let Ok(class) = table.get::<Table>("__class") {
+                if let Ok(value) = class.get::<mlua::Value>(key.clone()) {
+                    if !matches!(value, mlua::Value::Nil) {
+                        return Ok(value);
+                    }
+                }
+            }
+
+            // Then check userdata
+            if let Ok(method) = ud_for_index.get::<mlua::Function>(key.clone()) {
+                let ud_clone = ud_for_index.clone();
+                return Ok(mlua::Value::Function(
+                    lua.create_function(move |_, (_self, args): (mlua::Value, mlua::MultiValue)| {
                         let mut call_args = mlua::MultiValue::new();
                         call_args.push_front(mlua::Value::UserData(ud_clone.clone()));
                         for arg in args {
                             call_args.push_back(arg);
                         }
                         method.call::<mlua::MultiValue>(call_args)
-                    })?;
-                    proxy.set(method_name, wrapped)?;
-                }
+                    })?
+                ));
             }
-            
-            let mt = lua.create_table()?;
-            mt.set(
-                "__index", 
-                lua.create_function(|_, (table, key): (Table, mlua::Value)| {
-                    if let Ok(class) = table.get::<Table>("__class") {
-                        let fallback = class.get::<mlua::Value>(key)?;
-                        if !matches!(fallback, mlua::Value::Nil) {
-                            return Ok(fallback);
-                        }
-                    }
 
-                    Ok(mlua::Value::Nil)
-                })?
-            )?;
-            mt.set(
-                "__newindex",
-                lua.create_function(|_, (table, key, value): (Table, mlua::Value, mlua::Value)| {
-                    table.raw_set(key, value)?;
-                    Ok(())
-                })?
-            )?;
-            
-            proxy.set_metatable(Some(mt))?;
-            
-            Ok(proxy)
+            Ok(mlua::Value::Nil)
         })?
     )?;
-    
-    exports.set_metatable(Some(metatable))?;
-    
-    Ok(exports)
+
+    mt.set(
+        "__newindex",
+        lua.create_function(move |_, (table, key, value): (Table, mlua::Value, mlua::Value)| {
+            table.raw_set(key, value)?;
+            Ok(())
+        })?
+    )?;
+
+    proxy.set_metatable(Some(mt));
+
+    Ok(())
 }
