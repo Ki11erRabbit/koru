@@ -1,12 +1,15 @@
+mod buffer;
+
 use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::sync::{LazyLock, Mutex};
-use mlua::{AnyUserData, Function, Lua, ObjectLike, Table};
+use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::cursor::Cursor;
 use crate::kernel::{files, lua_api};
 use crate::kernel::files::{OpenFileHandle, OpenFileTable};
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
+use crate::kernel::session::buffer::{Buffer, BufferData};
 use crate::keybinding::Keybinding;
 use crate::styled_text::StyledFile;
 
@@ -78,21 +81,16 @@ pub enum CommandState {
     EnteringCommand(String),
 }
 
-pub struct OpenFileData {
-    handle: OpenFileHandle,
-    cursors: Vec<Cursor>,
-}
-
 
 pub struct Session {
     session_id: SessionId,
     lua: Lua,
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
-    open_files: Vec<OpenFileData>,
     command_state: CommandState,
     key_buffer: KeyBuffer,
     keybinding: Keybinding<mlua::Function>,
+    focused_buffer: mlua::Value,
 }
 
 impl Session {
@@ -107,13 +105,13 @@ impl Session {
             lua,
             broker_client,
             client_ids: vec![client_id],
-            open_files: Vec::new(),
             command_state: CommandState::None,
             key_buffer: KeyBuffer::new(),
             keybinding: Keybinding::new(),
+            focused_buffer: mlua::Value::Nil,
         }
     }
-    
+
     fn set_globals(&self) -> Result<(), Box<dyn Error>> {
         let session_id = self.session_id.0;
         self.lua.globals().set(
@@ -122,31 +120,84 @@ impl Session {
                 Ok(session_id)
             })?,
         )?;
+        
+        self.lua.globals().set(
+            "__open_buffers",
+            self.lua.create_table()?
+        )?;
 
         self.lua.globals().set(
-            "major_mode",
+            "__major_mode",
             self.lua.create_table()?
         )?;
 
         self.lua.globals().set(
             "set_major_mode",
-            self.lua.create_function(|lua, (file_index, mode): (mlua::Integer, mlua::Value)| {
-                lua.globals().get::<Table>("major_mode")?.set(file_index, mode)
+            self.lua.create_function(|lua, (file_index, mode): (mlua::Value, mlua::Value)| {
+                lua.globals().get::<Table>("__major_mode")?.set(file_index, mode)
             })?
         )?;
 
         self.lua.globals().set(
-            "file_open_hooks",
+            "__file_open_hooks",
             self.lua.create_table()?
         )?;
 
         self.lua.globals().set(
             "add_file_open_hook",
             self.lua.create_function(|lua, (hook_name, mode): (mlua::String, Function)| {
-                lua.globals().get::<Table>("file_open_hooks")?.set(hook_name, mode)
+                lua.globals().get::<Table>("__file_open_hooks")?.set(hook_name, mode)
             })?
         )?;
+        
+        self.create_buffer("**Warnings**", Buffer::new_log())?;
+        
+        self.lua.globals().set(
+            "write_warning",
+            self.lua.create_function(|lua, string: mlua::String| {
+                let buffer = lua.globals().get::<Table>("__open_buffers")?
+                    .get::<AnyUserData>("**Warnings**")?;
+                let mut buffer = buffer.borrow_mut::<Buffer>()?;
+                
+                let string = string.to_str()?;
+                
+                buffer.manipulate_data(|data| {
+                    match data {
+                        BufferData::Log(log) => {
+                            log.push(string.to_string());
+                        }
+                        _ => unreachable!("We should only have a log buffer here"),
+                    }
+                });
+                
+                Ok(())
+            })?
+        )?;
+        
+        self.create_buffer("**Errors**", Buffer::new_log())?;
 
+        self.lua.globals().set(
+            "write_error",
+            self.lua.create_function(|lua, string: mlua::String| {
+                let buffer = lua.globals().get::<Table>("__open_buffers")?
+                    .get::<AnyUserData>("**Errors**")?;
+                let mut buffer = buffer.borrow_mut::<Buffer>()?;
+
+                let string = string.to_str()?;
+
+                buffer.manipulate_data(|data| {
+                    match data {
+                        BufferData::Log(log) => {
+                            log.push(string.to_string());
+                        }
+                        _ => unreachable!("We should only have a log buffer here"),
+                    }
+                });
+
+                Ok(())
+            })?
+        )?;
+        
         let package = self.lua.globals().get::<Table>("package").unwrap();
         let preload = package.get::<Table>("preload").unwrap();
 
@@ -158,7 +209,53 @@ impl Session {
         )?;
 
         self.lua.load(include_str!("../../../lua/textviewmode.lua")).exec()?;
+        self.lua.load(include_str!("../../../lua/logviewmode.lua")).exec()?;
         Ok(())
+    }
+    
+    fn write_warning(&self, msg: String) -> Result<(), Box<dyn Error>> {
+        let buffer = self.lua.globals().get::<Table>("__open_buffers")?
+            .get::<AnyUserData>("**Warnings**")?;
+        let mut buffer = buffer.borrow_mut::<Buffer>()?;
+
+        buffer.manipulate_data(move |data| {
+            match data {
+                BufferData::Log(log) => {
+                    log.push(msg);
+                }
+                _ => unreachable!("We should only have a log buffer here"),
+            }
+        });
+        
+        Ok(())
+    }
+    
+    fn write_error(&self, msg: String) -> Result<(), Box<dyn Error>> {
+        let buffer = self.lua.globals().get::<Table>("__open_buffers")?
+            .get::<AnyUserData>("**Errors**")?;
+        let mut buffer = buffer.borrow_mut::<Buffer>()?;
+
+        buffer.manipulate_data(|data| {
+            match data {
+                BufferData::Log(log) => {
+                    log.push(msg);
+                }
+                _ => unreachable!("We should only have a log buffer here"),
+            }
+        });
+        
+        Ok(())
+    }
+    
+    fn create_buffer(&self, name: &str, buffer: Buffer) -> Result<mlua::Value, Box<dyn Error>> {
+        let open_buffers = self.lua.globals().get::<Table>("__open_buffers")?;
+        
+        open_buffers.set(
+            name,
+            buffer,
+        )?;
+        
+        Ok(name.into_lua(&self.lua)?)
     }
     
     async fn notify_clients(&mut self, msg: MessageKind) {
@@ -175,40 +272,48 @@ impl Session {
             self.client_ids.remove(client);
         }
     }
-    
-    async fn file_opened_hook(&self, file_index: usize, file_ext: &str) {
-        let file_open_hooks = self.lua.globals().get::<Table>("file_open_hooks").unwrap();
+
+    async fn file_opened_hook(&self, file_name: mlua::Value, file_ext: &str) {
+        let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
         for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {
             let (_, function) = hook.unwrap();
-            match function.call::<()>((file_index as i64, file_ext.to_string())) {
+            match function.call::<()>((file_name.clone(), file_ext.to_string())) {
                 Ok(_) => {}
                 Err(e) => {
-                    eprintln!("{}", e);
-                    panic!("file_open_hook failed");
+                    self.write_warning(e.to_string()).unwrap()
                 }
             }
         }
     }
-    
-    async fn send_draw(&mut self, index: usize) {
 
-        let styled_file = StyledFile::from(self.open_files[index].handle.get_text().await);
-        let styled_file = styled_file.place_cursors(&self.open_files[index].cursors);
+    async fn send_draw(&mut self, buffer_name: mlua::Value) -> Result<(), Box<dyn Error>> {
         
-        let major_mode = self.lua.globals().get::<Table>("major_mode")
-            .unwrap().get::<Table>(index as i64).unwrap();
+        if buffer_name == mlua::Value::Nil {
+            return Ok(());
+        }
         
+        let open_buffers = self.lua.globals().get::<Table>("__open_buffers")?;
+        
+        let buffer = open_buffers.get::<AnyUserData>(buffer_name.clone())?;
+        let buffer = buffer.borrow::<Buffer>()?;
+        
+        let styled_file = buffer.styled_file().await;
+
+        let major_mode = self.lua.globals().get::<Table>("__major_mode")?
+            .get::<Table>(buffer_name)?;
+
         let line_count = styled_file.line_count();
-        
-        let styled_file: AnyUserData = major_mode.call_method("modify_line", (styled_file, line_count as i64)).unwrap();
-        let styled_file = styled_file.take().unwrap();
+
+        let styled_file: AnyUserData = major_mode.call_method("modify_line", (styled_file, line_count as i64))?;
+        let styled_file = styled_file.take()?;
 
         self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+        Ok(())
     }
-    
+
     
     pub async fn run(&mut self, session_code: &str) {
-        
+
         match self.set_globals() {
             Ok(_) => {}
             Err(e) => {
@@ -220,8 +325,7 @@ impl Session {
         match self.lua.load(session_code).exec_async().await {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("{}", e);
-                panic!("executing config failed");
+                self.write_error(e.to_string()).unwrap();
             }
         }
         loop {
@@ -229,18 +333,30 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
                     self.key_buffer.clear();
                 }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('w'), ..})), .. }) => {
+                    self.send_draw("**Warnings**".into_lua(&self.lua).unwrap()).await.unwrap();
+                }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('e'), ..})), .. }) => {
+                    self.send_draw("**Errors**".into_lua(&self.lua).unwrap()).await.unwrap();
+                }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
-                    let file = files::open_file("koru-core/src/kernel.rs").await.unwrap();
-                    let cursor = Cursor::new(0, 1);
+                    const FILE_NAME: &str = "koru-core/src/kernel.rs";
                     
-                    let data = OpenFileData {
-                        cursors: vec![cursor],
-                        handle: file,
-                    };
-                    let index = self.open_files.len();
-                    self.open_files.push(data);
-                    self.file_opened_hook(index, "rs").await;
-                    self.send_draw(index).await;
+                    let file = files::open_file(FILE_NAME).await.unwrap();
+                    
+                    let buffer = Buffer::new_open_file(file);
+                    
+                    let buffer_name = self.create_buffer(FILE_NAME, buffer).unwrap();
+                    self.focused_buffer = buffer_name.clone();
+                    
+                    
+                    self.file_opened_hook(buffer_name.clone(), "rs").await;
+                    match self.send_draw(buffer_name).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            self.write_error(e.to_string()).unwrap();
+                        }
+                    }
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {
                     match &mut self.command_state {

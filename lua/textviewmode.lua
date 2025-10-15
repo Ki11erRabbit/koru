@@ -34,7 +34,6 @@ function TextViewMode:modify_line(styled_file, total_lines)
     local digit_count = num_digits(total_lines)
     
     for i = 0, line_count do
-        print(i)
         styled_file:prepend_segment(i, StyledText(string.format("%" .. tostring(digit_count) .. "d|", i + 1)))
     end
 
@@ -43,8 +42,8 @@ function TextViewMode:modify_line(styled_file, total_lines)
 end
 
 
-local function file_open_hook(file_index, file_ext)
-    set_major_mode(file_index, TextViewMode:new())
+local function file_open_hook(file_name, file_ext)
+    set_major_mode(file_name, TextViewMode:new())
     print("hook!")
 end
 
