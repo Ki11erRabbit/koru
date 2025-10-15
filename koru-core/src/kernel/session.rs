@@ -193,6 +193,7 @@ impl Session {
     async fn send_draw(&mut self, index: usize) {
 
         let styled_file = StyledFile::from(self.open_files[index].handle.get_text().await);
+        let styled_file = styled_file.place_cursors(&self.open_files[index].cursors);
         
         let major_mode = self.lua.globals().get::<Table>("major_mode")
             .unwrap().get::<Table>(index as i64).unwrap();
@@ -230,12 +231,7 @@ impl Session {
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     let file = files::open_file("koru-core/src/kernel.rs").await.unwrap();
-                    let text = file.get_text().await;
                     let cursor = Cursor::new(0, 1);
-                    
-                    let styled_file = StyledFile::from(text);
-                    
-                    let styled_file = styled_file.place_cursors(&[cursor]);
                     
                     let data = OpenFileData {
                         cursors: vec![cursor],
