@@ -70,8 +70,6 @@ pub fn major_mode_module(lua: &Lua) -> mlua::Result<LuaTable> {
             proxy.set("__userdata", user_data.clone())?;
             proxy.set("__class", this_table)?;
 
-            // DON'T pre-populate methods - let __index handle everything
-
             let mt = lua.create_table()?;
             let ud_for_index = user_data.clone();
 
@@ -114,7 +112,7 @@ pub fn major_mode_module(lua: &Lua) -> mlua::Result<LuaTable> {
                 })?
             )?;
 
-            proxy.set_metatable(Some(mt));
+            proxy.set_metatable(Some(mt))?;
 
             Ok(proxy)
         })?
@@ -161,52 +159,4 @@ pub fn major_mode_module(lua: &Lua) -> mlua::Result<LuaTable> {
     exports.set_metatable(Some(metatable))?;
 
     Ok(exports)
-}
-
-fn create_proxy_metatable(lua: &Lua, proxy: &Table, user_data: mlua::AnyUserData) -> mlua::Result<()> {
-    let mt = lua.create_table()?;
-    let ud_for_index = user_data.clone();
-
-    mt.set(
-        "__index",
-        lua.create_function(move |lua, (table, key): (Table, mlua::String)| {
-            // Check __class for derived/override methods
-            if let Ok(class) = table.get::<Table>("__class") {
-                if let Ok(value) = class.get::<mlua::Value>(key.clone()) {
-                    if !matches!(value, mlua::Value::Nil) {
-                        return Ok(value);
-                    }
-                }
-            }
-
-            // Then check userdata
-            if let Ok(method) = ud_for_index.get::<mlua::Function>(key.clone()) {
-                let ud_clone = ud_for_index.clone();
-                return Ok(mlua::Value::Function(
-                    lua.create_function(move |_, (_self, args): (mlua::Value, mlua::MultiValue)| {
-                        let mut call_args = mlua::MultiValue::new();
-                        call_args.push_front(mlua::Value::UserData(ud_clone.clone()));
-                        for arg in args {
-                            call_args.push_back(arg);
-                        }
-                        method.call::<mlua::MultiValue>(call_args)
-                    })?
-                ));
-            }
-
-            Ok(mlua::Value::Nil)
-        })?
-    )?;
-
-    mt.set(
-        "__newindex",
-        lua.create_function(move |_, (table, key, value): (Table, mlua::Value, mlua::Value)| {
-            table.raw_set(key, value)?;
-            Ok(())
-        })?
-    )?;
-
-    proxy.set_metatable(Some(mt));
-
-    Ok(())
 }
