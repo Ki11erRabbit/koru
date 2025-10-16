@@ -2,11 +2,11 @@ require "Koru"
 local MajorMode = require "Koru.MajorMode"
 
 LogViewMode = {}
-LogViewMode.__index = MajorMode
-setmetatable(LogViewMode, { __index = MajorMode })
+LogViewMode.__index = LogViewMode
+
 function LogViewMode:new()
     local obj = MajorMode()
-    setmetatable(obj, LogViewMode)
+    obj = MajorMode.extend(obj, LogViewMode)
     return obj
 end
 
