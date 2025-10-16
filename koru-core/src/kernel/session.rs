@@ -149,6 +149,26 @@ impl Session {
                 lua.globals().get::<Table>("__file_open_hooks")?.set(hook_name, mode)
             })?
         )?;
+
+        self.lua.globals().set(
+            "__minor_modes",
+            self.lua.create_table()?
+        )?;
+
+        self.lua.globals().set(
+            "add_minor_mode",
+            self.lua.create_function(|lua, (file_index, mode_name, mode): (mlua::Value, mlua::String, mlua::Value)| {
+                if let Ok(file_modes) = lua.globals().get::<Table>("__minor_modes")?.get::<Table>(file_index.clone()) {
+                    file_modes.set(mode_name, mode)?;
+                } else {
+                    let table = lua.create_table()?;
+                    table.set(mode_name, mode)?;
+                    lua.globals().get::<Table>("__minor_modes")?.set(file_index, table)?;
+                }
+                Ok(())
+            })?
+        )?;
+        
         
         self.create_buffer("**Warnings**", Buffer::new_log())?;
         

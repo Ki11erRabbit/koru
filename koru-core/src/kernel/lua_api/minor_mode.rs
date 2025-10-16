@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use mlua::prelude::LuaUserData;
-use mlua::{AnyUserData, UserDataMethods};
+use mlua::{AnyUserData, Table, UserDataMethods};
 use crate::kernel::input::KeyPress;
 use crate::kernel::lua_api::Command;
 use crate::keybinding::Keybinding;
@@ -60,5 +60,26 @@ impl LuaUserData for MinorMode {
                 Ok(())
             }
         );
+        methods.add_method_mut(
+            "add_keybinding",
+            |_, this, (key_seq, binding): (Table, mlua::String)| {
+                let keys = key_seq.sequence_values()
+                    .map(|k| k.map(|x: AnyUserData| x.take::<KeyPress>()))
+                    .collect::<Result<Result<Vec<_>,_>, _>>()??;
+                let binding = binding.to_str()?.to_string();
+                this.add_keybinding(keys, binding);
+                Ok(())
+            }
+        );
+        methods.add_method(
+            "get_keybinding",
+            |_, this, (key_seq,): (Table,)| {
+                let keys = key_seq.sequence_values()
+                    .map(|k| k.map(|x: AnyUserData| x.take::<KeyPress>()))
+                    .collect::<Result<Result<Vec<_>,_>, _>>()??;
+                let binding = this.get_keybinding(&keys);
+                Ok(binding)
+            }
+        )
     }
 }

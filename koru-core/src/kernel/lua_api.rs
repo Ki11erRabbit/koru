@@ -1,5 +1,6 @@
 mod major_mode;
 mod minor_mode;
+mod ui_state;
 
 use std::collections::HashMap;
 use mlua::{AnyUserData, Function, Lua, MultiValue, Table, UserData, UserDataMethods, Value};

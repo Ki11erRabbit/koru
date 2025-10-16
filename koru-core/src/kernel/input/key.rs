@@ -1,6 +1,7 @@
 use std::ops::BitAnd;
+use std::sync::Arc;
 use bitflags::bitflags;
-use mlua::{Lua, UserData, UserDataMethods};
+use mlua::{Lua, UserData, UserDataMethods, Value};
 
 
 
@@ -375,6 +376,43 @@ pub fn key_module(lua: &Lua) -> mlua::Result<mlua::Table> {
         })?
     )?;
     exports.set_metatable(Some(meta))?;
+    
+    exports.set(
+        "create_seq",
+        lua.create_function(|lua, mut args: mlua::MultiValue| {
+            let (_, vaargs) = args.as_mut_slices();
+            let table = lua.create_table()?;
+            for (i, value) in vaargs.iter_mut().enumerate() {
+                match value {
+                    Value::String(string) => {
+                        let key_string = string.to_str()?.to_string();
+                        let key = KeyPress::from_string(&key_string)
+                            .ok_or(mlua::Error::external(String::from("invalid key string")))?;
+                        table.set(
+                            i + 1,
+                            lua.create_userdata(key)?
+                        )?;
+                    }
+                    Value::UserData(data) => {
+                        let data = data.take::<KeyPress>()?;
+                        table.set(
+                            i + 1,
+                            lua.create_userdata(data)?
+                        )?
+                    }
+                    _ => {
+                        return Err(mlua::Error::BadArgument {
+                            to: None,
+                            pos: i,
+                            name: None,
+                            cause: Arc::new(mlua::Error::external(String::from("value must be string or keypress"))),
+                        })
+                    }
+                }
+            }
+            Ok(table)
+        })?,
+    )?;
 
     Ok(exports)
 }
