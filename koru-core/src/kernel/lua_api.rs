@@ -177,6 +177,19 @@ pub fn kernel_mod(lua: &Lua) -> mlua::Result<LuaTable> {
             Ok(table)
         })?
     )?;
+    preload.set(
+        "Koru.MinorMode",
+        lua.create_function(|lua, _: mlua::String| {
+            let table = minor_mode::minor_mode_module(lua)?;
+            Ok(table)
+        })?
+    )?;
+    preload.set(
+        "Koru.Ui",
+        lua.create_function(|lua, _: mlua::String| {
+            ui_state::ui_module(lua)
+        })?
+    )?;
     
     exports.set(
         "hello",
