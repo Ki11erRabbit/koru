@@ -1,7 +1,9 @@
 pub mod kernel;
 pub mod styled_text;
 pub mod keybinding;
+mod attr_set;
 
+pub use attr_set::AttrSet;
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;

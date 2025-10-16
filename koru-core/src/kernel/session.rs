@@ -4,6 +4,7 @@ use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::sync::{LazyLock, Mutex};
 use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
+use crate::attr_set::AttrSet;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::cursor::Cursor;
 use crate::kernel::{files, lua_api};
@@ -97,14 +98,13 @@ impl Session {
     pub fn new(
         lua: Lua,
         broker_client: BrokerClient,
-        client_id: usize,
     ) -> Self {
         let id = SessionIdManager::get_new_id();
         Self { 
             session_id: id,
             lua,
             broker_client,
-            client_ids: vec![client_id],
+            client_ids: vec![],
             command_state: CommandState::None,
             key_buffer: KeyBuffer::new(),
             keybinding: Keybinding::new(),
@@ -168,7 +168,6 @@ impl Session {
                 Ok(())
             })?
         )?;
-        
         
         self.create_buffer("**Warnings**", Buffer::new_log())?;
         
@@ -267,6 +266,28 @@ impl Session {
         Ok(())
     }
     
+    async fn new_client_connection(&mut self, id: usize) -> Result<(), Box<dyn Error>> {
+        let ui_attrs = self.lua.globals().get::<Table>("__ui_attrs")?;
+        let mut values = Vec::new();
+        for pair in ui_attrs.pairs() {
+            let (key, value) = pair?;
+            match (key, value) {
+                (mlua::Value::String(key), mlua::Value::String(value)) => {
+                    let key = key.to_str()?.to_string();
+                    let value = value.to_str()?.to_string();
+                    
+                    values.push(AttrSet::new(key, value));
+                }
+                _ => unreachable!("We should only be able to put strings into ui attributes")
+            }
+        }
+        self.broker_client.send(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id).await?;
+        
+        self.client_ids.push(id);
+        
+        Ok(())
+    }
+    
     fn create_buffer(&self, name: &str, buffer: Buffer) -> Result<mlua::Value, Box<dyn Error>> {
         let open_buffers = self.lua.globals().get::<Table>("__open_buffers")?;
         
@@ -332,7 +353,7 @@ impl Session {
     }
 
     
-    pub async fn run(&mut self, session_code: &str) {
+    pub async fn run(&mut self, session_code: &str, client_id: usize) {
 
         match self.set_globals() {
             Ok(_) => {}
@@ -348,6 +369,14 @@ impl Session {
                 self.write_error(e.to_string()).unwrap();
             }
         }
+        match self.new_client_connection(client_id).await {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("{}", e);
+                self.write_error(e.to_string()).unwrap();
+            }
+        }
+        
         loop {
             match self.broker_client.recv().await {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
@@ -429,7 +458,7 @@ impl Session {
 
     pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
         let lua = Lua::new();
-        let mut session = Session::new(lua, broker_client, client_id);
+        let mut session = Session::new(lua, broker_client);
 
         session.run("\
 local koru = require \"Koru\"\
@@ -438,7 +467,7 @@ koru.hello()
 local command = command('hello', 'prints hello', function()
     print('hello')
 end, {})
-        ").await;
+        ", client_id).await;
     }
 }
 

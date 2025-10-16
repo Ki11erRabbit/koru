@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
 use tokio::sync::mpsc::{Receiver, Sender};
+use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
 use crate::styled_text::{ColorDefinition, StyledFile};
@@ -43,6 +44,7 @@ pub enum GeneralMessage {
     SetColorDef(ColorDefinition),
     UpdateMessageBar(String),
     FlushKeyBuffer,
+    SetUiAttrs(Vec<AttrSet>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]

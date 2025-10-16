@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use mlua::prelude::{LuaTable, LuaUserData};
-use mlua::{AnyUserData, Lua, Table, UserDataMethods};
+use mlua::{AnyUserData, Lua, ObjectLike, Table, UserDataMethods};
 use crate::kernel::input::KeyPress;
 use crate::kernel::lua_api::Command;
 use crate::keybinding::Keybinding;
