@@ -265,7 +265,7 @@ impl Session {
         
         Ok(())
     }
-
+    
     async fn new_client_connection(&mut self, id: usize) -> Result<(), Box<dyn Error>> {
         let ui_attrs = self.lua.globals().get::<Table>("__ui_attrs")?;
         let mut values = Vec::new();
@@ -275,16 +275,16 @@ impl Session {
                 (mlua::Value::String(key), mlua::Value::String(value)) => {
                     let key = key.to_str()?.to_string();
                     let value = value.to_str()?.to_string();
-
+                    
                     values.push(AttrSet::new(key, value));
                 }
                 _ => unreachable!("We should only be able to put strings into ui attributes")
             }
         }
         self.broker_client.send(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id).await?;
-
+        
         self.client_ids.push(id);
-
+        
         Ok(())
     }
     
@@ -376,7 +376,7 @@ impl Session {
                 self.write_error(e.to_string()).unwrap();
             }
         }
-
+        
         loop {
             match self.broker_client.recv().await {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {

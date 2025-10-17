@@ -122,6 +122,8 @@ impl UserData for Command {
 pub fn kernel_mod(lua: &Lua) -> mlua::Result<LuaTable> {
     let exports = lua.create_table()?;
 
+    lua.globals().set("__ui_attrs", lua.create_table()?)?;
+
     let package = lua.globals().get::<Table>("package")?;
     let preload = package.get::<Table>("preload")?;
 

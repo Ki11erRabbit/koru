@@ -57,7 +57,6 @@ impl LuaUserData for MajorMode {
     }
 }
 
-
 pub fn major_mode_module(lua: &Lua) -> mlua::Result<LuaTable> {
     let exports = lua.create_table()?;
     let metatable = lua.create_table()?;
