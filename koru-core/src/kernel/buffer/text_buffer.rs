@@ -1,8 +1,10 @@
+use std::path::{Path, PathBuf};
 use crate::kernel::cursor::{Cursor, CursorDirection, LeadingEdge};
 
 pub struct TextBuffer {
     buffer: String,
     name: String,
+    path: Option<PathBuf>,
 }
 
 impl TextBuffer {
@@ -10,6 +12,7 @@ impl TextBuffer {
         TextBuffer {
             buffer: buffer.into(),
             name: name.into(),
+            path: None,
         }
     }
 
@@ -17,7 +20,20 @@ impl TextBuffer {
         TextBuffer {
             buffer: String::new(),
             name: name.into(),
+            path: None,
         }
+    }
+    
+    pub fn rename(&mut self, name: String) {
+        self.buffer = name;
+    }
+    
+    pub fn attach_path<P: AsRef<Path>>(&mut self, path: P) {
+        self.path = Some(path.as_ref().to_path_buf())
+    }
+    
+    pub fn get_buffer(&self) -> String {
+        self.buffer.to_string()
     }
 
     pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
@@ -87,7 +103,7 @@ impl TextBuffer {
             CursorDirection::Right {
                 wrap,
             } => {
-                let at_line_end = cursor.at_line_end(self);
+                let at_line_end = cursor.at_line_end(&self.buffer);
                 let byte_edge = cursor.byte_edge();
                 if at_line_end && wrap {
                     cursor.move_logical_down(&self.buffer);
@@ -132,12 +148,14 @@ impl TextBuffer {
                         let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
                         cursor.byte_cursor.byte_start = new_start;
                         cursor.byte_cursor.byte_end = new_start + size;
+                        Some(cursor)
                     }
                     LeadingEdge::End => {
                         cursor.logical_cursor.column_start = cursor.logical_cursor.column_end - 1;
                         let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_end);
                         cursor.byte_cursor.byte_start = new_start;
                         cursor.byte_cursor.byte_end = new_start + size;
+                        Some(cursor)
                     }
                 }
             }
@@ -156,12 +174,14 @@ impl TextBuffer {
                         let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
                         cursor.byte_cursor.byte_start = new_start;
                         cursor.byte_cursor.byte_end = new_start + size;
+                        Some(cursor)
                     }
                     LeadingEdge::End => {
                         cursor.logical_cursor.column_start = cursor.logical_cursor.column_end - 1;
                         let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_end);
                         cursor.byte_cursor.byte_start = new_start;
                         cursor.byte_cursor.byte_end = new_start + size;
+                        Some(cursor)
                     }
                 }
             }
@@ -319,7 +339,7 @@ impl TextBufferImpl for String {
     }
 
     fn next_n_chars(&self, byte_position: usize, mut n: usize) -> (usize, usize) {
-        let byte_position = byte_position + 1;
+        let mut byte_position = byte_position + 1;
         while n != 0 || byte_position != 0 {
             if self.is_char_boundary(byte_position) {
                 n -= 1
@@ -335,7 +355,7 @@ impl TextBufferImpl for String {
     }
 
     fn previous_n_chars(&self, byte_position: usize, mut n: usize) -> usize {
-        let byte_position = byte_position - 1;
+        let mut byte_position = byte_position - 1;
         while n != 0 || byte_position < self.len() {
             if self.is_char_boundary(byte_position) {
                 n -= 1

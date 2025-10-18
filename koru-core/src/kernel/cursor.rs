@@ -69,6 +69,14 @@ impl Cursor {
             LeadingEdge::End => self.byte_cursor.byte_end,
         }
     }
+    
+    pub fn start(&self) -> usize {
+        self.byte_cursor.byte_start
+    }
+    
+    pub fn end(&self) -> usize {
+        self.byte_cursor.byte_end
+    }
 
     pub fn at_line_start(&self) -> bool {
         match self.leading_edge {
@@ -157,6 +165,16 @@ impl Cursor {
                 self.logical_cursor.column_start = self.logical_cursor.column_end - 1;
             }
         }
+    }
+}
+
+impl Default for Cursor {
+    fn default() -> Self {
+        Cursor::new(
+            LogicalCursor::new(0, 0, 0, 1),
+            ByteCursor::new(0, 1),
+            LeadingEdge::End,
+        )
     }
 }
 

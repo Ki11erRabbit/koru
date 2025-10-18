@@ -391,7 +391,7 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
                     
-                    let file = files::open_file(FILE_NAME).await.unwrap();
+                    let file = crate::kernel::buffer::TextBufferTable::open(FILE_NAME.to_string()).await.unwrap();
                     
                     let buffer = Buffer::new_open_file(file);
                     

@@ -1,10 +1,11 @@
 use mlua::UserData;
+use crate::kernel::buffer::BufferHandle;
 use crate::kernel::cursor::Cursor;
 use crate::kernel::files::OpenFileHandle;
 use crate::styled_text::StyledFile;
 
 pub enum BufferData {
-    OpenFile(OpenFileHandle),
+    OpenFile(BufferHandle),
     Log(Vec<String>),
 }
 
@@ -16,17 +17,17 @@ pub struct Buffer {
 
 
 impl Buffer {
-    pub fn new_open_file(handle: OpenFileHandle) -> Self {
+    pub fn new_open_file(handle: BufferHandle) -> Self {
         Buffer {
             buffer: BufferData::OpenFile(handle),
-            cursors: vec![Cursor::new(0, 1)]
+            cursors: vec![Cursor::default()]
         }
     }
     
     pub fn new_log() -> Self {
         Buffer {
             buffer: BufferData::Log(Vec::new()),
-            cursors: vec![Cursor::new(0, 1)]
+            cursors: vec![]
         }
     }
     

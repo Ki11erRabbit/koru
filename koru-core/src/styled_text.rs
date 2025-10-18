@@ -171,13 +171,13 @@ impl StyledFile {
                 match segment {
                     StyledText::None(text) => {
                         let mut buffer = String::new();
-                        for ch in text.chars() {
+                        for (i, ch) in text.char_indices() {
                             if cursor_index < cursors.len() {
                                 if index == cursors[cursor_index].start() {
                                     current_line.push(StyledText::None(buffer));
                                     buffer = String::new();
                                 }
-                                if index == cursors[cursor_index].stop() {
+                                if index == cursors[cursor_index].end() {
                                     cursor_index += 1;
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
@@ -200,7 +200,7 @@ impl StyledFile {
                         text,
                     } => {
                         let mut buffer = String::new();
-                        for ch in text.chars() {
+                        for (i, ch) in text.char_indices() {
                             if cursor_index < cursors.len() {
                                 if index == cursors[cursor_index].start() {
                                     current_line.push(StyledText::Style {
@@ -211,7 +211,7 @@ impl StyledFile {
                                     });
                                     buffer = String::new();
                                 }
-                                if index == cursors[cursor_index].stop() {
+                                if index == cursors[cursor_index].end() {
                                     cursor_index += 1;
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
