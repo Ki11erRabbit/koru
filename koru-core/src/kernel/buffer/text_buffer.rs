@@ -356,8 +356,8 @@ impl TextBufferImpl for String {
     }
 
     fn next_n_chars(&self, byte_position: usize, mut n: usize) -> (usize, usize) {
-        let mut byte_position = byte_position + 1;
-        while n != 0 && byte_position != 0 {
+        let mut byte_position = byte_position;
+        while n != 0 && byte_position < self.len() {
             if self.is_char_boundary(byte_position) {
                 n -= 1
             }
@@ -373,7 +373,7 @@ impl TextBufferImpl for String {
 
     fn previous_n_chars(&self, byte_position: usize, mut n: usize) -> usize {
         let mut byte_position = byte_position - 1;
-        while n != 0 && byte_position < self.len() {
+        while n != 0 && byte_position != 0 {
             if self.is_char_boundary(byte_position) {
                 n -= 1
             }
