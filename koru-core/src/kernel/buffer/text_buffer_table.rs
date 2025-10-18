@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::sync::{Mutex, RwLock};
 use crate::kernel::buffer::text_buffer::TextBuffer;
+use crate::kernel::cursor::{Cursor, CursorDirection};
 
 static OPEN_BUFFERS: LazyLock<RwLock<TextBufferTable>> = LazyLock::new(|| {
     RwLock::new(TextBufferTable::new())
@@ -89,5 +90,9 @@ impl BufferHandle {
     
     pub async fn get_text(&self) -> String {
         self.handle.lock().await.get_buffer()
+    }
+    
+    pub async fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
+        self.handle.lock().await.move_cursors(cursors, direction)
     }
 }

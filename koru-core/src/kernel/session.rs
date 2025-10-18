@@ -388,9 +388,42 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('e'), ..})), .. }) => {
                     self.send_draw("**Errors**".into_lua(&self.lua).unwrap()).await.unwrap();
                 }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Up), ..})), .. }) => {
+                    println!("UP!");
+                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
+
+                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
+                    
+                    let _: () = buffer.call_async_method("cursor_up", ()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Down), ..})), .. }) => {
+                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
+
+                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
+
+                    let _: () = buffer.call_async_method("cursor_down", ()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Left), ..})), .. }) => {
+                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
+
+                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
+
+                    let _: () = buffer.call_async_method("cursor_left", ()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Right), ..})), .. }) => {
+                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
+
+                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
+
+                    let _: () = buffer.call_async_method("cursor_right", ()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
-                    
+
                     let file = crate::kernel::buffer::TextBufferTable::open(FILE_NAME.to_string()).await.unwrap();
                     
                     let buffer = Buffer::new_open_file(file);

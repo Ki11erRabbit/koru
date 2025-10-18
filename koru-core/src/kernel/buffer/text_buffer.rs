@@ -37,6 +37,7 @@ impl TextBuffer {
     }
 
     pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
+        println!("moving cursors");
         let mut new_cursors = Vec::with_capacity(cursors.len());
         for cursor in cursors {
             if let Some(cursor) = self.move_cursor(cursor, direction) {
@@ -221,6 +222,9 @@ impl TextBufferImpl for String {
     fn is_there_next_line(&self, mut byte_position: usize) -> bool {
         let mut next_line_exists = false;
         while self.len() > byte_position {
+            if byte_position >= self.len() {
+                break;
+            }
             if self.as_bytes()[byte_position] == b'\n' {
                 next_line_exists = true;
             }
@@ -232,6 +236,9 @@ impl TextBufferImpl for String {
     fn is_there_prev_line(&self, mut byte_position: usize) -> bool {
         let mut prev_line_exists = false;
         while self.len() > byte_position {
+            if byte_position == 0 {
+                break;
+            }
             if self.as_bytes()[byte_position] == b'\n' {
                 prev_line_exists = true;
             }
@@ -322,7 +329,7 @@ impl TextBufferImpl for String {
         Some(self.line_information(byte_position))
     }
 
-    fn next_line_information(&self, byte_position: usize) -> Option<(usize, usize, usize)> {
+    fn next_line_information(&self, mut byte_position: usize) -> Option<(usize, usize, usize)> {
         if !self.is_there_next_line(byte_position) {
             return None;
         }
@@ -334,13 +341,14 @@ impl TextBufferImpl for String {
                 // Ensures that we are at least after the newline
                 break byte_position + 1;
             }
+            byte_position += 1;
         };
         Some(self.line_information(byte_position))
     }
 
     fn next_n_chars(&self, byte_position: usize, mut n: usize) -> (usize, usize) {
         let mut byte_position = byte_position + 1;
-        while n != 0 || byte_position != 0 {
+        while n != 0 && byte_position != 0 {
             if self.is_char_boundary(byte_position) {
                 n -= 1
             }
@@ -356,7 +364,7 @@ impl TextBufferImpl for String {
 
     fn previous_n_chars(&self, byte_position: usize, mut n: usize) -> usize {
         let mut byte_position = byte_position - 1;
-        while n != 0 || byte_position < self.len() {
+        while n != 0 && byte_position < self.len() {
             if self.is_char_boundary(byte_position) {
                 n -= 1
             }
