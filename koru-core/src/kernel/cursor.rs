@@ -34,7 +34,7 @@ pub struct Cursor {
 
 impl Cursor {
     pub fn new(
-        logical_cursor: LogicalCursor, 
+        logical_cursor: LogicalCursor,
         byte_cursor: ByteCursor,
         leading_edge: LeadingEdge,
     ) -> Self {
@@ -58,7 +58,7 @@ impl Cursor {
             main_cursor: true,
         }
     }
-    
+
     pub fn is_main(&self) -> bool {
         self.main_cursor
     }
@@ -69,11 +69,11 @@ impl Cursor {
             LeadingEdge::End => self.byte_cursor.byte_end,
         }
     }
-    
+
     pub fn start(&self) -> usize {
         self.byte_cursor.byte_start
     }
-    
+
     pub fn end(&self) -> usize {
         self.byte_cursor.byte_end
     }
@@ -88,7 +88,7 @@ impl Cursor {
             }
         }
     }
-    
+
     pub fn at_line_end(&self, buffer: &dyn TextBufferImpl) -> bool {
         match self.leading_edge {
             LeadingEdge::Start => {
@@ -101,7 +101,7 @@ impl Cursor {
             }
         }
     }
-    
+
     pub fn move_logical_up(&mut self) {
         match self.leading_edge {
             LeadingEdge::Start => {
@@ -110,11 +110,11 @@ impl Cursor {
             }
             LeadingEdge::End => {
                 self.logical_cursor.line_end = self.logical_cursor.line_end.saturating_sub(1);
-                self.logical_cursor.line_start = self.logical_cursor.line_end;
+                self.logical_cursor.line_start = self.logical_cursor.line_end.saturating_sub(1);
             }
         }
     }
-    
+
     pub fn move_logical_down(&mut self, buffer: &dyn TextBufferImpl) {
         match self.leading_edge {
             LeadingEdge::Start => {
@@ -135,7 +135,7 @@ impl Cursor {
             }
         }
     }
-    
+
     pub fn move_left(&mut self) {
         match self.leading_edge {
             LeadingEdge::Start => {
@@ -153,7 +153,7 @@ impl Cursor {
             }
         }
     }
-    
+
     pub fn move_right(&mut self) {
         match self.leading_edge {
             LeadingEdge::Start => {

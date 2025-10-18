@@ -92,12 +92,17 @@ impl TextBuffer {
                 } else if !at_line_start {
                     cursor.move_left();
                     let end = byte_edge;
-                    let mut start_char_byte = end - 1;
+                    let mut end_char_byte = end - 1;
+                    while !self.buffer.is_char_boundary(end_char_byte) {
+                        end_char_byte -= 1;
+                    }
+                    let mut start_char_byte = end_char_byte - 1;
                     while !self.buffer.is_char_boundary(start_char_byte) {
                         start_char_byte -= 1;
                     }
+                    
                     cursor.byte_cursor.byte_start = start_char_byte;
-                    cursor.byte_cursor.byte_end = end;
+                    cursor.byte_cursor.byte_end = end_char_byte;
                 }
                 Some(cursor)
             }
@@ -125,11 +130,15 @@ impl TextBuffer {
                 } else if !at_line_end {
                     cursor.move_right();
                     let start = byte_edge;
-                    let mut start_char_byte = start - 1;
+                    let mut start_char_byte = start;
                     while !self.buffer.is_char_boundary(start_char_byte) {
                         start_char_byte += 1;
                     }
-                    cursor.byte_cursor.byte_end = start;
+                    let mut end_char_byte = start_char_byte + 1;
+                    while !self.buffer.is_char_boundary(end_char_byte) {
+                        end_char_byte += 1;
+                    }
+                    cursor.byte_cursor.byte_end = end_char_byte;
                     cursor.byte_cursor.byte_start = start_char_byte;
                 }
                 Some(cursor)
@@ -153,7 +162,7 @@ impl TextBuffer {
                     }
                     LeadingEdge::End => {
                         cursor.logical_cursor.column_start = cursor.logical_cursor.column_end - 1;
-                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_end);
+                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
                         cursor.byte_cursor.byte_start = new_start;
                         cursor.byte_cursor.byte_end = new_start + size;
                         Some(cursor)
@@ -179,7 +188,7 @@ impl TextBuffer {
                     }
                     LeadingEdge::End => {
                         cursor.logical_cursor.column_start = cursor.logical_cursor.column_end - 1;
-                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_end);
+                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
                         cursor.byte_cursor.byte_start = new_start;
                         cursor.byte_cursor.byte_end = new_start + size;
                         Some(cursor)
@@ -255,7 +264,7 @@ impl TextBufferImpl for String {
                     break byte_position;
                 }
                 if self.as_bytes()[byte_position] == b'\n' {
-                    break byte_position;
+                    break byte_position + 1;
                 }
                 byte_position -= 1;
             }
@@ -268,11 +277,11 @@ impl TextBufferImpl for String {
         let end = {
             let mut byte_position = byte_position;
             loop {
-                if self.len() >= byte_position {
+                if byte_position >= self.len() {
                     break byte_position;
                 }
                 if self.as_bytes()[byte_position] == b'\n' {
-                    break byte_position;
+                    break byte_position - 1;
                 }
                 byte_position += 1;
             }
@@ -288,7 +297,7 @@ impl TextBufferImpl for String {
                     break byte_position;
                 }
                 if self.as_bytes()[byte_position] == b'\n' {
-                    break byte_position;
+                    break byte_position + 1;
                 }
                 byte_position -= 1;
             }
@@ -300,7 +309,7 @@ impl TextBufferImpl for String {
                     break byte_position;
                 }
                 if self.as_bytes()[byte_position] == b'\n' {
-                    break byte_position;
+                    break byte_position - 1;
                 }
                 byte_position += 1;
             }
@@ -320,8 +329,8 @@ impl TextBufferImpl for String {
                 break byte_position;
             }
             if self.as_bytes()[byte_position] == b'\n' {
-                // Ensures that we are at least before the newline
-                break byte_position.saturating_sub(1);
+                // Ensures that we are at least before the trailing newline
+                break byte_position - 1;
             }
             byte_position -= 1;
         };
