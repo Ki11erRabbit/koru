@@ -15,7 +15,7 @@ pub enum CursorDirection {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum LeadingEdge {
     Start,
     End
@@ -127,9 +127,46 @@ impl Cursor {
             }
         }
     }
+    
+    pub fn move_left(&mut self) {
+        match self.leading_edge {
+            LeadingEdge::Start => {
+                self.logical_cursor.column_start = self.logical_cursor.column_start.saturating_sub(1);
+                self.logical_cursor.column_end = self.logical_cursor.column_start + 1;
+            }
+            LeadingEdge::End => {
+                self.logical_cursor.column_end = self.logical_cursor.column_end.saturating_sub(1);
+                if self.logical_cursor.column_end == 0 {
+                    self.logical_cursor.column_start = 0;
+                    self.logical_cursor.column_end = 1;
+                } else {
+                    self.logical_cursor.column_start = self.logical_cursor.column_end - 1;
+                }
+            }
+        }
+    }
+    
+    pub fn move_right(&mut self) {
+        match self.leading_edge {
+            LeadingEdge::Start => {
+                self.logical_cursor.column_start = self.logical_cursor.column_start.saturating_add(1);
+                self.logical_cursor.column_end = self.logical_cursor.column_start + 1;
+            }
+            LeadingEdge::End => {
+                self.logical_cursor.column_end = self.logical_cursor.column_end.saturating_add(1);
+                self.logical_cursor.column_start = self.logical_cursor.column_end - 1;
+            }
+        }
+    }
 }
 
-#[derive(Copy, Clone)]
+impl PartialEq for Cursor {
+    fn eq(&self, other: &Cursor) -> bool {
+        self.logical_cursor == other.logical_cursor && self.byte_cursor == other.byte_cursor && self.leading_edge == other.leading_edge
+    }
+}
+
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct LogicalCursor {
     pub line_start: usize,
     pub line_end: usize,
@@ -149,7 +186,7 @@ impl LogicalCursor {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct ByteCursor {
     pub byte_start: usize,
     pub byte_end: usize,

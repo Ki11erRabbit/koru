@@ -27,6 +27,24 @@ impl TextBuffer {
                 new_cursors.push(cursor);
             }
         }
+        let mut index = 1;
+        // Remove a cursor if it matches the main cursor or a cursor next to it is the same
+        while index < new_cursors.len() {
+            if new_cursors[index - 1].is_main() && new_cursors[index - 1] == new_cursors[index] {
+                new_cursors.remove(index);
+                continue;
+            }
+            if new_cursors[index].is_main() && new_cursors[index - 1] == new_cursors[index] {
+                new_cursors.remove(index - 1);
+                index -= 1;
+                continue;
+            }
+            if new_cursors[index] == new_cursors[index - 1] {
+                new_cursors.remove(index);
+                continue;
+            }
+            index += 1;
+        }
         new_cursors
     }
 
@@ -38,6 +56,9 @@ impl TextBuffer {
                 if at_line_start && wrap {
                     cursor.move_logical_up();
                     let Some((_, mut length, end)) = self.buffer.previous_line_information(byte_edge) else {
+                        if cursor.is_main() {
+                            return Some(cursor);
+                        }
                         return None;
                     };
                     if length == 0 {
@@ -51,18 +72,29 @@ impl TextBuffer {
                         start_char_byte -= 1;
                     }
                     cursor.byte_cursor.byte_start = start_char_byte;
-                } else  {
-                    
+                } else if !at_line_start {
+                    cursor.move_left();
+                    let end = byte_edge;
+                    let mut start_char_byte = end - 1;
+                    while !self.buffer.is_char_boundary(start_char_byte) {
+                        start_char_byte -= 1;
+                    }
+                    cursor.byte_cursor.byte_start = start_char_byte;
+                    cursor.byte_cursor.byte_end = end;
                 }
+                Some(cursor)
             }
             CursorDirection::Right {
                 wrap,
             } => {
-                let at_line_start = cursor.at_line_start();
                 let at_line_end = cursor.at_line_end(self);
+                let byte_edge = cursor.byte_edge();
                 if at_line_end && wrap {
                     cursor.move_logical_down(&self.buffer);
-                    let Some((start, _, _)) = self.buffer.previous_line_information(cursor.byte_cursor.byte_start) else {
+                    let Some((start, _, _)) = self.buffer.previous_line_information(byte_edge) else {
+                        if cursor.is_main() {
+                            return Some(cursor);
+                        }
                         return None;
                     };
                     cursor.logical_cursor.column_end = 1;
@@ -73,12 +105,67 @@ impl TextBuffer {
                         end_char_byte += 1;
                     }
                     cursor.byte_cursor.byte_end = end_char_byte;
-                } else if at_line_end {
-                    
+                } else if !at_line_end {
+                    cursor.move_right();
+                    let start = byte_edge;
+                    let mut start_char_byte = start - 1;
+                    while !self.buffer.is_char_boundary(start_char_byte) {
+                        start_char_byte += 1;
+                    }
+                    cursor.byte_cursor.byte_end = start;
+                    cursor.byte_cursor.byte_start = start_char_byte;
+                }
+                Some(cursor)
+            }
+            CursorDirection::Up => {
+                let byte_edge = cursor.byte_edge();
+                let Some((start, _, _)) = self.buffer.previous_line_information(byte_edge) else {
+                    if cursor.is_main() {
+                        return Some(cursor);
+                    }
+                    return None;
+                };
+                cursor.move_logical_up();
+                match cursor.leading_edge {
+                    LeadingEdge::Start => {
+                        cursor.logical_cursor.column_end = cursor.logical_cursor.column_start + 1;
+                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
+                        cursor.byte_cursor.byte_start = new_start;
+                        cursor.byte_cursor.byte_end = new_start + size;
+                    }
+                    LeadingEdge::End => {
+                        cursor.logical_cursor.column_start = cursor.logical_cursor.column_end - 1;
+                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_end);
+                        cursor.byte_cursor.byte_start = new_start;
+                        cursor.byte_cursor.byte_end = new_start + size;
+                    }
+                }
+            }
+            CursorDirection::Down => {
+                let byte_edge = cursor.byte_edge();
+                let Some((start, _, _)) = self.buffer.next_line_information(byte_edge) else {
+                    if cursor.is_main() {
+                        return Some(cursor);
+                    }
+                    return None;
+                };
+                cursor.move_logical_down(&self.buffer);
+                match cursor.leading_edge {
+                    LeadingEdge::Start => {
+                        cursor.logical_cursor.column_end = cursor.logical_cursor.column_start + 1;
+                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
+                        cursor.byte_cursor.byte_start = new_start;
+                        cursor.byte_cursor.byte_end = new_start + size;
+                    }
+                    LeadingEdge::End => {
+                        cursor.logical_cursor.column_start = cursor.logical_cursor.column_end - 1;
+                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_end);
+                        cursor.byte_cursor.byte_start = new_start;
+                        cursor.byte_cursor.byte_end = new_start + size;
+                    }
                 }
             }
         }
-        None
     }
 
 }
@@ -96,6 +183,9 @@ pub trait TextBufferImpl {
     fn line_information(&self, byte_position: usize) -> (usize, usize, usize);
     fn previous_line_information(&self, byte_position: usize) -> Option<(usize, usize, usize)>;
     fn next_line_information(&self, byte_position: usize) -> Option<(usize, usize, usize)>;
+    /// Returns a byte position and byte size of that char
+    fn next_n_chars(&self, byte_position: usize, n: usize) -> (usize, usize);
+    fn previous_n_chars(&self, byte_position: usize, n: usize) -> usize;
 }
 
 impl TextBufferImpl for String {
@@ -226,5 +316,32 @@ impl TextBufferImpl for String {
             }
         };
         Some(self.line_information(byte_position))
+    }
+
+    fn next_n_chars(&self, byte_position: usize, mut n: usize) -> (usize, usize) {
+        let byte_position = byte_position + 1;
+        while n != 0 || byte_position != 0 {
+            if self.is_char_boundary(byte_position) {
+                n -= 1
+            }
+            byte_position += 1;
+        }
+        let mut size = 1;
+        while !self.is_char_boundary(byte_position + size){
+            size += 1;
+        }
+
+        (byte_position, size)
+    }
+
+    fn previous_n_chars(&self, byte_position: usize, mut n: usize) -> usize {
+        let byte_position = byte_position - 1;
+        while n != 0 || byte_position < self.len() {
+            if self.is_char_boundary(byte_position) {
+                n -= 1
+            }
+            byte_position -= 1;
+        }
+        byte_position
     }
 }
