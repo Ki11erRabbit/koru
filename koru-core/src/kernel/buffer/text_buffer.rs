@@ -109,7 +109,7 @@ impl TextBuffer {
             CursorDirection::Right {
                 wrap,
             } => {
-                let at_line_end = cursor.at_line_end(&self.buffer);
+                let (at_line_end, passed_edge) = cursor.at_line_end(&self.buffer);
                 let byte_edge = cursor.byte_edge();
                 if at_line_end && wrap {
                     cursor.move_logical_down(&self.buffer);
@@ -140,6 +140,8 @@ impl TextBuffer {
                     }
                     cursor.byte_cursor.byte_end = end_char_byte;
                     cursor.byte_cursor.byte_start = start_char_byte;
+                } else if at_line_end && !passed_edge {
+                    cursor.move_right();
                 }
                 Some(cursor)
             }
@@ -257,6 +259,12 @@ impl TextBufferImpl for String {
     }
 
     fn line_start(&self, byte_position: usize) -> usize {
+        let byte_position = if self.as_bytes()[byte_position] == b'\n' {
+            byte_position - 1
+        } else {
+            byte_position
+        };
+        
         let start = {
             let mut byte_position = byte_position;
             loop {
@@ -274,6 +282,9 @@ impl TextBufferImpl for String {
 
 
     fn line_end(&self, byte_position: usize) -> usize {
+        if self.as_bytes()[byte_position] == b'\n' {
+            return byte_position;
+        }
         let end = {
             let mut byte_position = byte_position;
             loop {
@@ -290,6 +301,10 @@ impl TextBufferImpl for String {
     }
 
     fn line_information(&self, byte_position: usize) -> (usize, usize, usize) {
+        if self.as_bytes()[byte_position] == b'\n' {
+            return (byte_position - 1, 0, byte_position);
+        }
+        
         let start = {
             let mut byte_position = byte_position;
             loop {

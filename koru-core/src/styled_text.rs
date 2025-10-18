@@ -167,6 +167,7 @@ impl StyledFile {
         let mut lines = Vec::new();
         for line in self.lines {
             let mut current_line = Vec::new();
+            let mut line_index = 0;
             for segment in line {
                 match segment {
                     StyledText::None(text) => {
@@ -188,8 +189,24 @@ impl StyledFile {
                                     buffer = String::new();
                                 }
                             }
+                            if ch == '\n' {
+                                current_line.push(StyledText::None(buffer));
+                                buffer = String::new();
+                                if cursor_index < cursors.len() {
+                                    if line_index == cursors[cursor_index].logical_column_start() {
+                                        cursor_index += 1;
+                                        current_line.push(StyledText::Style {
+                                            bg_color: ColorType::Cursor,
+                                            fg_color: ColorType::Text,
+                                            attribute: TextAttribute::empty(),
+                                            text: String::from(" "),
+                                        });
+                                    }
+                                }
+                            }
                             buffer.push(ch);
                             index += ch.len_utf8();
+                            line_index += 1;
                         }
                         current_line.push(StyledText::None(buffer));
                     }
@@ -222,9 +239,24 @@ impl StyledFile {
                                     buffer = String::new();
                                 }
                             }
-                            
+                            if ch == '\n' {
+                                current_line.push(StyledText::None(buffer));
+                                buffer = String::new();
+                                if cursor_index < cursors.len() {
+                                    if line_index == cursors[cursor_index].logical_column_start() {
+                                        cursor_index += 1;
+                                        current_line.push(StyledText::Style {
+                                            bg_color: ColorType::Cursor,
+                                            fg_color: ColorType::Text,
+                                            attribute: TextAttribute::empty(),
+                                            text: String::from(" "),
+                                        });
+                                    }
+                                }
+                            }
                             buffer.push(ch);
                             index += ch.len_utf8();
+                            line_index += 1;
                         }
                         current_line.push(StyledText::Style {
                             fg_color,
