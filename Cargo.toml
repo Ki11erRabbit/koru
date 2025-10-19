@@ -1,7 +1,7 @@
 
 [workspace]
 resolver = "3"
-members = ["koru","koru-core", "piece-tree"]
+members = ["koru","koru-core"]
 
 [workspace.dependencies]
 #guile-rs-sys = { path = "./guile-rs-sys" }
