@@ -162,23 +162,24 @@ impl StyledFile {
     
     /// Cursors must be in order they are logically in the file
     pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
-        let mut index = 0;
         let mut cursor_index = 0;
         let mut lines = Vec::new();
-        for line in self.lines {
+        for (line_index, line) in self.lines.into_iter().enumerate() {
             let mut current_line = Vec::new();
-            let mut line_index = 0;
+            let mut column_index = 0;
             for segment in line {
                 match segment {
                     StyledText::None(text) => {
                         let mut buffer = String::new();
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
-                                if index == cursors[cursor_index].start() {
+                                if column_index == cursors[cursor_index].column_start() 
+                                    && line_index == cursors[cursor_index].line_start() {
                                     current_line.push(StyledText::None(buffer));
                                     buffer = String::new();
                                 }
-                                if index == cursors[cursor_index].end() {
+                                if column_index == cursors[cursor_index].column_end() 
+                                    && line_index == cursors[cursor_index].line_end() {
                                     cursor_index += 1;
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
@@ -189,7 +190,7 @@ impl StyledFile {
                                     buffer = String::new();
                                 }
                             }
-                            if ch == '\n' {
+                            /*if ch == '\n' {
                                 current_line.push(StyledText::None(buffer));
                                 buffer = String::new();
                                 if cursor_index < cursors.len() {
@@ -203,10 +204,9 @@ impl StyledFile {
                                         });
                                     }
                                 }
-                            }
+                            }*/
                             buffer.push(ch);
-                            index += ch.len_utf8();
-                            line_index += 1;
+                            column_index += 1;
                         }
                         current_line.push(StyledText::None(buffer));
                     }
@@ -219,7 +219,8 @@ impl StyledFile {
                         let mut buffer = String::new();
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
-                                if index == cursors[cursor_index].start() {
+                                if column_index == cursors[cursor_index].column_start()
+                                    && line_index == cursors[cursor_index].line_start() {
                                     current_line.push(StyledText::Style {
                                         fg_color,
                                         bg_color,
@@ -228,7 +229,8 @@ impl StyledFile {
                                     });
                                     buffer = String::new();
                                 }
-                                if index == cursors[cursor_index].end() {
+                                if column_index == cursors[cursor_index].column_end()
+                                    && line_index == cursors[cursor_index].line_end() {
                                     cursor_index += 1;
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
@@ -239,7 +241,7 @@ impl StyledFile {
                                     buffer = String::new();
                                 }
                             }
-                            if ch == '\n' {
+                            /*if ch == '\n' {
                                 current_line.push(StyledText::None(buffer));
                                 buffer = String::new();
                                 if cursor_index < cursors.len() {
@@ -253,10 +255,10 @@ impl StyledFile {
                                         });
                                     }
                                 }
-                            }
+                            }*/
                             buffer.push(ch);
-                            index += ch.len_utf8();
-                            line_index += 1;
+                            column_index += 1;
+                            //index += ch.len_utf8();
                         }
                         current_line.push(StyledText::Style {
                             fg_color,

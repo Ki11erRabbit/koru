@@ -1,6 +1,6 @@
 use mlua::{UserData, UserDataMethods};
 use crate::kernel::buffer::BufferHandle;
-use crate::kernel::cursor::{Cursor, CursorDirection};
+use crate::kernel::cursor::{Cursor, CursorDirection, GridCursor, LeadingEdge};
 use crate::styled_text::StyledFile;
 
 pub enum BufferData {
@@ -17,8 +17,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn new_open_file(handle: BufferHandle) -> Self {
-        let mut cursor = Cursor::default();
-        cursor = Cursor::new_main(cursor.logical_cursor, cursor.byte_cursor, cursor.leading_edge);
+        let cursor = Cursor::new_main(GridCursor::default(), LeadingEdge::Start);
         Buffer {
             buffer: BufferData::OpenFile(handle),
             cursors: vec![cursor]
@@ -52,7 +51,7 @@ impl Buffer {
     {
         func(&mut self.buffer);
     }
-    
+
     pub fn manipulate<F>(&mut self, func: F)
     where
         F: FnOnce(&mut Vec<Cursor>, &mut BufferData),
