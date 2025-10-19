@@ -173,12 +173,12 @@ impl StyledFile {
                         let mut buffer = String::new();
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
-                                if column_index == cursors[cursor_index].column_start() 
+                                if column_index == cursors[cursor_index].column_start()
                                     && line_index == cursors[cursor_index].line_start() {
                                     current_line.push(StyledText::None(buffer));
                                     buffer = String::new();
                                 }
-                                if column_index == cursors[cursor_index].column_end() 
+                                if column_index == cursors[cursor_index].column_end()
                                     && line_index == cursors[cursor_index].line_end() {
                                     cursor_index += 1;
                                     current_line.push(StyledText::Style {
@@ -190,21 +190,22 @@ impl StyledFile {
                                     buffer = String::new();
                                 }
                             }
-                            /*if ch == '\n' {
+                            if ch == '\n' {
                                 current_line.push(StyledText::None(buffer));
                                 buffer = String::new();
                                 if cursor_index < cursors.len() {
-                                    if line_index == cursors[cursor_index].logical_column_start() {
+                                    if column_index == cursors[cursor_index].column_start()
+                                        && line_index == cursors[cursor_index].line_end() {
                                         cursor_index += 1;
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color: ColorType::Text,
                                             attribute: TextAttribute::empty(),
-                                            text: String::from(" "),
+                                            text: String::from(' '),
                                         });
                                     }
                                 }
-                            }*/
+                            }
                             buffer.push(ch);
                             column_index += 1;
                         }
@@ -241,21 +242,27 @@ impl StyledFile {
                                     buffer = String::new();
                                 }
                             }
-                            /*if ch == '\n' {
-                                current_line.push(StyledText::None(buffer));
+                            if ch == '\n' {
+                                current_line.push(StyledText::Style {
+                                    fg_color,
+                                    bg_color,
+                                    attribute: attribute.clone(),
+                                    text: buffer,
+                                });
                                 buffer = String::new();
                                 if cursor_index < cursors.len() {
-                                    if line_index == cursors[cursor_index].logical_column_start() {
+                                    if column_index == cursors[cursor_index].column_start()
+                                        && line_index == cursors[cursor_index].line_end() {
                                         cursor_index += 1;
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color: ColorType::Text,
                                             attribute: TextAttribute::empty(),
-                                            text: String::from(" "),
+                                            text: String::from(' '),
                                         });
                                     }
                                 }
-                            }*/
+                            }
                             buffer.push(ch);
                             column_index += 1;
                             //index += ch.len_utf8();

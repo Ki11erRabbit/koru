@@ -131,11 +131,11 @@ impl Cursor {
         match self.leading_edge {
             LeadingEdge::Start => {
                 let line_len = buffer.line_length(self.line());
-                self.logical_cursor.column_start == line_len - 1
+                self.logical_cursor.column_start == line_len
             }
             LeadingEdge::End => {
                 let line_len = buffer.line_length(self.line());
-                self.logical_cursor.column_end.saturating_sub(1) == line_len
+                self.logical_cursor.column_end == line_len
             }
         }
     }
