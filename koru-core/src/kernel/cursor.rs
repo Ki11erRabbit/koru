@@ -77,7 +77,7 @@ impl Cursor {
     pub fn end(&self) -> usize {
         self.byte_cursor.byte_end
     }
-    
+
     pub fn logical_column_start(&self) -> usize {
         self.logical_cursor.column_start
     }
@@ -101,7 +101,7 @@ impl Cursor {
         match self.leading_edge {
             LeadingEdge::Start => {
                 let line_len = buffer.line_length(self.byte_cursor.byte_start);
-                (self.logical_cursor.column_start == line_len - 1, self.logical_cursor.column_end.saturating_sub(1) == line_len) 
+                (self.logical_cursor.column_start == line_len - 1, self.logical_cursor.column_end.saturating_sub(1) == line_len)
             }
             LeadingEdge::End => {
                 let line_len = buffer.line_length(self.byte_cursor.byte_end);

@@ -173,7 +173,7 @@ impl TextBuffer {
             }
             CursorDirection::Down => {
                 let byte_edge = cursor.byte_edge();
-                let Some((start, _, _)) = self.buffer.next_line_information(byte_edge) else {
+                let Some((start, length, _)) = self.buffer.next_line_information(byte_edge) else {
                     if cursor.is_main() {
                         return Some(cursor);
                     }
@@ -189,10 +189,16 @@ impl TextBuffer {
                         Some(cursor)
                     }
                     LeadingEdge::End => {
+                        println!("start: {start}, length: {length}");
                         cursor.logical_cursor.column_start = cursor.logical_cursor.column_end - 1;
-                        let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
-                        cursor.byte_cursor.byte_start = new_start;
-                        cursor.byte_cursor.byte_end = new_start + size;
+                        if length == 0 {
+                            cursor.byte_cursor.byte_start = start + 1;
+                            cursor.byte_cursor.byte_end = start + 1;
+                        } else {
+                            let (new_start, size) = self.buffer.next_n_chars(start, cursor.logical_cursor.column_start);
+                            cursor.byte_cursor.byte_start = new_start;
+                            cursor.byte_cursor.byte_end = new_start + size;
+                        }
                         Some(cursor)
                     }
                 }
@@ -232,6 +238,9 @@ impl TextBufferImpl for String {
 
     fn is_there_next_line(&self, mut byte_position: usize) -> bool {
         let mut next_line_exists = false;
+        if self.as_bytes()[byte_position] == b'\n' {
+            byte_position += 1;
+        }
         while self.len() > byte_position {
             if byte_position >= self.len() {
                 break;
@@ -246,6 +255,9 @@ impl TextBufferImpl for String {
 
     fn is_there_prev_line(&self, mut byte_position: usize) -> bool {
         let mut prev_line_exists = false;
+        if self.as_bytes()[byte_position] == b'\n' {
+            byte_position -= 1;
+        }
         while self.len() > byte_position {
             if byte_position == 0 {
                 break;
@@ -356,6 +368,9 @@ impl TextBufferImpl for String {
     fn next_line_information(&self, mut byte_position: usize) -> Option<(usize, usize, usize)> {
         if !self.is_there_next_line(byte_position) {
             return None;
+        }
+        if self.as_bytes()[byte_position] == b'\n' {
+            byte_position += 1;
         }
         let byte_position = loop {
             if byte_position >= self.len() {
