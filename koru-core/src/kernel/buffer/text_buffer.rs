@@ -43,7 +43,6 @@ impl TextBuffer {
     }
 
     pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
-        println!("moving cursors");
         let mut new_cursors = Vec::with_capacity(cursors.len());
         for cursor in cursors {
             if let Some(cursor) = self.move_cursor(cursor, direction) {

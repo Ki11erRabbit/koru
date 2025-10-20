@@ -389,7 +389,6 @@ impl Session {
                     self.send_draw("**Errors**".into_lua(&self.lua).unwrap()).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Up), ..})), .. }) => {
-                    println!("UP!");
                     let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
 
                     let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
