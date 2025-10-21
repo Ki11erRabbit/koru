@@ -2,6 +2,7 @@ use crate::scheme_object::SchemeObject;
 
 /// Represents a scheme character.
 /// This type exists to provide a stronger invariance for character operations.
+#[derive(Clone)]
 pub struct SchemeChar {
     base: SchemeObject
 }

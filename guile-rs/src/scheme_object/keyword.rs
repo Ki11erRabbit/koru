@@ -3,6 +3,7 @@ use crate::scheme_object::{SchemeObject, SchemeSymbol};
 
 /// Represents a Scheme Keyword
 /// This type provides a tighter invariance for function arguments
+#[derive(Clone)]
 pub struct SchemeKeyword {
     base: SchemeObject,
 }

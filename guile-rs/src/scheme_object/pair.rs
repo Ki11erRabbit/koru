@@ -2,6 +2,7 @@ use crate::scheme_object::SchemeObject;
 
 /// Represents a simple pair in Scheme or improper list
 /// This type holds up the invariance that the scheme value is a pair.
+#[derive(Clone)]
 pub struct SchemePair {
     base: SchemeObject,
 }
@@ -11,8 +12,8 @@ impl SchemePair {
     /// Constructor that takes 2 elements.
     pub fn new(x: SchemeObject, y: SchemeObject) -> SchemePair {
         let pair = unsafe {
-            let pair = guile_rs_sys::scm_list_1(x.raw);
-            guile_rs_sys::scm_set_cdr_x(pair,  y.raw);
+            let pair = guile_rs_sys::scm_list_1(*x.raw);
+            guile_rs_sys::scm_set_cdr_x(pair,  *y.raw);
             pair
         };
         SchemePair { base: SchemeObject::new(pair) }
@@ -32,7 +33,7 @@ impl SchemePair {
     /// Fetches the CAR value
     pub fn car(&self) -> SchemeObject {
         let car = unsafe {
-            guile_rs_sys::rust_car(self.base.raw)
+            guile_rs_sys::rust_car(*self.base.raw)
         };
         SchemeObject::from(car)
     }
@@ -40,7 +41,7 @@ impl SchemePair {
     /// Fetches the CDR value
     pub fn cdr(&self) -> SchemeObject {
         let cdr = unsafe {
-            guile_rs_sys::rust_cdr(self.base.raw)
+            guile_rs_sys::rust_cdr(*self.base.raw)
         };
         SchemeObject::from(cdr)
     }

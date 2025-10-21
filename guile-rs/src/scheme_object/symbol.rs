@@ -2,6 +2,7 @@ use crate::scheme_object::SchemeObject;
 
 /// Represents a Scheme Symbol
 /// This holds the invariance that the type is a Scheme Symbol
+#[derive(Clone)]
 pub struct SchemeSymbol {
     base: SchemeObject,
 }

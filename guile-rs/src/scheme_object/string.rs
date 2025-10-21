@@ -2,6 +2,7 @@ use crate::scheme_object::{SchemeList, SchemeObject};
 
 /// Represents a string in Scheme
 /// This type holds the invariance that we are a Scheme String.
+#[derive(Clone)]
 pub struct SchemeString {
     base: SchemeObject,
 }
@@ -26,7 +27,7 @@ impl SchemeString {
     /// Converts the String into a List
     fn to_list(self) -> SchemeList {
         let value = unsafe {
-            guile_rs_sys::scm_string_to_list(self.base.raw)
+            guile_rs_sys::scm_string_to_list(*self.base.raw)
         };
         unsafe {
             SchemeList::from_base(SchemeObject::new(value))

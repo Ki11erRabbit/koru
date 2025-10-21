@@ -4,6 +4,7 @@ use crate::{Smob, SmobData};
 
 /// Represents a SMOB.
 /// Enforces the invariant of the SMOB's type. This allows us to access the underlying data safely
+#[derive(Clone)]
 pub struct SchemeSmob<T: SmobData> {
     base: SchemeObject,
     phantom: PhantomData<T>,
@@ -42,7 +43,7 @@ impl<T: SmobData> std::ops::DerefMut for SchemeSmob<T> {
 impl<T: SmobData> AsRef<T> for SchemeSmob<T> {
     fn as_ref(&self) -> &T {
         let ptr = unsafe {
-            guile_rs_sys::rust_smob_data(self.base.raw)
+            guile_rs_sys::rust_smob_data(*self.base.raw)
         };
         unsafe { (ptr as *mut T).as_ref() }.unwrap()
     }
@@ -51,7 +52,7 @@ impl<T: SmobData> AsRef<T> for SchemeSmob<T> {
 impl<T: SmobData> AsMut<T> for SchemeSmob<T> {
     fn as_mut(&mut self) -> &mut T {
         let ptr = unsafe {
-            guile_rs_sys::rust_smob_data(self.base.raw)
+            guile_rs_sys::rust_smob_data(*self.base.raw)
         };
         unsafe { (ptr as *mut T).as_mut() }.unwrap()
     }

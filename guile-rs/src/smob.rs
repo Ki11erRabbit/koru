@@ -133,6 +133,9 @@ impl<T: SmobData> Smob<T> {
     }
 }
 
+unsafe impl<T: SmobData> Send for Smob<T> {}
+unsafe impl<T: SmobData> Sync for Smob<T> {}
+
 impl<T: SmobPrint> SmobPrint for Box<T> {
     fn print(&self) -> String {
         (**self).print()

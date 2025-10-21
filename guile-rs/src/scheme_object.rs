@@ -10,6 +10,7 @@ mod character;
 mod smob;
 mod keyword;
 
+use std::rc::Rc;
 pub use crate::scheme_object::character::SchemeChar;
 pub use crate::scheme_object::hashtable::SchemeHashtable;
 pub use crate::scheme_object::list::SchemeList;
@@ -26,8 +27,9 @@ pub use crate::scheme_object::smob::SchemeSmob;
 pub trait Number: Into<SchemeObject> {}
 
 /// Represents a generic Scheme Object that we don't know the variant
+#[derive(Clone)]
 pub struct SchemeObject {
-    raw: guile_rs_sys::SCM,
+    raw: Rc<guile_rs_sys::SCM>,
 }
 
 impl SchemeObject {
@@ -37,7 +39,7 @@ impl SchemeObject {
         unsafe {
             guile_rs_sys::scm_gc_protect_object(raw);
         }
-        SchemeObject { raw }
+        SchemeObject { raw: Rc::new(raw) }
     }
 
     pub fn undefined() -> SchemeObject {
@@ -46,10 +48,10 @@ impl SchemeObject {
         };
         SchemeObject::new(value)
     }
-    
+
     pub fn protect(self) -> Self {
         unsafe {
-            guile_rs_sys::scm_gc_protect_object(self.raw);
+            guile_rs_sys::scm_gc_protect_object(*self.raw);
         }
         self
     }
@@ -63,7 +65,7 @@ impl SchemeObject {
     /// Conditional Check for Pairs
     pub fn is_pair(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_pair_p(self.raw)
+            guile_rs_sys::scm_pair_p(*self.raw)
         };
         let false_constant = unsafe {
             guile_rs_sys::rust_bool_false()
@@ -95,7 +97,7 @@ impl SchemeObject {
     /// Conditional check for a List value
     pub fn is_list(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_list_p(self.raw)
+            guile_rs_sys::scm_list_p(*self.raw)
         };
         let false_constant = unsafe {
             guile_rs_sys::rust_bool_false()
@@ -127,7 +129,7 @@ impl SchemeObject {
     /// Conditional check for a vector
     pub fn is_vector(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_is_vector(self.raw)
+            guile_rs_sys::scm_is_vector(*self.raw)
         };
         if result != 0 {
             true
@@ -156,7 +158,7 @@ impl SchemeObject {
     /// Check for a number variant.
     pub fn is_number(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_is_number(self.raw)
+            guile_rs_sys::scm_is_number(*self.raw)
         };
 
         result == 1
@@ -182,7 +184,7 @@ impl SchemeObject {
     /// Check for a procedure
     pub fn is_procedure(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_procedure_p(self.raw)
+            guile_rs_sys::scm_procedure_p(*self.raw)
         };
         let false_constant = unsafe {
             guile_rs_sys::rust_bool_false()
@@ -214,7 +216,7 @@ impl SchemeObject {
     /// Check for a Symbol variant
     pub fn is_symbol(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_symbol_p(self.raw)
+            guile_rs_sys::scm_symbol_p(*self.raw)
         };
         let false_constant = unsafe {
             guile_rs_sys::rust_bool_false()
@@ -246,7 +248,7 @@ impl SchemeObject {
     /// Check for a string
     pub fn is_string(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_string_p(self.raw)
+            guile_rs_sys::scm_string_p(*self.raw)
         };
         let false_constant = unsafe {
             guile_rs_sys::rust_bool_false()
@@ -278,7 +280,7 @@ impl SchemeObject {
     /// Check for a HashTable
     pub fn is_hashtable(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_hash_table_p(self.raw)
+            guile_rs_sys::scm_hash_table_p(*self.raw)
         };
         let false_constant = unsafe {
             guile_rs_sys::rust_bool_false()
@@ -310,7 +312,7 @@ impl SchemeObject {
     // Check for a character
     pub fn is_character(&self) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_char_p(self.raw)
+            guile_rs_sys::scm_char_p(*self.raw)
         };
         let false_constant = unsafe {
             guile_rs_sys::rust_bool_false()
@@ -342,14 +344,14 @@ impl SchemeObject {
     /// Asserts whether or not the SchemeObject matches the Smob Type
     pub fn assert_smob<T: SmobData>(&self, tag: Smob<T>) {
         unsafe {
-            guile_rs_sys::scm_assert_smob_type(tag.tag(), self.raw);
+            guile_rs_sys::scm_assert_smob_type(tag.tag(), *self.raw);
         }
     }
 
     /// Checks if a SchemeObject is the right kind of Smob
     pub fn is_smob_type<T: SmobData>(&self, tag: Smob<T>) -> bool {
         let result = unsafe {
-            guile_rs_sys::scm_is_smob(tag.tag(), self.raw)
+            guile_rs_sys::scm_is_smob(tag.tag(), *self.raw)
         };
         result != 0
     }
@@ -366,12 +368,13 @@ impl SchemeObject {
     }
 }
 
-
 impl Drop for SchemeObject {
     /// Unprotects the scheme value from garbage collection
     fn drop(&mut self) {
-        unsafe {
-            guile_rs_sys::scm_gc_unprotect_object(self.raw);
+        if Rc::strong_count(&self.raw) == 0 {
+            unsafe {
+                guile_rs_sys::scm_gc_unprotect_object(*self.raw);
+            }
         }
     }
 }
@@ -384,7 +387,7 @@ impl From<guile_rs_sys::SCM> for SchemeObject {
 
 impl Into<guile_rs_sys::SCM> for SchemeObject {
     fn into(self) -> guile_rs_sys::SCM {
-        self.raw
+        *self.raw
     }
 }
 

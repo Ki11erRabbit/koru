@@ -2,6 +2,7 @@ use crate::scheme_object::SchemeObject;
 
 /// Represents a scheme hashtable.
 /// This type exists to provide a stronger invariance for hashtable operations.
+#[derive(Clone)]
 pub struct SchemeHashtable {
     base: SchemeObject,
 }
@@ -26,7 +27,7 @@ impl SchemeHashtable {
     /// This allows for the fetching of values from the hashtable
     pub fn get(&self, key: impl Into<SchemeObject>, default: impl Into<SchemeObject>) -> SchemeObject {
         let value = unsafe {
-            guile_rs_sys::scm_hash_ref(self.base.raw, key.into().raw, default.into().raw)
+            guile_rs_sys::scm_hash_ref(*self.base.raw, *key.into().raw, *default.into().raw)
         };
         SchemeObject::from(value)
     }
@@ -35,7 +36,7 @@ impl SchemeHashtable {
     /// This allows for the setting of values in the hashtable
     pub fn set(&mut self, key: impl Into<SchemeObject>, value: impl Into<SchemeObject>) {
         unsafe {
-            guile_rs_sys::scm_hash_set_x(self.base.raw, key.into().raw, value.into().raw)
+            guile_rs_sys::scm_hash_set_x(*self.base.raw, *key.into().raw, *value.into().raw)
         };
     }
     
@@ -43,7 +44,7 @@ impl SchemeHashtable {
     /// Allows for the removal of elements in the hashtable
     pub fn remove(&mut self, key: impl Into<SchemeObject>) {
         unsafe {
-            guile_rs_sys::scm_hash_remove_x(self.base.raw, key.into().raw)
+            guile_rs_sys::scm_hash_remove_x(*self.base.raw, *key.into().raw)
         };
     }
     
@@ -51,7 +52,7 @@ impl SchemeHashtable {
     /// Allows for clearing out of all elements in the hashtable.
     pub fn clear(&mut self) {
         unsafe {
-            guile_rs_sys::scm_hash_clear_x(self.base.raw)
+            guile_rs_sys::scm_hash_clear_x(*self.base.raw)
         };
     }
 }

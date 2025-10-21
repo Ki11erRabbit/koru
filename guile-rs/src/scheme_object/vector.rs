@@ -2,6 +2,7 @@ use crate::scheme_object::SchemeObject;
 
 /// Represents a Scheme Vector
 /// This type holds the invariance that the value is a Scheme Vector
+#[derive(Clone)]
 pub struct SchemeVector {
     base: SchemeObject
 }
@@ -15,7 +16,7 @@ impl SchemeVector {
         };
         for (i, item) in items.into_iter().map(|item| item.into()).enumerate() {
             unsafe {
-                guile_rs_sys::scm_c_vector_set_x(vector, i, item.raw);
+                guile_rs_sys::scm_c_vector_set_x(vector, i, *item.raw);
             }
         }
         SchemeVector { base: SchemeObject::new(vector) }
@@ -30,13 +31,13 @@ impl SchemeVector {
     /// Fetches the length of the vector
     pub fn len(&self) -> usize {
         unsafe {
-            guile_rs_sys::scm_c_vector_length(self.base.raw)
+            guile_rs_sys::scm_c_vector_length(*self.base.raw)
         }
     }
     
     /// Gives an iterator to the vector's contents
     pub fn iter(&self) -> VectorIter {
-        VectorIter::new(self.base.raw, self.len())
+        VectorIter::new(*self.base.raw, self.len())
     }
     
     /// Gets a value at a position in the Vector
@@ -45,7 +46,7 @@ impl SchemeVector {
             None
         } else {
             let result = unsafe {
-                guile_rs_sys::scm_vector_ref(self.base.raw, SchemeObject::from(index).raw)
+                guile_rs_sys::scm_vector_ref(*self.base.raw, *SchemeObject::from(index).raw)
             };
             Some(SchemeObject::new(result))
         }
@@ -58,7 +59,7 @@ impl SchemeVector {
             return;
         } else {
             unsafe {
-                guile_rs_sys::scm_vector_set_x(self.base.raw, SchemeObject::from(index).raw, value.into().raw);
+                guile_rs_sys::scm_vector_set_x(*self.base.raw, *SchemeObject::from(index).raw, *value.into().raw);
             }
         }
     }

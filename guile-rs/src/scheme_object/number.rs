@@ -2,6 +2,7 @@ use crate::scheme_object::{Number, SchemeObject, SchemeProcedure};
 
 /// Represents a Number in Scheme
 /// This type provides a math interface to allow for ease of use while providing invariance.
+#[derive(Clone)]
 pub struct SchemeNumber {
     base: SchemeObject,
 }
