@@ -3,6 +3,7 @@ use guile_rs_sys;
 use crate::scheme_object::SchemeObject;
 
 pub type SchemeValue = guile_rs_sys::SCM;
+pub struct SchemeFunction(guile_rs_sys::scm_t_subr);
 
 pub struct Guile;
 
@@ -82,21 +83,20 @@ impl Guile {
         // This does not return as scm_shell calls exit
         loop {}
     }
-    
+
     /// Defines a function to be used in scheme
     /// `name` is what the function will be called in scheme
     /// `arg_count` is the number of positional args
     /// `optional_args` is the number of optional arguments
     /// `accepts_rest` is whether or not the function is variadic
     /// `returns` the function
-    pub fn define_fn(
-        name: &str, 
-        arg_count: i32, 
-        optional_args: i32, 
-        accepts_rest: bool, 
-        func: extern "C" fn(SchemeValue) -> SchemeValue
+    fn define_fn(
+        name: &str,
+        arg_count: i32,
+        optional_args: i32,
+        accepts_rest: bool,
+        func: impl Into<SchemeFunction>,
     ) -> SchemeObject {
-        
         let name = std::ffi::CString::new(name).unwrap();
         let func = unsafe {
             guile_rs_sys::scm_c_define_gsubr(
@@ -104,7 +104,7 @@ impl Guile {
                 arg_count,
                 optional_args,
                 accepts_rest.into(),
-                func as guile_rs_sys::scm_t_subr
+                func.into().0
             )
         };
         func.into()
@@ -141,4 +141,76 @@ macro_rules! bind_keywords {
             ( $($out.protect(),)* )
         }
     };
+}
+
+impl From<extern "C" fn () -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn () -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, ) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, ) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue ) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
+}
+
+impl From<extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue> for SchemeFunction {
+    fn from(fun: extern "C" fn (SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue) -> SchemeFunction {
+        SchemeFunction(fun as guile_rs_sys::scm_t_subr)
+    }
 }

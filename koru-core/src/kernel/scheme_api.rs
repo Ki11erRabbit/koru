@@ -1,7 +1,9 @@
 use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
-use guile_rs::{Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
-use guile_rs::scheme_object::{SchemeObject, SchemeProcedure};
+use guile_rs::{SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
+use guile_rs::scheme_object::{SchemeObject, SchemeProcedure, SchemeString, SchemeSymbol};
+
+
 
 #[derive(Clone)]
 pub enum ArgumentDef {
@@ -90,7 +92,7 @@ pub static COMMAND_SMOB: LazyLock<Smob<Command>> = LazyLock::new(||{
 
 impl SmobPrint for Command {
     fn print(&self) -> String {
-        let mut output = format!("#<Command {} {} ", (*self.internal).name, (*self.internal).description);
+        let mut output = format!("#<Command {} ", (*self.internal).name);
 
         for (i, arg) in (*self.internal).arguments.iter().enumerate() {
             match arg {
@@ -147,13 +149,58 @@ impl SmobSize for Command {}
 
 impl SmobEqual for Command {
     fn eq(&self, other: SchemeObject) -> bool {
-        
+
         let Some(other) = other.cast_smob(COMMAND_SMOB.clone()) else {
             return false;
         };
 
-        (self.internal).name == (other.internal).name
+        (self.internal).name == other.internal.name
     }
 }
 
 impl SmobData for Command {}
+
+
+extern "C" fn command_apply(command: SchemeValue, rest: SchemeValue) -> SchemeValue {
+    let Some(command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+
+    command.internal.function.call1(rest).into()
+}
+
+extern "C" fn command_name(command: SchemeValue) -> SchemeValue {
+    let Some(command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+
+    let out: SchemeObject = SchemeString::new(&command.internal.name).into();
+    out.into()
+}
+
+extern "C" fn command_description(command: SchemeValue) -> SchemeValue {
+    let Some(command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+
+    let out: SchemeObject = SchemeString::new(&command.internal.description).into();
+    out.into()
+}
+
+extern "C" fn command_arguments_add(command: SchemeValue, rest: SchemeValue) -> SchemeValue {
+    let Some(mut command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(list) = SchemeObject::new(rest).cast_list() else {
+        return SchemeObject::undefined().into()
+    };
+    
+    for arg in list.iter() {
+        let Some(string) = SchemeObject::new(rest).cast_string() else {
+            return SchemeObject::undefined().into()
+        }; 
+        command.internal.arguments.push(todo!("add way to get utf8 string from SchemeString"))
+    }
+    
+    SchemeObject::undefined().into()
+}
