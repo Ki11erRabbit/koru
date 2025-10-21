@@ -1,3 +1,5 @@
+mod major_mode;
+
 use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
 use guile_rs::{Guile, Module, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
