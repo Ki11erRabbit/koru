@@ -73,6 +73,150 @@ impl SchemeProcedure {
         };
         SchemeObject::new(result)
     }
+    /// Invokes a function with 4 arguments.
+    pub fn call4(
+        &self,
+        arg1: impl Into<SchemeObject>,
+        arg2: impl Into<SchemeObject>,
+        arg3: impl Into<SchemeObject>,
+        arg4: impl Into<SchemeObject>,
+    ) -> SchemeObject {
+        let result = unsafe {
+            guile_rs_sys::scm_call_4(
+                self.base.raw,
+                arg1.into().raw,
+                arg2.into().raw,
+                arg3.into().raw,
+                arg4.into().raw,
+            )
+        };
+        SchemeObject::new(result)
+    }
+    /// Invokes a function with 5 arguments.
+    pub fn call5(
+        &self,
+        arg1: impl Into<SchemeObject>,
+        arg2: impl Into<SchemeObject>,
+        arg3: impl Into<SchemeObject>,
+        arg4: impl Into<SchemeObject>,
+        arg5: impl Into<SchemeObject>,
+    ) -> SchemeObject {
+        let result = unsafe {
+            guile_rs_sys::scm_call_5(
+                self.base.raw,
+                arg1.into().raw,
+                arg2.into().raw,
+                arg3.into().raw,
+                arg4.into().raw,
+                arg5.into().raw,
+            )
+        };
+        SchemeObject::new(result)
+    }
+    /// Invokes a function with 6 arguments.
+    pub fn call6(
+        &self,
+        arg1: impl Into<SchemeObject>,
+        arg2: impl Into<SchemeObject>,
+        arg3: impl Into<SchemeObject>,
+        arg4: impl Into<SchemeObject>,
+        arg5: impl Into<SchemeObject>,
+        arg6: impl Into<SchemeObject>,
+    ) -> SchemeObject {
+        let result = unsafe {
+            guile_rs_sys::scm_call_6(
+                self.base.raw,
+                arg1.into().raw,
+                arg2.into().raw,
+                arg3.into().raw,
+                arg4.into().raw,
+                arg5.into().raw,
+                arg6.into().raw,
+            )
+        };
+        SchemeObject::new(result)
+    }
+    /// Invokes a function with 7 arguments.
+    pub fn call7(
+        &self,
+        arg1: impl Into<SchemeObject>,
+        arg2: impl Into<SchemeObject>,
+        arg3: impl Into<SchemeObject>,
+        arg4: impl Into<SchemeObject>,
+        arg5: impl Into<SchemeObject>,
+        arg6: impl Into<SchemeObject>,
+        arg7: impl Into<SchemeObject>,
+    ) -> SchemeObject {
+        let result = unsafe {
+            guile_rs_sys::scm_call_7(
+                self.base.raw,
+                arg1.into().raw,
+                arg2.into().raw,
+                arg3.into().raw,
+                arg4.into().raw,
+                arg5.into().raw,
+                arg6.into().raw,
+                arg7.into().raw,
+            )
+        };
+        SchemeObject::new(result)
+    }
+    /// Invokes a function with 8 arguments.
+    pub fn call8(
+        &self,
+        arg1: impl Into<SchemeObject>,
+        arg2: impl Into<SchemeObject>,
+        arg3: impl Into<SchemeObject>,
+        arg4: impl Into<SchemeObject>,
+        arg5: impl Into<SchemeObject>,
+        arg6: impl Into<SchemeObject>,
+        arg7: impl Into<SchemeObject>,
+        arg8: impl Into<SchemeObject>,
+    ) -> SchemeObject {
+        let result = unsafe {
+            guile_rs_sys::scm_call_8(
+                self.base.raw,
+                arg1.into().raw,
+                arg2.into().raw,
+                arg3.into().raw,
+                arg4.into().raw,
+                arg5.into().raw,
+                arg6.into().raw,
+                arg7.into().raw,
+                arg8.into().raw,
+            )
+        };
+        SchemeObject::new(result)
+    }
+    /// Invokes a function with 9 arguments.
+    pub fn call9(
+        &self,
+        arg1: impl Into<SchemeObject>,
+        arg2: impl Into<SchemeObject>,
+        arg3: impl Into<SchemeObject>,
+        arg4: impl Into<SchemeObject>,
+        arg5: impl Into<SchemeObject>,
+        arg6: impl Into<SchemeObject>,
+        arg7: impl Into<SchemeObject>,
+        arg8: impl Into<SchemeObject>,
+        arg9: impl Into<SchemeObject>,
+    ) -> SchemeObject {
+        let result = unsafe {
+            guile_rs_sys::scm_call_9(
+                self.base.raw,
+                arg1.into().raw,
+                arg2.into().raw,
+                arg3.into().raw,
+                arg4.into().raw,
+                arg5.into().raw,
+                arg6.into().raw,
+                arg7.into().raw,
+                arg8.into().raw,
+                arg9.into().raw,
+            )
+        };
+        SchemeObject::new(result)
+    }
 }
 
 impl Into<SchemeObject> for SchemeProcedure {

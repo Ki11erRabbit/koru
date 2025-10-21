@@ -8,6 +8,7 @@ mod string;
 mod hashtable;
 mod character;
 mod smob;
+mod keyword;
 
 pub use crate::scheme_object::character::SchemeChar;
 pub use crate::scheme_object::hashtable::SchemeHashtable;
