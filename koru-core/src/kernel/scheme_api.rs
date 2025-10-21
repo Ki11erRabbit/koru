@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
-use guile_rs::{SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
+use guile_rs::{Guile, Module, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
 use guile_rs::scheme_object::{SchemeObject, SchemeProcedure, SchemeString, SchemeSymbol};
 
 
@@ -196,11 +196,60 @@ extern "C" fn command_arguments_add(command: SchemeValue, rest: SchemeValue) -> 
     };
     
     for arg in list.iter() {
-        let Some(string) = SchemeObject::new(rest).cast_string() else {
+        let Some(string) = arg.cast_string() else {
             return SchemeObject::undefined().into()
         }; 
-        command.internal.arguments.push(todo!("add way to get utf8 string from SchemeString"))
+        let Ok(arg_def) = ArgumentDef::try_from(string.to_string()) else {
+            return SchemeObject::undefined().into()
+        };
+        command.internal.arguments.push(arg_def);
     }
     
     SchemeObject::undefined().into()
+}
+
+extern "C" fn command_create(name: SchemeValue, description: SchemeValue, function: SchemeValue) -> SchemeValue {
+    let Some(name) = SchemeObject::new(name).cast_string() else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(description) = SchemeObject::new(description).cast_string() else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(function) = SchemeObject::new(function).cast_procedure() else {
+        return SchemeObject::undefined().into()
+    };
+    
+    let name = name.to_string();
+    let description = description.to_string();
+    
+    let command = Command {
+        internal: ManuallyDrop::new(CommandInternal {
+            name,
+            description,
+            function,
+            arguments: Vec::new(),
+        })
+    };
+    
+    let smob = COMMAND_SMOB.make(command);
+    
+    smob.into()
+}
+
+
+pub fn koru_command_module() {
+    Guile::define_fn("command-create", 3, 0, false, command_create);
+    Guile::define_fn("command-apply", 1, 0, true, command_apply);
+    Guile::define_fn("command-name", 1, 0, false, command_name);
+    Guile::define_fn("command-description", 1, 0, false, command_description);
+    Guile::define_fn("command-add-arguments", 1, 0, true, command_arguments_add);
+    
+    let mut module = Module::new("koru-command", Box::new(|_: &mut ()| {}));
+    module.add_export("command-create");
+    module.add_export("command-apply");
+    module.add_export("command-name");
+    module.add_export("command-description");
+    module.add_export("command-add-arguments");
+    module.export();
+    module.define(&mut ());
 }

@@ -90,7 +90,7 @@ impl Guile {
     /// `optional_args` is the number of optional arguments
     /// `accepts_rest` is whether or not the function is variadic
     /// `returns` the function
-    fn define_fn(
+    pub fn define_fn(
         name: &str,
         arg_count: i32,
         optional_args: i32,
