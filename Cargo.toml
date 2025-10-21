@@ -5,6 +5,7 @@ members = ["koru","koru-core", "guile-rs-sys", "guile-rs"]
 
 [workspace.dependencies]
 guile-rs-sys = { path = "./guile-rs-sys" }
+guile-rs = { path = "./guile-rs" }
 mlua = "0.11.4"
 koru-core = { path = "./koru-core" }
 futures = "0.3.31"
