@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 guile-rs-sys = { workspace = true }
+bitflags = "2.10.0"

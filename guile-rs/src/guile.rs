@@ -1,3 +1,4 @@
+use bitflags::bitflags;
 use guile_rs_sys;
 use crate::scheme_object::SchemeObject;
 
@@ -108,4 +109,36 @@ impl Guile {
         };
         func.into()
     }
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct KeywordFlags: i32 {
+        const AllowOtherKeys = guile_rs_sys::scm_allow_other_keys;
+        const AllowNonkeywordArguments = guile_rs_sys::scm_allow_non_keyword_arguments;
+    }
+}
+
+#[macro_export]
+macro_rules! bind_keywords {
+    ($func_name:expr, $rest:expr, $flags:expr, $( $keyword:expr => $out:expr ),* $(,)?) => {
+        unsafe {
+            $(
+                let $out = $crate::scheme_object::SchemeObject::undefined();
+            )*
+
+            guile_rs_sys::scm_c_bind_keyword_arguments(
+                concat!($func_name, "\0").as_ptr() as *const _,
+                $rest,
+                $flags,
+                $(
+                    guile_rs_sys::scm_from_utf8_keyword(concat!($keyword, "\0").as_ptr() as *const _),
+                    &mut $out.raw,
+                )*
+                $crate::scheme_object::SchemeObject::undefined().raw
+            );
+
+            ( $($out.protect(),)* )
+        }
+    };
 }

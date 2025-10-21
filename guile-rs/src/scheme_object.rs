@@ -40,6 +40,20 @@ impl SchemeObject {
         SchemeObject { raw }
     }
 
+    pub fn undefined() -> SchemeObject {
+        let value = unsafe {
+            guile_rs_sys::scm_undefined()
+        };
+        SchemeObject::new(value)
+    }
+    
+    pub fn protect(self) -> Self {
+        unsafe {
+            guile_rs_sys::scm_gc_protect_object(self.raw);
+        }
+        self
+    }
+
     /// Constructor for a Pair
     /// To get a SchemePair type use SchemePair::new instead.
     pub fn cons(x: SchemeObject, y: SchemeObject) -> SchemeObject {
