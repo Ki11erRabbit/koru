@@ -38,11 +38,11 @@ impl Guile {
     /// Boots the system into scheme mode.
     /// This function will terminate the program if it returns.
     /// Takes in a mut ref to some data and a function that accepts that data.
-    pub fn boot<D, F: FnOnce(&mut D) + 'static>(data: &mut D, main_func: F) -> ! {
-        unsafe extern "C" fn trampoline<D, F: FnOnce(&mut D) + 'static>(data: *mut std::os::raw::c_void, _: std::os::raw::c_int, _: *mut *mut std::os::raw::c_char) {
-            let data: Box<(&mut D, F)> = unsafe { Box::from_raw(data as *mut (&mut _, _)) };
-            let (data, main_func) = *data;
-            main_func(data);
+    pub fn boot<D, F: FnOnce() + 'static>(main_func: F) -> ! {
+        unsafe extern "C" fn trampoline<D, F: FnOnce() + 'static>(data: *mut std::os::raw::c_void, _: std::os::raw::c_int, _: *mut *mut std::os::raw::c_char) {
+            let data: Box<F> = unsafe { Box::from_raw(data as *mut _) };
+            let main_func = *data;
+            main_func();
         }
 
         let args: Vec<String> = std::env::args().collect();
@@ -52,7 +52,7 @@ impl Guile {
             .map(|arg| arg.as_ptr())
             .collect::<Vec<_>>();
 
-        let data = Box::new((data, main_func));
+        let data = Box::new(main_func);
 
         unsafe {
             guile_rs_sys::scm_boot_guile(
