@@ -75,10 +75,6 @@ impl TryFrom<String> for ArgumentDef {
     }
 }
 
-#[derive(Clone)]
-pub struct Command {
-    internal: ManuallyDrop<CommandInternal>,
-}
 
 #[derive(Clone)]
 struct CommandInternal {
@@ -87,6 +83,18 @@ struct CommandInternal {
     description: String,
     arguments: Vec<ArgumentDef>
 }
+
+#[derive(Clone)]
+pub struct Command {
+    internal: ManuallyDrop<CommandInternal>,
+}
+
+impl Command {
+    pub fn name(&self) -> &str {
+        self.internal.name.as_str()
+    }
+}
+
 
 pub static COMMAND_SMOB: LazyLock<Smob<Command>> = LazyLock::new(||{
     Smob::register("Command")

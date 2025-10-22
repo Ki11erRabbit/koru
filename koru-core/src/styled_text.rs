@@ -1,5 +1,9 @@
+use std::mem::ManuallyDrop;
+use std::sync::LazyLock;
 use bitflags::bitflags;
 use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
+use guile_rs::{Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
+use guile_rs::scheme_object::SchemeObject;
 use crate::kernel::cursor::Cursor;
 
 bitflags! {
@@ -107,6 +111,14 @@ impl TryFrom<&str> for ColorType {
     }
 }
 
+pub static STYLED_TEXT_SMOB_TAG: LazyLock<Smob<StyledFileSmob>> = LazyLock::new(||{
+    Smob::register("StyledText")
+});
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct StyledTextSmob {
+    internal: ManuallyDrop<StyledText>
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum StyledText {
@@ -120,6 +132,43 @@ pub enum StyledText {
 }
 
 impl UserData for StyledText {
+}
+
+impl SmobData for StyledTextSmob {}
+impl SmobSize for StyledTextSmob {}
+impl SmobEqual for StyledTextSmob {}
+impl SmobDrop for StyledTextSmob {
+    fn drop(&mut self) -> usize {
+        let string_size = match &self.internal {
+            StyledText::None(string) => string.capacity(),
+            StyledText::Style { text, ..} => text.capacity(),
+        };
+
+        unsafe {
+            ManuallyDrop::drop(&mut self.internal);
+        }
+
+        size_of::<StyledText>() + string_size
+    }
+
+    fn heap_size(&self) -> usize {
+        let string_size = match &self.internal {
+            StyledText::None(string) => string.capacity(),
+            StyledText::Style { text, ..} => text.capacity(),
+        };
+
+        size_of::<StyledText>() + string_size
+    }
+}
+
+
+pub static STYLED_FILE_SMOB_TAG: LazyLock<Smob<StyledFileSmob>> = LazyLock::new(||{
+    Smob::register("StyledFile")
+});
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct StyledFileSmob {
+    internal: ManuallyDrop<StyledFile>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -293,6 +342,38 @@ impl From<String> for StyledFile {
     }
 }
 
+impl SmobData for StyledFileSmob {}
+
+impl SmobPrint for StyledFileSmob {
+    fn print(&self) -> String {
+        String::from("#<StyledFile>")
+    }
+}
+
+impl SmobEqual for StyledFileSmob {}
+
+impl SmobSize for StyledFileSmob {}
+
+impl SmobDrop for StyledFileSmob {
+    fn drop(&mut self) -> usize {
+        let capacity = self.internal.capacity() * size_of::<StyledText>();
+
+        unsafe {
+            ManuallyDrop::drop(&mut self.internal);
+        }
+
+        capacity
+    }
+
+    fn heap_size(&self) -> usize {
+        let capacity = self.internal.capacity() * size_of::<StyledText>();
+
+        capacity
+    }
+}
+
+
+
 impl UserData for StyledFile {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
         methods.add_method_mut(
@@ -316,6 +397,10 @@ impl UserData for StyledFile {
     }
 }
 
+pub static COLOR_VALUE_SMOB_TAG: LazyLock<Smob<ColorValue>> = LazyLock::new(|| {
+    Smob::register("ColorValue")
+});
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ColorValue {
     Rgb {
@@ -328,6 +413,34 @@ pub enum ColorValue {
 
 impl UserData for ColorValue {
 
+}
+
+impl SmobData for ColorValue {}
+impl SmobPrint for ColorValue {
+    fn print(&self) -> String {
+        match self {
+            ColorValue::Rgb { r, g, b } => {
+                format!("#<rgb({},{},{})>", r, g, b)
+            }
+            ColorValue::Ansi(value) => {
+                format!("#<Ansi({})>", value)
+            }
+        }
+    }
+}
+impl SmobEqual for ColorValue {
+    fn eq(&self, other: SchemeObject) -> bool {
+        let Some(other) = other.cast_smob(COLOR_VALUE_SMOB_TAG.clone()) else {
+            return false;
+        };
+        *self == *other
+    }
+}
+impl SmobSize for ColorValue {}
+impl SmobDrop for ColorValue {
+    fn heap_size(&self) -> usize {
+        0
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
