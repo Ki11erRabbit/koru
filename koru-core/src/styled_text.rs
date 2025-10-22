@@ -111,7 +111,7 @@ impl TryFrom<&str> for ColorType {
     }
 }
 
-pub static STYLED_TEXT_SMOB_TAG: LazyLock<Smob<StyledFileSmob>> = LazyLock::new(||{
+pub static STYLED_TEXT_SMOB_TAG: LazyLock<Smob<StyledTextSmob>> = LazyLock::new(||{
     Smob::register("StyledText")
 });
 
@@ -150,7 +150,7 @@ impl SmobSize for StyledTextSmob {}
 impl SmobEqual for StyledTextSmob {}
 impl SmobDrop for StyledTextSmob {
     fn drop(&mut self) -> usize {
-        let string_size = match &self.internal {
+        let string_size = match &*self.internal {
             StyledText::None(string) => string.capacity(),
             StyledText::Style { text, ..} => text.capacity(),
         };
@@ -163,7 +163,7 @@ impl SmobDrop for StyledTextSmob {
     }
 
     fn heap_size(&self) -> usize {
-        let string_size = match &self.internal {
+        let string_size = match &*self.internal {
             StyledText::None(string) => string.capacity(),
             StyledText::Style { text, ..} => text.capacity(),
         };
@@ -434,7 +434,7 @@ impl SmobSize for StyledFileSmob {}
 
 impl SmobDrop for StyledFileSmob {
     fn drop(&mut self) -> usize {
-        let capacity = self.internal.capacity() * size_of::<StyledText>();
+        let capacity = self.internal.lines.capacity() * size_of::<StyledText>();
 
         unsafe {
             ManuallyDrop::drop(&mut self.internal);
@@ -444,14 +444,14 @@ impl SmobDrop for StyledFileSmob {
     }
 
     fn heap_size(&self) -> usize {
-        let capacity = self.internal.capacity() * size_of::<StyledText>();
+        let capacity = self.internal.lines.capacity() * size_of::<StyledText>();
 
         capacity
     }
 }
 
 extern "C" fn styled_file_prepend_segment(file: SchemeValue, line: SchemeValue, text: SchemeValue) -> SchemeValue {
-    let Some(file) = SchemeObject::new(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
+    let Some(mut file) = SchemeObject::new(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into()
     };
     let Some(line) = SchemeObject::new(line).cast_number() else {
@@ -460,13 +460,13 @@ extern "C" fn styled_file_prepend_segment(file: SchemeValue, line: SchemeValue, 
     let Some(text) = SchemeObject::new(text).cast_smob(STYLED_TEXT_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into()
     };
-    file.internal.prepend_segment(line.as_u64() as usize, (*text).clone());
+    file.internal.prepend_segment(line.as_u64() as usize, (*text.internal).clone());
 
     SchemeObject::undefined().into()
 }
 
 extern "C" fn styled_file_append_segment(file: SchemeValue, line: SchemeValue, text: SchemeValue) -> SchemeValue {
-    let Some(file) = SchemeObject::new(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
+    let Some(mut file) = SchemeObject::new(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into()
     };
     let Some(line) = SchemeObject::new(line).cast_number() else {
@@ -475,7 +475,7 @@ extern "C" fn styled_file_append_segment(file: SchemeValue, line: SchemeValue, t
     let Some(text) = SchemeObject::new(text).cast_smob(STYLED_TEXT_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into()
     };
-    file.internal.append_segment(line.as_u64() as usize, (*text).clone());
+    file.internal.append_segment(line.as_u64() as usize, (*text.internal).clone());
 
     SchemeObject::undefined().into()
 }

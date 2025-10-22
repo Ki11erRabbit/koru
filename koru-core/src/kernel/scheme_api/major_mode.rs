@@ -108,16 +108,16 @@ pub extern "C" fn major_mode_create(name: SchemeValue, modify_line: SchemeValue,
     smob.into()
 }
 
-extern "C" fn major_mode_data(mode: SchemeValue) -> SchemeObject {
+extern "C" fn major_mode_data(mode: SchemeValue) -> SchemeValue {
     let Some(mode) = SchemeObject::new(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into()
     };
     
-    mode.internal.data.into()
+    mode.internal.data.clone().into()
 }
 
 pub extern "C" fn major_mode_register_command(mode: SchemeValue, command: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::new(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
+    let Some(mut mode) = SchemeObject::new(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into() 
     };
     let Some(command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
@@ -130,7 +130,7 @@ pub extern "C" fn major_mode_register_command(mode: SchemeValue, command: Scheme
 }
 
 pub extern "C" fn major_mode_register_alias(mode: SchemeValue, command_name: SchemeValue, alias: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::new(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
+    let Some(mut mode) = SchemeObject::new(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into()
     };
     let Some(command_name) = SchemeObject::new(command_name).cast_string() else {
@@ -146,7 +146,7 @@ pub extern "C" fn major_mode_register_alias(mode: SchemeValue, command_name: Sch
 }
 
 pub extern "C" fn major_mode_unregister(mode: SchemeValue, command_name: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::new(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
+    let Some(mut mode) = SchemeObject::new(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
         return SchemeObject::undefined().into()
     };
     let Some(command_name) = SchemeObject::new(command_name).cast_string() else {
@@ -175,7 +175,7 @@ pub fn major_mode_module() {
         major_mode_create as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
     );
     Guile::define_fn("major-mode-data", 1, 0, false,
-        major_mode_data as extern "C" fn(SchemeValue) -> SchemeObject
+        major_mode_data as extern "C" fn(SchemeValue) -> SchemeValue
     );
     Guile::define_fn("major-mode-register-command", 2, 0, false, 
         major_mode_register_command as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
