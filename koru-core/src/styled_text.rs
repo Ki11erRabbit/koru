@@ -2,8 +2,8 @@ use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
 use bitflags::bitflags;
 use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
-use guile_rs::{Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
-use guile_rs::scheme_object::SchemeObject;
+use guile_rs::{Guile, Module, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
+use guile_rs::scheme_object::{SchemeObject, SchemeString};
 use crate::kernel::cursor::Cursor;
 
 bitflags! {
@@ -120,6 +120,12 @@ pub struct StyledTextSmob {
     internal: ManuallyDrop<StyledText>
 }
 
+impl StyledTextSmob {
+    pub fn new(internal: StyledText) -> StyledTextSmob {
+        StyledTextSmob { internal: ManuallyDrop::new(internal) }
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum StyledText {
     None(String),
@@ -135,6 +141,11 @@ impl UserData for StyledText {
 }
 
 impl SmobData for StyledTextSmob {}
+impl SmobPrint for StyledTextSmob {
+    fn print(&self) -> String {
+        String::from("#<StyledText>")
+    }
+}
 impl SmobSize for StyledTextSmob {}
 impl SmobEqual for StyledTextSmob {}
 impl SmobDrop for StyledTextSmob {
@@ -161,6 +172,73 @@ impl SmobDrop for StyledTextSmob {
     }
 }
 
+extern "C" fn styled_text_create(text: SchemeValue, fg: SchemeValue, bg: SchemeValue, rest: SchemeValue) -> SchemeValue {
+    let Some(text) = SchemeObject::new(text).cast_string() else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(rest) = SchemeObject::new(rest).cast_list() else {
+        return SchemeObject::undefined().into()
+    };
+    let objs = rest.iter().collect::<Vec<_>>();
+
+    let (fg, bg) = match (SchemeObject::new(fg).cast_string(), SchemeObject::new(bg).cast_string()) {
+        (Some(fg), Some(bg)) => {
+            let Ok(fg) = fg.to_string().as_str().try_into() else {
+                return SchemeObject::undefined().into()
+            };
+            let Ok(bg) = bg.to_string().as_str().try_into() else {
+                return SchemeObject::undefined().into()
+            };
+            (fg, bg)
+        }
+        _ => {
+            let text = StyledText::None(text.to_string());
+            let text = StyledTextSmob::new(text);
+
+            return STYLED_TEXT_SMOB_TAG.make(text).into()
+        }
+    };
+
+    let text = match objs.as_slice() {
+        [] => {
+            StyledText::Style {
+                fg_color: fg,
+                bg_color: bg,
+                attribute: TextAttribute::empty(),
+                text: text.to_string(),
+            }
+        },
+        attrs => {
+            let mut attributes = TextAttribute::empty();
+
+            for attr in attrs {
+                let Some(attr) = attr.clone().cast_string() else {
+                    return SchemeObject::undefined().into()
+                };
+
+                match attr.to_string().as_str() {
+                    "italic" => attributes |= TextAttribute::Italic,
+                    "bold" => attributes |= TextAttribute::Bold,
+                    "strikethrough" => attributes |= TextAttribute::Strikethrough,
+                    "underline" => attributes |= TextAttribute::Underline,
+                    _ => {
+                        return SchemeObject::undefined().into()
+                    }
+                }
+            }
+            StyledText::Style {
+                fg_color: fg,
+                bg_color: bg,
+                attribute: attributes,
+                text: text.to_string(),
+            }
+        }
+    };
+
+    let text = StyledTextSmob::new(text);
+
+    STYLED_TEXT_SMOB_TAG.make(text).into()
+}
 
 pub static STYLED_FILE_SMOB_TAG: LazyLock<Smob<StyledFileSmob>> = LazyLock::new(||{
     Smob::register("StyledFile")
@@ -372,6 +450,54 @@ impl SmobDrop for StyledFileSmob {
     }
 }
 
+extern "C" fn styled_file_prepend_segment(file: SchemeValue, line: SchemeValue, text: SchemeValue) -> SchemeValue {
+    let Some(file) = SchemeObject::new(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(line) = SchemeObject::new(line).cast_number() else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(text) = SchemeObject::new(text).cast_smob(STYLED_TEXT_SMOB_TAG.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+    file.internal.prepend_segment(line.as_u64() as usize, (*text).clone());
+
+    SchemeObject::undefined().into()
+}
+
+extern "C" fn styled_file_append_segment(file: SchemeValue, line: SchemeValue, text: SchemeValue) -> SchemeValue {
+    let Some(file) = SchemeObject::new(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(line) = SchemeObject::new(line).cast_number() else {
+        return SchemeObject::undefined().into()
+    };
+    let Some(text) = SchemeObject::new(text).cast_smob(STYLED_TEXT_SMOB_TAG.clone()) else {
+        return SchemeObject::undefined().into()
+    };
+    file.internal.append_segment(line.as_u64() as usize, (*text).clone());
+
+    SchemeObject::undefined().into()
+}
+
+pub fn styled_file_module() {
+    Guile::define_fn("styled-file-prepend", 3, 0, false,
+        styled_file_prepend_segment as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("styled-file-append", 3, 0, false,
+        styled_file_append_segment as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("styled-text-create", 1, 2, true,
+        styled_text_create as extern "C" fn(SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
+    );
+
+    let mut module = Module::new("styled-text", Box::new(|_: &mut ()| {}));
+    module.add_export("styled-file-prepend");
+    module.add_export("styled-file-append");
+    module.add_export("styled-text-create");
+    module.export();
+    module.define(&mut ());
+}
 
 
 impl UserData for StyledFile {
