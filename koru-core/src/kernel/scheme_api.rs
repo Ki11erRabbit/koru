@@ -240,11 +240,21 @@ extern "C" fn command_create(name: SchemeValue, description: SchemeValue, functi
 
 
 pub fn koru_command_module() {
-    Guile::define_fn("command-create", 3, 0, false, command_create);
-    Guile::define_fn("command-apply", 1, 0, true, command_apply);
-    Guile::define_fn("command-name", 1, 0, false, command_name);
-    Guile::define_fn("command-description", 1, 0, false, command_description);
-    Guile::define_fn("command-add-arguments", 1, 0, true, command_arguments_add);
+    Guile::define_fn("command-create", 3, 0, false, 
+        command_create as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("command-apply", 1, 0, true, 
+        command_apply as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("command-name", 1, 0, false, 
+        command_name as extern "C" fn(SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("command-description", 1, 0, false, 
+        command_description as extern "C" fn(SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("command-add-arguments", 1, 0, true, 
+        command_arguments_add as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
+    );
     
     let mut module = Module::new("koru-command", Box::new(|_: &mut ()| {}));
     module.add_export("command-create");

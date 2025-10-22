@@ -37,9 +37,14 @@ impl MajorMode {
         self.internal.aliases.insert(name, index);
     }
     
-    pub fn register_alias(&mut self, name: String, index: usize) {
-        if let Some(alias) = self.internal.aliases.get(&name) {
-            self.internal.aliases.insert(name, *alias);
+    pub fn register_alias(&mut self, name: String, alias: String) {
+        let index = if let Some(index) = self.internal.aliases.get(&name) {
+            Some(*index)
+        } else {
+            None
+        };
+        if let Some(index) = index {
+            self.internal.aliases.insert(alias, index);
         }
     }
 }

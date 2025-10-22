@@ -158,7 +158,11 @@ impl Into<SchemeFunction> for extern "C" fn(SchemeValue) -> SchemeValue {
     }
 }
 
-
+impl Into<SchemeFunction> for extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue {
+    fn into(self) -> SchemeFunction {
+        SchemeFunction(self as guile_rs_sys::scm_t_subr)
+    }
+}
 
 impl Into<SchemeFunction> for extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue {
     fn into(self) -> SchemeFunction {
