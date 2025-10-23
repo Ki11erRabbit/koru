@@ -21,6 +21,12 @@ static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
 #[derive(Copy, Clone)]
 pub struct SessionId(usize);
 
+impl SessionId {
+    pub fn get(&self) -> usize {
+        self.0
+    }
+}
+
 pub struct SessionIdManager {
     next_session_id: usize,
     free_ids: VecDeque<usize>,
