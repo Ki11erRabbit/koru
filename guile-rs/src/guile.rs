@@ -109,6 +109,20 @@ impl Guile {
         };
         func.into()
     }
+    
+    pub fn define(
+        name: &str,
+        data: SchemeObject,
+    ) -> SchemeObject {
+        let name = std::ffi::CString::new(name).unwrap();
+        let value = unsafe {
+            guile_rs_sys::scm_c_define(
+                name.as_ptr(),
+                data.into()
+            )
+        };
+        SchemeObject::from(value)
+    }
 }
 
 bitflags! {

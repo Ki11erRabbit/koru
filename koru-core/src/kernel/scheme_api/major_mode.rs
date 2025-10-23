@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
 use guile_rs::scheme_object::{SchemeObject, SchemeProcedure};
 use guile_rs::{Guile, Module, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
-use crate::kernel::scheme_api::{Command, COMMAND_SMOB};
+use crate::kernel::scheme_api::command::{Command, COMMAND_SMOB};
 
 pub static MAJOR_MODE_SMOB_TAG: LazyLock<Smob<MajorMode>> = LazyLock::new(|| {
     Smob::register("MajorMode") 
