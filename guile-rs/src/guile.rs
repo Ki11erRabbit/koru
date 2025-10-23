@@ -112,16 +112,69 @@ impl Guile {
     
     pub fn define(
         name: &str,
-        data: SchemeObject,
+        data: impl Into<SchemeObject>,
     ) -> SchemeObject {
         let name = std::ffi::CString::new(name).unwrap();
         let value = unsafe {
             guile_rs_sys::scm_c_define(
                 name.as_ptr(),
-                data.into()
+                data.into().into()
             )
         };
         SchemeObject::from(value)
+    }
+    
+    pub fn lookup(name: &str) -> Option<SchemeObject> {
+        let cstr = std::ffi::CString::new(name).unwrap();
+        let value = unsafe {
+            guile_rs_sys::scm_c_lookup(cstr.as_ptr())
+        };
+        if value.is_null() {
+            None
+        } else {
+            let actual_value = unsafe {
+                guile_rs_sys::scm_variable_ref(value)
+            };
+            Some(SchemeObject::from(actual_value))
+        }
+    }
+    
+    pub fn public_lookup(module_name: &str, name: &str) -> Option<SchemeObject> {
+        let module_name = std::ffi::CString::new(module_name).unwrap();
+        let name = std::ffi::CString::new(name).unwrap();
+        let value = unsafe {
+            guile_rs_sys::scm_c_public_lookup(module_name.as_ptr(), name.as_ptr())
+        };
+        if value.is_null() {
+            None
+        } else {
+            let actual_value = unsafe {
+                guile_rs_sys::scm_variable_ref(value)
+            };
+            Some(SchemeObject::from(actual_value))
+        }
+    }
+    
+    pub fn module_lookup(module_name: &str, name: &str) -> Option<SchemeObject> {
+        let module_name = std::ffi::CString::new(module_name).unwrap();
+        let name = std::ffi::CString::new(name).unwrap();
+        let module = unsafe {
+            guile_rs_sys::scm_c_resolve_module(module_name.as_ptr())
+        };
+        if module.is_null() {
+            return None;
+        }
+        let value = unsafe {
+            guile_rs_sys::scm_c_module_lookup(module, name.as_ptr())
+        };
+        if value.is_null() {
+            None
+        } else {
+            let actual_value = unsafe {
+                guile_rs_sys::scm_variable_ref(value)
+            };
+            Some(SchemeObject::from(actual_value))
+        }
     }
 }
 
