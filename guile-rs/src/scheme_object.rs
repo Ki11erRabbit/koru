@@ -10,7 +10,7 @@ mod character;
 mod smob;
 mod keyword;
 
-use std::rc::Rc;
+use std::sync::Arc;
 pub use crate::scheme_object::character::SchemeChar;
 pub use crate::scheme_object::hashtable::SchemeHashtable;
 pub use crate::scheme_object::list::SchemeList;
@@ -29,7 +29,7 @@ pub trait Number: Into<SchemeObject> {}
 /// Represents a generic Scheme Object that we don't know the variant
 #[derive(Clone)]
 pub struct SchemeObject {
-    raw: Rc<guile_rs_sys::SCM>,
+    raw: Arc<guile_rs_sys::SCM>,
 }
 
 impl SchemeObject {
@@ -39,7 +39,7 @@ impl SchemeObject {
         unsafe {
             guile_rs_sys::scm_gc_protect_object(raw);
         }
-        SchemeObject { raw: Rc::new(raw) }
+        SchemeObject { raw: Arc::new(raw) }
     }
 
     pub fn undefined() -> SchemeObject {
@@ -371,7 +371,7 @@ impl SchemeObject {
 impl Drop for SchemeObject {
     /// Unprotects the scheme value from garbage collection
     fn drop(&mut self) {
-        if Rc::strong_count(&self.raw) == 0 {
+        if Arc::strong_count(&self.raw) == 0 {
             unsafe {
                 guile_rs_sys::scm_gc_unprotect_object(*self.raw);
             }
