@@ -10,17 +10,16 @@ unsafe impl Sync for FluidId {}
 pub struct Fluid;
 
 impl Fluid {
-    /// Creates a fluid (a scoped global variable) with a name and default value
-    pub fn make_default(name: &str, value: SchemeValue) -> FluidId {
-        let name = std::ffi::CString::new(name).unwrap();
+    /// Creates a fluid (a scoped global variable) with a default value
+    pub fn make_default(value: SchemeObject) -> FluidId {
         let value = unsafe {
-            guile_rs_sys::scm_make_fluid_with_default(name.as_ptr(), value.into())
+            guile_rs_sys::scm_make_fluid_with_default(value.into())
         };
         FluidId(SchemeObject::from(value))
     }
     
     /// Sets a fluid's value via the id
-    pub fn set(id: FluidId, value: SchemeValue) {
+    pub fn set(id: FluidId, value: SchemeObject) {
         unsafe {
             guile_rs_sys::scm_fluid_set_x(id.0.into(), value.into())
         };

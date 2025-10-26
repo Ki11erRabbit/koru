@@ -5,7 +5,7 @@ use guile_rs::scheme_object::SchemeObject;
 use crate::kernel::session::SessionId;
 
 static SESSION_ID_FLUID: LazyLock<FluidId> = LazyLock::new(|| {
-    Fluid::make_default("session-id", SchemeObject::from(-1))
+    Fluid::make_default(SchemeObject::from(-1))
 });
 
 extern "C" fn get_session_id() -> SchemeValue {

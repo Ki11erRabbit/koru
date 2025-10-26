@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 use crate::scheme_object::SchemeObject;
 
 /// Represents a Scheme List
@@ -100,7 +101,7 @@ impl Into<SchemeObject> for SchemeList {
 }
 
 pub struct SchemeListIterator {
-    current: Rc<guile_rs_sys::SCM>,
+    current: Arc<guile_rs_sys::SCM>,
 }
 
 impl SchemeListIterator {
@@ -122,7 +123,7 @@ impl Iterator for SchemeListIterator {
         } else {
             let head = unsafe {
                 let head = guile_rs_sys::rust_car(*self.current);
-                self.current = Rc::new(guile_rs_sys::rust_cdr(*self.current));
+                self.current = Arc::new(guile_rs_sys::rust_cdr(*self.current));
                 head
             };
             Some(SchemeObject::from(head))

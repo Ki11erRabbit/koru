@@ -245,7 +245,7 @@ impl Guile {
             guile_rs_sys::scm_c_resolve_module(module_name.as_ptr())
         };
         if module.is_null() {
-            return None;
+            return;
         }
         let variable = unsafe {
             guile_rs_sys::scm_c_module_lookup(module, name.as_ptr())
