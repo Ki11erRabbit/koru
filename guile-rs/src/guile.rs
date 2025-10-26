@@ -110,6 +110,7 @@ impl Guile {
         func.into()
     }
     
+    /// Defines a value as a global accessible in Scheme
     pub fn define(
         name: &str,
         data: impl Into<SchemeObject>,
@@ -124,6 +125,7 @@ impl Guile {
         SchemeObject::from(value)
     }
     
+    /// Finds a global variable
     pub fn lookup(name: &str) -> Option<SchemeObject> {
         let cstr = std::ffi::CString::new(name).unwrap();
         let value = unsafe {
@@ -139,6 +141,7 @@ impl Guile {
         }
     }
     
+    /// Finds a global variable that is publicly available in a module
     pub fn public_lookup(module_name: &str, name: &str) -> Option<SchemeObject> {
         let module_name = std::ffi::CString::new(module_name).unwrap();
         let name = std::ffi::CString::new(name).unwrap();
@@ -155,6 +158,7 @@ impl Guile {
         }
     }
     
+    /// Imports a module and access it to get a global
     pub fn module_lookup(module_name: &str, name: &str) -> Option<SchemeObject> {
         let module_name = std::ffi::CString::new(module_name).unwrap();
         let name = std::ffi::CString::new(name).unwrap();
@@ -174,6 +178,53 @@ impl Guile {
                 guile_rs_sys::scm_variable_ref(value)
             };
             Some(SchemeObject::from(actual_value))
+        }
+    }
+    
+    /// Set a global variable
+    pub fn set(name: &str, value: SchemeObject) {
+        let cstr = std::ffi::CString::new(name).unwrap();
+        let variable = unsafe {
+            guile_rs_sys::scm_c_lookup(cstr.as_ptr())
+        };
+        if !variable.is_null() {
+            unsafe {
+                guile_rs_sys::scm_variable_set_x(variable, value.into())
+            };
+        }
+    }
+
+    /// Set a global variable in a module
+    pub fn public_set(module_name: &str, name: &str, value: SchemeObject) {
+        let module_name = std::ffi::CString::new(module_name).unwrap();
+        let name = std::ffi::CString::new(name).unwrap();
+        let variable = unsafe {
+            guile_rs_sys::scm_c_public_lookup(module_name.as_ptr(), name.as_ptr())
+        };
+        if !variable.is_null() {
+            unsafe {
+                guile_rs_sys::scm_variable_set_x(variable, value.into())
+            };
+        }
+    }
+
+    /// Set a global variable in an unresolved module.
+    pub fn module_set(module_name: &str, name: &str, value: SchemeObject) {
+        let module_name = std::ffi::CString::new(module_name).unwrap();
+        let name = std::ffi::CString::new(name).unwrap();
+        let module = unsafe {
+            guile_rs_sys::scm_c_resolve_module(module_name.as_ptr())
+        };
+        if module.is_null() {
+            return None;
+        }
+        let variable = unsafe {
+            guile_rs_sys::scm_c_module_lookup(module, name.as_ptr())
+        };
+        if !variable.is_null() {
+            unsafe {
+                guile_rs_sys::scm_variable_set_x(variable, value.into())
+            };
         }
     }
 }
