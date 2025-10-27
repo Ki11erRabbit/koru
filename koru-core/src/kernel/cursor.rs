@@ -238,10 +238,10 @@ impl Cursor {
                     self.logical_cursor.column_end = self.logical_cursor.column_start + 1;
                 }
                 
-                self.logical_cursor.column_start = self.logical_cursor.column_start.saturating_sub(1);
-                self.logical_cursor.column_end = self.logical_cursor.column_start + 1;
                 self.real_cursor.column_start = self.real_cursor.column_start.saturating_sub(1);
                 self.real_cursor.column_end = self.real_cursor.column_start + 1;
+                self.logical_cursor.column_start = self.real_cursor.column_start;
+                self.logical_cursor.column_end = self.real_cursor.column_end;
             }
             LeadingEdge::End => {
                 self.logical_cursor.line_start = self.logical_cursor.line_end;
