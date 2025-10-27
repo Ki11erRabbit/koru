@@ -502,6 +502,9 @@ impl From<f64> for SchemeObject {
     }
 }
 
+unsafe impl Send for SchemeObject {}
+unsafe impl Sync for SchemeObject {}
+
 
 impl Number for u8 {}
 impl Number for i8 {}

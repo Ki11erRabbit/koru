@@ -18,10 +18,13 @@ static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
     Mutex::new(SessionIdManager::new())
 });
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct SessionId(usize);
 
 impl SessionId {
+    pub fn new(id: usize) -> SessionId {
+        SessionId(id)
+    }
     pub fn get(&self) -> usize {
         self.0
     }
