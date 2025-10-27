@@ -42,7 +42,7 @@ fn get_session_id() -> SessionId {
 pub fn set_session_id(session_id: SessionId) {
     let mut session_hooks = get_session_hooks_mut();
     session_hooks.insert(session_id, HashMap::new());
-    
+
     Fluid::set(SESSION_ID_FLUID.clone(), SchemeObject::from(session_id.get()));
 }
 
@@ -52,13 +52,13 @@ extern "C" fn create_hook(hook_name: SchemeValue) -> SchemeValue {
     };
     let mut session_hooks = get_session_hooks_mut();
     let session_id = get_session_id();
-    
+
     session_hooks.entry(session_id)
         .and_modify(|session_hooks| {
             session_hooks.insert(hook_name.to_string(), HashMap::new());
         })
         .or_insert_with(HashMap::new);
-    
+
     SchemeObject::undefined().into()
 }
 
@@ -74,7 +74,7 @@ extern "C" fn add_hook(hook_name: SchemeValue, proc_name: SchemeValue, function:
     };
     let mut session_hooks = get_session_hooks_mut();
     let session_id = get_session_id();
-    
+
     let mut default = HashMap::new();
     default.insert(proc_name.to_string(), function.clone());
 
@@ -117,7 +117,7 @@ extern "C" fn call_hook(hook_name: SchemeValue, rest: SchemeValue) -> SchemeValu
     let Some(rest) = SchemeObject::new(rest).cast_list() else {
         return SchemeObject::undefined().into();
     };
-    
+
     let mut session_hooks = get_session_hooks_mut();
     let session_id = get_session_id();
     let Some(hooks) = session_hooks.get(&session_id) else {
@@ -129,13 +129,13 @@ extern "C" fn call_hook(hook_name: SchemeValue, rest: SchemeValue) -> SchemeValu
             proc.call(rest);
         }
     }
-    
+
     SchemeObject::undefined().into()
 }
 
 pub fn koru_session_module() {
-    Guile::define_fn("get-session-id", 0, 0, false, 
-                     get_session_id_scheme as extern "C" fn() -> SchemeValue      
+    Guile::define_fn("get-session-id", 0, 0, false,
+                     get_session_id_scheme as extern "C" fn() -> SchemeValue
     );
     Guile::define_fn("create-hook", 1, 0, false,
                      create_hook as extern "C" fn(SchemeValue) -> SchemeValue
