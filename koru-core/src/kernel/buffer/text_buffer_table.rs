@@ -102,6 +102,14 @@ impl BufferHandle {
     }
 }
 
+impl Drop for BufferHandle {
+    fn drop(&mut self) {
+        unsafe {
+            ManuallyDrop::drop(&mut self.internal);
+        }
+    }
+}
+
 pub static BUFFER_HANDLE_SMOB_TAG: LazyLock<Smob<BufferHandle>> = LazyLock::new(|| {
     Smob::register("BufferHandle")
 });
