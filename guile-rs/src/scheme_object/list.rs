@@ -26,6 +26,14 @@ impl SchemeList {
 
         SchemeList { base: SchemeObject::new(pair) }
     }
+    
+    pub fn empty() -> SchemeList {
+        let value = unsafe {
+            guile_rs_sys::scm_eol()
+        };
+        
+        SchemeList { base: SchemeObject::new(value) }
+    }
 
     /// Internal Constructor
     /// This should never be called by the user as it would violate invariance.

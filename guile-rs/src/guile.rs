@@ -272,13 +272,11 @@ impl Guile {
     /// Raises a misc error for Scheme
     /// 
     /// This does not return
-    pub fn misc_error(proc_name: impl Into<&'static CStr>, msg: impl Into<&'static CStr>, args: SchemeList) -> ! {
-        let proc_name = proc_name.into();
-        let msg = msg.into();
+    pub fn misc_error(proc_name: &'static[u8], msg: &'static [u8], args: SchemeList) -> ! {
         unsafe {
             guile_rs_sys::scm_misc_error(
-                proc_name.as_ptr(),
-                msg.as_ptr(),
+                proc_name.as_ptr() as *const _,
+                msg.as_ptr() as *const _,
                 <SchemeList as Into<SchemeObject>>::into(args).into()
             )
         }
@@ -287,11 +285,10 @@ impl Guile {
     /// Raises a type error for Scheme functions
     ///
     /// This does not return
-    pub fn wrong_type_arg(proc_name: impl Into<&'static CStr>, pos: i32, bad_value: impl Into<SchemeObject>) -> ! {
-        let proc_name = proc_name.into();
+    pub fn wrong_type_arg(proc_name: &'static [u8], pos: i32, bad_value: impl Into<SchemeObject>) -> ! {
         unsafe {
             guile_rs_sys::scm_wrong_type_arg(
-                proc_name.as_ptr(),
+                proc_name.as_ptr() as *const _,
                 pos,
                 bad_value.into().into()
             )
@@ -301,11 +298,10 @@ impl Guile {
     /// Raises an out of range error for Scheme
     ///
     /// This does not return
-    pub fn out_of_range(proc_name: impl Into<&'static CStr>, bad_value: impl Into<SchemeObject>) -> ! {
-        let proc_name = proc_name.into();
+    pub fn out_of_range(proc_name: &'static [u8], bad_value: impl Into<SchemeObject>) -> ! {
         unsafe {
             guile_rs_sys::scm_out_of_range(
-                proc_name.as_ptr(),
+                proc_name.as_ptr() as *const _,
                 bad_value.into().into()
             )
         }
@@ -316,18 +312,16 @@ impl Guile {
     /// This does not return
     pub fn error(
         key: SchemeSymbol,
-        proc_name: impl Into<&'static CStr>,
-        msg: impl Into<&'static CStr>,
+        proc_name: &'static [u8],
+        msg: &'static [u8],
         args: SchemeList,
         rest: SchemeList
     ) -> ! {
-        let proc_name = proc_name.into();
-        let msg = msg.into();
         unsafe {
             guile_rs_sys::scm_error(
                 <SchemeSymbol as Into<SchemeObject>>::into(key).into(),
-                proc_name.as_ptr(),
-                msg.as_ptr(),
+                proc_name.as_ptr() as *const _,
+                msg.as_ptr() as *const _,
                 <SchemeList as Into<SchemeObject>>::into(args).into(),
                 <SchemeList as Into<SchemeObject>>::into(rest).into(),
             )
