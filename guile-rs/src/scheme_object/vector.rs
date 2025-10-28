@@ -63,6 +63,11 @@ impl SchemeVector {
             }
         }
     }
+    
+    /// Converts Scheme Vector into Rust Vec
+    pub fn to_vec(&self) -> Vec<SchemeObject> {
+        self.iter().collect()
+    }
 }
 
 impl Into<SchemeObject> for SchemeVector {

@@ -1,6 +1,7 @@
+use std::ffi::CStr;
 use bitflags::bitflags;
 use guile_rs_sys;
-use crate::scheme_object::SchemeObject;
+use crate::scheme_object::{SchemeList, SchemeObject, SchemeSymbol};
 
 pub type SchemeValue = guile_rs_sys::SCM;
 pub struct SchemeFunction(guile_rs_sys::scm_t_subr);
@@ -254,6 +255,82 @@ impl Guile {
             unsafe {
                 guile_rs_sys::scm_variable_set_x(variable, value.into())
             };
+        }
+    }
+
+    /// Raises an error for Scheme
+    /// 
+    /// This does not return
+    pub fn throw(key: SchemeSymbol, args: SchemeList) -> ! {
+        unsafe {
+            guile_rs_sys::scm_throw(
+                <SchemeSymbol as Into<SchemeObject>>::into(key).into(),
+                <SchemeList as Into<SchemeObject>>::into(args).into())
+        }
+    }
+    
+    /// Raises a misc error for Scheme
+    /// 
+    /// This does not return
+    pub fn misc_error(proc_name: impl Into<&'static CStr>, msg: impl Into<&'static CStr>, args: SchemeList) -> ! {
+        let proc_name = proc_name.into();
+        let msg = msg.into();
+        unsafe {
+            guile_rs_sys::scm_misc_error(
+                proc_name.as_ptr(),
+                msg.as_ptr(),
+                <SchemeList as Into<SchemeObject>>::into(args).into()
+            )
+        }
+    }
+
+    /// Raises a type error for Scheme functions
+    ///
+    /// This does not return
+    pub fn wrong_type_arg(proc_name: impl Into<&'static CStr>, pos: i32, bad_value: impl Into<SchemeObject>) -> ! {
+        let proc_name = proc_name.into();
+        unsafe {
+            guile_rs_sys::scm_wrong_type_arg(
+                proc_name.as_ptr(),
+                pos,
+                bad_value.into().into()
+            )
+        }
+    }
+
+    /// Raises an out of range error for Scheme
+    ///
+    /// This does not return
+    pub fn out_of_range(proc_name: impl Into<&'static CStr>, bad_value: impl Into<SchemeObject>) -> ! {
+        let proc_name = proc_name.into();
+        unsafe {
+            guile_rs_sys::scm_out_of_range(
+                proc_name.as_ptr(),
+                bad_value.into().into()
+            )
+        }
+    }
+
+    /// Raises an error for Scheme
+    ///
+    /// This does not return
+    pub fn error(
+        key: SchemeSymbol,
+        proc_name: impl Into<&'static CStr>,
+        msg: impl Into<&'static CStr>,
+        args: SchemeList,
+        rest: SchemeList
+    ) -> ! {
+        let proc_name = proc_name.into();
+        let msg = msg.into();
+        unsafe {
+            guile_rs_sys::scm_error(
+                <SchemeSymbol as Into<SchemeObject>>::into(key).into(),
+                proc_name.as_ptr(),
+                msg.as_ptr(),
+                <SchemeList as Into<SchemeObject>>::into(args).into(),
+                <SchemeList as Into<SchemeObject>>::into(rest).into(),
+            )
         }
     }
 }
