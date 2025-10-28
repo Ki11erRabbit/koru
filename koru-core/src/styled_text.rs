@@ -4,7 +4,7 @@ use bitflags::bitflags;
 use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
 use guile_rs::{Guile, Module, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
 use guile_rs::scheme_object::{SchemeObject, SchemeString};
-use crate::kernel::cursor::Cursor;
+use crate::kernel::buffer::cursor::Cursor;
 
 bitflags! {
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]

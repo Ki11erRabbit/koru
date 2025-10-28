@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder};
-use crate::kernel::cursor::{Cursor, CursorDirection, LeadingEdge};
+use crate::kernel::buffer::cursor::{Cursor, CursorDirection, LeadingEdge};
 
 pub struct TextBuffer {
     buffer: Rope,

@@ -7,12 +7,10 @@ mod files;
 mod session;
 pub mod client;
 pub mod broker;
-pub mod cursor;
 mod buffer;
 mod scheme_api;
 
 use std::error::Error;
-use std::io;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
 use crate::kernel::broker::Broker;

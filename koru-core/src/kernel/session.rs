@@ -6,7 +6,7 @@ use std::sync::{LazyLock, Mutex};
 use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
 use crate::attr_set::AttrSet;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
-use crate::kernel::cursor::Cursor;
+use crate::kernel::buffer::cursor::Cursor;
 use crate::kernel::{files, lua_api};
 use crate::kernel::files::{OpenFileHandle, OpenFileTable};
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};

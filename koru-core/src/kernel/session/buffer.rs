@@ -1,6 +1,6 @@
 use mlua::{UserData, UserDataMethods};
 use crate::kernel::buffer::BufferHandle;
-use crate::kernel::cursor::{Cursor, CursorDirection, GridCursor, LeadingEdge};
+use crate::kernel::buffer::cursor::{Cursor, CursorDirection, GridCursor, LeadingEdge};
 use crate::styled_text::StyledFile;
 
 pub enum BufferData {

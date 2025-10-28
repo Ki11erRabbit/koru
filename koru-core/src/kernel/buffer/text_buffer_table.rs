@@ -5,9 +5,10 @@ use std::mem::ManuallyDrop;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex, OnceLock, RwLock};
 use guile_rs::{Guile, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
-use guile_rs::scheme_object::{SchemeList, SchemeObject, SchemeString};
+use guile_rs::scheme_object::{SchemeList, SchemeObject, SchemeString, SchemeVector};
 use crate::kernel::buffer::text_buffer::TextBuffer;
-use crate::kernel::cursor::{Cursor, CursorDirection};
+use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
+use crate::kernel::buffer::{GridCursor, LeadingEdge, CURSOR_SMOB_TAG};
 
 static OPEN_BUFFERS: LazyLock<RwLock<TextBufferTable>> = LazyLock::new(|| {
     RwLock::new(TextBufferTable::new())
@@ -143,6 +144,86 @@ extern "C" fn open_file(path: SchemeValue) -> SchemeValue {
         }
     };
     BUFFER_HANDLE_SMOB_TAG.make(handle).into()
+}
+
+extern "C" fn move_cursors(handle: SchemeValue, cursors: SchemeValue, direction: SchemeValue, _wrap: SchemeValue) -> SchemeValue {
+    let Some(handle) = SchemeObject::new(handle).cast_smob(BUFFER_HANDLE_SMOB_TAG.clone()) else {
+        Guile::wrong_type_arg(b"move-cursors\0", 1, handle);
+    };
+    let Some(cursors) = SchemeObject::new(cursors).cast_vector() else {
+        Guile::wrong_type_arg(b"move-cursors\0", 2, handle);
+    };
+    let Some(direction) = SchemeObject::new(direction).cast_symbol() else {
+        Guile::wrong_type_arg(b"move-cursors\0", 3, handle);
+    };
+    let cursors = cursors.to_vec()
+        .into_iter()
+        .map(|cursor| {
+            let Some(cursor) = cursor.clone().cast_smob(CURSOR_SMOB_TAG.clone()) else {
+                Guile::wrong_type_arg(b"move-cursors\0", 2, cursor);
+            };
+            *cursor
+        })
+        .collect::<Vec<Cursor>>();
+    
+    let direction = match direction.to_string().as_str() {
+        "Up" => CursorDirection::Up,
+        "Down" => CursorDirection::Down,
+        "Left" => {
+            CursorDirection::Left { wrap: false }
+        }
+        "Right" => {
+            CursorDirection::Right { wrap: false }
+        }
+        _ => {
+            Guile::misc_error(
+                b"move-cursors\0", 
+                b"expected one of 'Up, 'Down, 'Left, or 'Right\0", 
+                SchemeList::empty()
+            )
+        }
+    };
+    
+    let cursors = handle.move_cursors(cursors, direction);
+    let cursors = cursors.into_iter()
+        .map(|cursor| {
+            CURSOR_SMOB_TAG.make(cursor)
+        })
+        .collect();
+    
+    <SchemeVector as Into<SchemeObject>>::into(SchemeVector::new(cursors)).into()
+}
+
+extern "C" fn create_cursor(pair: SchemeValue, leading_edge: SchemeValue) -> SchemeValue {
+    let Some(pair) = SchemeObject::new(pair).cast_cons() else {
+        Guile::wrong_type_arg(b"create-cursor\0", 1, pair);
+    };
+    let Some(leading_edge) = SchemeObject::new(leading_edge).cast_symbol() else {
+        Guile::wrong_type_arg(b"create-cursor\0", 2, leading_edge);
+    };
+    let Some(line) = pair.car().cast_number() else {
+        Guile::misc_error(b"create-cursor\0", b"expected pair of numbers\0", SchemeList::empty())
+    };
+    let Some(column) = pair.cdr().cast_number() else {
+        Guile::misc_error(b"create-cursor\0", b"expected pair of numbers\0", SchemeList::empty())
+    };
+    
+    let leading_edge = match leading_edge.to_string().as_str() {
+        "Start" => LeadingEdge::Start,
+        "End" => LeadingEdge::End,
+        _ => {
+            Guile::misc_error(b"create-cursor\0", b"expected one of 'Start or 'End\0", SchemeList::empty())
+        }
+    };
+    
+    let line = line.as_u64() as usize;
+    let column = column.as_u64() as usize;
+    
+    let logical_cursor = GridCursor::new(line, line + 1, column, column + 1);
+    
+    let cursor = Cursor::new(logical_cursor, leading_edge);
+    
+    CURSOR_SMOB_TAG.make(cursor).into()
 }
 
 pub fn text_buffer_module() {
