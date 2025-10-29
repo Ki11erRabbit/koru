@@ -163,7 +163,7 @@ impl App {
                         let destination = self.session_address.unwrap();
                         let mut client = client.clone();
                         Task::future(async move {
-                            match client.send_async(MessageKind::General(GeneralMessage::KeyEvent(key_press)), destination) {
+                            match client.send_async(MessageKind::General(GeneralMessage::KeyEvent(key_press)), destination).await {
                                 _ => {}
                             }
                             UiMessage::Nop
