@@ -21,6 +21,15 @@ impl<D> Module<D> {
         }
     }
 
+    /// `name`: the name of the module
+    pub fn new_default<S: Into<String>>(name: S) -> Module<D> {
+        Self {
+            init: Box::new(|_: &mut D| {}),
+            name: name.into(),
+            exports: Vec::new(),
+        }
+    }
+
     /// Adds an export to the module
     pub fn add_export<S: Into<String>>(&mut self, name: S) {
         self.exports.push(name.into());
@@ -53,5 +62,11 @@ impl<D> Module<D> {
         unsafe {
             guile_rs_sys::scm_c_define_module(name.as_ptr(), Some(trampoline::<D>), data as *mut _);
         }
+    }
+}
+
+impl<D: Default> Module<D> {
+    pub fn define_default(self) {
+        self.define(&mut D::default());
     }
 }

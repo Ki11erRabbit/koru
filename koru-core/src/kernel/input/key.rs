@@ -1,9 +1,10 @@
+use std::fmt::format;
 use std::ops::BitAnd;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use bitflags::bitflags;
 use mlua::{Lua, UserData, UserDataMethods, Value};
-
-
+use guile_rs::scheme_object::{SchemeObject, SchemeSmob};
+use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, Module, SchemeValue, SmobData, SmobTag};
 
 bitflags! {
     #[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
@@ -171,6 +172,10 @@ impl std::fmt::Display for ControlKey {
     }
 }
 
+pub static KEY_PRESS_SMOB_TAG: LazyLock<SmobTag<KeyPress>> = LazyLock::new(|| {
+    SmobTag::register("KeyPress")
+});
+
 #[derive(Eq, PartialEq, Clone, Hash, Debug)]
 pub struct KeyPress {
     pub key: KeyValue,
@@ -320,12 +325,52 @@ impl KeyPress {
     }
 }
 
+
+impl SmobData for KeyPress {
+    fn print(&self) -> String {
+        format!("{}", self)
+    }
+
+    fn heap_size(&self) -> usize {
+        0
+    }
+
+    fn eq(&self, other: SchemeObject) -> bool {
+        let Some(other) = other.cast_smob(KEY_PRESS_SMOB_TAG.clone()) else {
+            return false
+        };
+        *self == *other.borrow()
+    }
+}
+
 impl std::fmt::Display for KeyPress {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.modifiers)?;
         
         write!(f, "{}", self.key)
     }
+}
+
+extern "C" fn string_to_keypress(string: SchemeValue) -> SchemeValue {
+    let Some(string) = SchemeObject::from(string).cast_string() else {
+        guile_wrong_type_arg!("string->keypress", 1, string);
+    };
+    let Some(press) = KeyPress::from_string(&string.to_string()) else {
+        guile_misc_error!("string->keypress", "invalid string for string->keypress");
+    };
+    let smob = KEY_PRESS_SMOB_TAG.make(press);
+    
+    <SchemeSmob<KeyPress> as Into<SchemeObject>>::into(smob).into()
+}
+
+pub fn guile_key_module() {
+    Guile::define_fn("string->keypress", 1, 0, false,
+                     string_to_keypress as extern "C" fn(SchemeValue) -> SchemeValue
+    );
+    let mut module: Module<()> = Module::new_default("key-press");
+    module.add_export("string->keypress");
+    module.export();
+    module.define_default();
 }
 
 impl UserData for KeyPress {
