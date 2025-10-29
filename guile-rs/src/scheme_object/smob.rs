@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use crate::scheme_object::SchemeObject;
-use crate::{Smob, SmobData};
+use crate::{SmobTag, SmobData, SmobWrapper};
 
 /// Represents a SMOB.
 /// Enforces the invariant of the SMOB's type. This allows us to access the underlying data safely
@@ -13,10 +13,9 @@ pub struct SchemeSmob<T: SmobData> {
 impl<T: SmobData> SchemeSmob<T> {
     
     /// Base Constructor for a SMOB.
-    /// Needs a Smob for type safety
-    pub fn new(tag: Smob<T>, data: T) -> Self {
-        let base = tag.make(data);
-        SchemeSmob { base, phantom: PhantomData }
+    /// Needs a SmobTag for type safety
+    pub fn new(tag: SmobTag<T>, data: T) -> Self {
+        tag.make(data)
     }
 
     /// Internal Constructor
@@ -25,38 +24,25 @@ impl<T: SmobData> SchemeSmob<T> {
     pub(crate) unsafe fn from_base(base: SchemeObject) -> Self {
         SchemeSmob { base, phantom: PhantomData }
     }
-}
-
-impl<T: SmobData> std::ops::Deref for SchemeSmob<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
-    }
-}
-
-impl<T: SmobData> std::ops::DerefMut for SchemeSmob<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_mut()
-    }
-}
-
-impl<T: SmobData> AsRef<T> for SchemeSmob<T> {
-    fn as_ref(&self) -> &T {
+    
+    pub fn borrow(&self) -> parking_lot::RwLockReadGuard<'_, T> {
         let ptr = unsafe {
             guile_rs_sys::rust_smob_data(*self.base.raw)
         };
-        unsafe { (ptr as *mut T).as_ref() }.unwrap()
+        let data = unsafe { (ptr as *mut SmobWrapper<T>).as_ref() }.unwrap();
+        data.borrow()
     }
-}
 
-impl<T: SmobData> AsMut<T> for SchemeSmob<T> {
-    fn as_mut(&mut self) -> &mut T {
+    pub fn borrow_mut(&self) -> parking_lot::RwLockWriteGuard<'_, T> {
         let ptr = unsafe {
             guile_rs_sys::rust_smob_data(*self.base.raw)
         };
-        unsafe { (ptr as *mut T).as_mut() }.unwrap()
+        let data = unsafe { (ptr as *mut SmobWrapper<T>).as_ref() }.unwrap();
+        data.borrow_mut()
     }
 }
+
+
 
 impl<T: SmobData> Into<SchemeObject> for SchemeSmob<T> {
     fn into(self) -> SchemeObject {

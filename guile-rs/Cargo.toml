@@ -7,3 +7,5 @@ edition = "2024"
 guile-rs-sys = { workspace = true }
 bitflags = "2.10.0"
 libc = "0.2.177"
+tokio = { workspace = true }
+parking_lot = { version = "0.12.5", features = ["send_guard"] }

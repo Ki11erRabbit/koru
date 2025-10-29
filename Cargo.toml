@@ -9,3 +9,4 @@ guile-rs = { path = "./guile-rs" }
 mlua = "0.11.4"
 koru-core = { path = "./koru-core" }
 futures = "0.3.31"
+tokio = { version = "1.47.1", features = ["full"] }

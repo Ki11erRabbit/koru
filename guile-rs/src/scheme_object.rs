@@ -11,6 +11,7 @@ mod smob;
 mod keyword;
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 pub use crate::scheme_object::character::SchemeChar;
 pub use crate::scheme_object::hashtable::SchemeHashtable;
 pub use crate::scheme_object::list::SchemeList;
@@ -20,7 +21,7 @@ pub use crate::scheme_object::procedure::SchemeProcedure;
 pub use crate::scheme_object::string::SchemeString;
 pub use crate::scheme_object::symbol::SchemeSymbol;
 pub use crate::scheme_object::vector::SchemeVector;
-use crate::{Smob, SmobData};
+use crate::{SchemeValue, SmobTag, SmobData};
 pub use crate::scheme_object::smob::SchemeSmob;
 
 /// Helper trait to allow for numeric types to be converted into SchemeObjects
@@ -40,13 +41,6 @@ impl SchemeObject {
             guile_rs_sys::scm_gc_protect_object(raw);
         }
         SchemeObject { raw: Arc::new(raw) }
-    }
-
-    pub fn undefined() -> SchemeObject {
-        let value = unsafe {
-            guile_rs_sys::scm_undefined()
-        };
-        SchemeObject::new(value)
     }
 
     pub fn protect(self) -> Self {
@@ -337,19 +331,19 @@ impl SchemeObject {
 
     /// Constructor for a Smob
     /// To get a SchemeSmob type use SchemeSmob::new instead.
-    pub fn smob<T: SmobData>(tag: Smob<T>, data: T) -> SchemeObject {
+    pub fn smob<T: SmobData>(tag: SmobTag<T>, data: T) -> SchemeObject {
         SchemeSmob::new(tag, data).into()
     }
     
     /// Asserts whether or not the SchemeObject matches the Smob Type
-    pub fn assert_smob<T: SmobData>(&self, tag: Smob<T>) {
+    pub fn assert_smob<T: SmobData>(&self, tag: SmobTag<T>) {
         unsafe {
             guile_rs_sys::scm_assert_smob_type(tag.tag(), *self.raw);
         }
     }
 
     /// Checks if a SchemeObject is the right kind of Smob
-    pub fn is_smob_type<T: SmobData>(&self, tag: Smob<T>) -> bool {
+    pub fn is_smob_type<T: SmobData>(&self, tag: SmobTag<T>) -> bool {
         let result = unsafe {
             guile_rs_sys::scm_is_smob(tag.tag(), *self.raw)
         };
@@ -357,7 +351,7 @@ impl SchemeObject {
     }
     
     /// Consumes a SchemeObject and possibly returns a SchemeSmob
-    pub fn cast_smob<T: SmobData>(self, tag: Smob<T>) -> Option<SchemeSmob<T>> {
+    pub fn cast_smob<T: SmobData>(self, tag: SmobTag<T>) -> Option<SchemeSmob<T>> {
         if self.is_smob_type::<T>(tag) {
             Some(unsafe {
                 SchemeSmob::from_base(self)
@@ -368,10 +362,12 @@ impl SchemeObject {
     }
 }
 
+
+
 impl Drop for SchemeObject {
     /// Unprotects the scheme value from garbage collection
     fn drop(&mut self) {
-        if Arc::strong_count(&self.raw) == 0 {
+        if Arc::strong_count(&self.raw) == 1 {
             unsafe {
                 guile_rs_sys::scm_gc_unprotect_object(*self.raw);
             }
@@ -385,9 +381,21 @@ impl From<guile_rs_sys::SCM> for SchemeObject {
     }
 }
 
+impl From<SchemeValue> for SchemeObject {
+    fn from(value: SchemeValue) -> SchemeObject {
+        SchemeObject::new(value.value())
+    }
+}
+
 impl Into<guile_rs_sys::SCM> for SchemeObject {
     fn into(self) -> guile_rs_sys::SCM {
         *self.raw
+    }
+}
+
+impl Into<SchemeValue> for SchemeObject {
+    fn into(self) -> SchemeValue {
+        SchemeValue(*self.raw)
     }
 }
 

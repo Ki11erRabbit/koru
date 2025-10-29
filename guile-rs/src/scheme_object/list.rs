@@ -80,7 +80,7 @@ impl SchemeList {
     pub fn append(self, other: SchemeList) -> SchemeList {
         let value = unsafe {
             let args = guile_rs_sys::scm_list_1(*self.base.raw);
-            guile_rs_sys::scm_set_cdr_x(args,  *other.base.raw);
+            guile_rs_sys::scm_set_cdr_x(args, *other.base.raw);
             guile_rs_sys::scm_append(args)
         };
         SchemeList { base: SchemeObject::from(value), }

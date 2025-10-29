@@ -1,9 +1,8 @@
-use std::ffi::CStr;
 use bitflags::bitflags;
 use guile_rs_sys;
 use crate::scheme_object::{SchemeList, SchemeObject, SchemeSymbol};
+use crate::SchemeValue;
 
-pub type SchemeValue = guile_rs_sys::SCM;
 pub struct SchemeFunction(guile_rs_sys::scm_t_subr);
 
 pub struct Guile;
@@ -334,6 +333,38 @@ bitflags! {
     pub struct KeywordFlags: i32 {
         const AllowOtherKeys = guile_rs_sys::scm_allow_other_keys;
         const AllowNonkeywordArguments = guile_rs_sys::scm_allow_non_keyword_arguments;
+    }
+}
+
+#[macro_export]
+macro_rules! guile_misc_error {
+    ($proc_name:literal, $msg:literal, $($arg:expr),* $(,)?) => {
+        let list = [ $($arg),* ];
+        let list = $crate::scheme_object::SchemeList::new(list);
+        $crate::guile::Guile::misc_error(concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), list);
+    }
+}
+
+#[macro_export]
+macro_rules! guile_wrong_type_arg {
+    ($proc_name:literal, $pos:expr, $bad_value:expr) => {
+        $crate::guile::Guile::wrong_type_arg(concat!($proc_name, "\0").as_bytes(), $pos, $bad_value)
+    }
+}
+
+#[macro_export]
+macro_rules! guile_out_of_range {
+    ($proc_name:literal, $bad_value:expr) => {
+        $crate::guile::Guile::out_of_range(concat!($proc_name, "\0").as_bytes(), $bad_value)
+    }
+}
+
+#[macro_export]
+macro_rules! guile_error {
+    ($key:expr, $proc_name:literal, $msg:literal, $args:expr, $($rest:expr)*, $(,)?) => {
+        let list = [ $($arg),* ];
+        let list = $crate::scheme_object::SchemeList::new(list);
+        $crate::guile::Guile::error($key, concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), $args, list)
     }
 }
 
