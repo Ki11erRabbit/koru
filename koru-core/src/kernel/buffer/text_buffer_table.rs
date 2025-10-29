@@ -2,7 +2,9 @@ use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::io::Read;
 use std::path::PathBuf;
-use std::sync::{Arc, LazyLock, Mutex, RwLock};
+use std::sync::{Arc, LazyLock};
+use tokio::io::AsyncReadExt;
+use tokio::sync::{RwLock, Mutex};
 use crate::kernel::buffer::text_buffer::TextBuffer;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 
@@ -39,21 +41,21 @@ impl TextBufferTable {
         BufferHandle::new(buffer, index)
     }
 
-    fn rename_internal(&mut self, old_name: &str, new_name: String) {
+    async fn rename_internal(&mut self, old_name: &str, new_name: String) {
         if let Some(index) = self.name_to_index.remove(old_name) {
             self.name_to_index.insert(new_name.clone(), index);
-            self.table[index].as_ref().unwrap().lock().expect("Lock Poisoned").rename(new_name)
+            self.table[index].as_ref().unwrap().lock().await.rename(new_name)
         }
     }
 
-    fn open_internal(&mut self, path: String) -> Result<BufferHandle, Box<dyn Error>> {
+    async fn open_internal(&mut self, path: String) -> Result<BufferHandle, Box<dyn Error>> {
         let path_buf = PathBuf::from(path);
         let path = path_buf.canonicalize()?;
 
         let contents = {
-            let mut file = std::fs::File::open(&path)?;
+            let mut file = tokio::fs::File::open(&path).await?;
             let mut contents = Vec::new();
-            file.read_to_end(&mut contents)?;
+            file.read_to_end(&mut contents).await?;
             String::from_utf8(contents)?
         };
 
@@ -63,16 +65,12 @@ impl TextBufferTable {
         Ok(self.insert_internal(name, buffer))
     }
     
-    pub fn open(path: String) -> Result<BufferHandle, Box<dyn Error>> {
-        let mut table = OPEN_BUFFERS.write().expect("Lock Poisoned");
-        table.open_internal(path)
+    pub async fn open(path: String) -> Result<BufferHandle, Box<dyn Error>> {
+        let mut table = OPEN_BUFFERS.write().await;
+        table.open_internal(path).await
     }
 }
 
-#[derive(Clone)]
-struct BufferHandleInternal {
-    
-}
 
 #[derive(Clone)]
 pub struct BufferHandle {
@@ -85,16 +83,16 @@ impl BufferHandle {
         Self { handle, index }
     }
     
-    pub fn rename(&self, name: String) {
-        self.handle.lock().expect("Lock Poisoned").rename(name);
+    pub async fn rename(&self, name: String) {
+        self.handle.lock().await.rename(name);
     }
     
-    pub fn get_text(&self) -> String {
-        self.handle.lock().expect("Lock Poisoned").get_buffer()
+    pub async fn get_text(&self) -> String {
+        self.handle.lock().await.get_buffer()
     }
     
-    pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
-        self.handle.lock().expect("Lock Poisoned").move_cursors(cursors, direction)
+    pub async fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
+        self.handle.lock().await.move_cursors(cursors, direction)
     }
 }
 

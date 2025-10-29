@@ -344,7 +344,7 @@ impl Session {
         let buffer = open_buffers.get::<AnyUserData>(buffer_name.clone())?;
         let buffer = buffer.borrow::<Buffer>()?;
         
-        let styled_file = buffer.styled_file();
+        let styled_file = buffer.styled_file().await;
 
         let major_mode = self.lua.globals().get::<Table>("__major_mode")?
             .get::<Table>(buffer_name)?;
@@ -429,7 +429,7 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
 
-                    let file = crate::kernel::buffer::TextBufferTable::open(FILE_NAME.to_string()).unwrap();
+                    let file = crate::kernel::buffer::TextBufferTable::open(FILE_NAME.to_string()).await.unwrap();
                     
                     let buffer = Buffer::new_open_file(file);
                     
