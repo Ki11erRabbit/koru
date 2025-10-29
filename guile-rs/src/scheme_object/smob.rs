@@ -49,3 +49,6 @@ impl<T: SmobData> Into<SchemeObject> for SchemeSmob<T> {
         self.base
     }
 }
+
+unsafe impl<T: SmobData> Send for SchemeSmob<T> {}
+unsafe impl<T: SmobData> Sync for SchemeSmob<T> {}

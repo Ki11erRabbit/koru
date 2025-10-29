@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use guile_rs::{guile_wrong_type_arg, Guile, Module, SchemeValue};
+use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, Module, SchemeValue};
 use guile_rs::fluid::{Fluid, FluidId};
-use guile_rs::scheme_object::{SchemeObject, SchemeProcedure};
+use guile_rs::scheme_object::{SchemeObject, SchemeProcedure, SchemeSmob};
+use crate::kernel::broker::{BrokerClient, Message, BROKER_CLIENT_SMOB_TAG, MESSAGE_KIND_SMOB_TAG, MESSAGE_SMOB_TAG};
 use crate::kernel::session::SessionId;
 
 static SESSION_ID_FLUID: LazyLock<FluidId> = LazyLock::new(|| {
@@ -27,6 +28,26 @@ fn get_session_hooks_mut() -> RwLockWriteGuard<'static, HashMap<SessionId, HashM
     guard
 }
 
+
+static SESSION_BROKER_CLIENTS: LazyLock<RwLock<HashMap<SessionId, SchemeSmob<BrokerClient>>>> = LazyLock::new(|| {
+    RwLock::new(HashMap::new())
+});
+
+fn get_broker_clients() -> RwLockReadGuard<'static, HashMap<SessionId, SchemeSmob<BrokerClient>>> {
+    let Ok(guard) = SESSION_BROKER_CLIENTS.read() else {
+        panic!("Lock poisoned");
+    };
+    guard
+}
+
+fn get_broker_clients_mut() -> RwLockWriteGuard<'static, HashMap<SessionId, SchemeSmob<BrokerClient>>> {
+    let Ok(guard) = SESSION_BROKER_CLIENTS.write() else {
+        panic!("Lock poisoned");
+    };
+    guard
+}
+
+
 extern "C" fn get_session_id_scheme() -> SchemeValue {
     let value = Fluid::get(SESSION_ID_FLUID.clone());
     value.into()
@@ -44,6 +65,68 @@ pub fn set_session_id(session_id: SessionId) {
     session_hooks.insert(session_id, HashMap::new());
 
     Fluid::set(SESSION_ID_FLUID.clone(), SchemeObject::from(session_id.get()));
+}
+
+pub fn set_broker_client(session_id: SessionId, client: BrokerClient) {
+    let mut session_broker_clients = get_broker_clients_mut();
+    let client = BROKER_CLIENT_SMOB_TAG.make(client);
+    session_broker_clients.insert(session_id, client);
+}
+
+extern "C" fn send_message(message: SchemeValue, destination: SchemeValue) -> SchemeValue {
+    let session_id = get_session_id();
+    let broker_clients = get_broker_clients();
+    let client = broker_clients.get(&session_id).unwrap();
+    
+    let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("send-message", 1, message);
+    };
+    let Some(destination) = SchemeObject::from(destination).cast_number() else {
+        guile_wrong_type_arg!("send-message", 2, destination);
+    };
+    let destination = destination.as_u64() as usize;
+    match client.borrow_mut().send(message.borrow().clone(), destination) {
+        Ok(_) => {}
+        Err(e) => {
+            panic!("{}", e);
+        }
+    }
+    SchemeValue::undefined()
+}
+
+extern "C" fn recv_message() -> SchemeValue {
+    let session_id = get_session_id();
+    let broker_clients = get_broker_clients();
+    let client = broker_clients.get(&session_id).unwrap();
+
+    match client.borrow_mut().recv() {
+        Some(message) => {
+            <SchemeSmob<Message> as Into<SchemeObject>>::into(MESSAGE_SMOB_TAG.make(message)).into()
+        }
+        None => {
+            guile_misc_error!("recv-message", "sender died");
+        }
+    }
+}
+
+extern "C" fn send_response(message: SchemeValue, mail: SchemeValue) -> SchemeValue {
+    let session_id = get_session_id();
+    let broker_clients = get_broker_clients();
+    let client = broker_clients.get(&session_id).unwrap();
+
+    let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("send-response", 1, message);
+    };
+    let Some(mail) = SchemeObject::from(mail).cast_smob(MESSAGE_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("send-response", 2, mail);
+    };
+    match client.borrow_mut().send_response(message.borrow().clone(), mail.borrow().clone()) {
+        Ok(_) => {}
+        Err(e) => {
+            panic!("{}", e);
+        }
+    }
+    SchemeValue::undefined()
 }
 
 extern "C" fn create_hook(hook_name: SchemeValue) -> SchemeValue {
@@ -148,6 +231,15 @@ pub fn koru_session_module() {
     );
     Guile::define_fn("call-hook", 1, 0, true,
                      call_hook as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("send-message", 2, 0, false,
+        send_message as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("recv-message", 0, 0, false,
+        recv_message as extern "C" fn() -> SchemeValue
+    );
+    Guile::define_fn("send-response", 2, 0, false,
+                     send_response as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
     );
     let mut module = Module::new("koru-session", Box::new(|_| {}));
     module.add_export("get-session-id");

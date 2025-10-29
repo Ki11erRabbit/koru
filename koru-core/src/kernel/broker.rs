@@ -266,59 +266,7 @@ impl Broker {
     }
 }
 
-extern "C" fn send_message(client: SchemeValue, message: SchemeValue, destination: SchemeValue) -> SchemeValue {
-    let Some(client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("send-message", 1, client);
-    };
-    let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("send-message", 2, message);
-    };
-    let Some(destination) = SchemeObject::from(destination).cast_number() else {
-        guile_wrong_type_arg!("send-message", 3, destination);
-    };
-    let destination = destination.as_u64() as usize;
-    match client.borrow_mut().send(message.borrow().clone(), destination) {
-        Ok(_) => {}
-        Err(e) => {
-            panic!("{}", e);
-        }
-    }
-    SchemeValue::undefined()
-}
 
-extern "C" fn recv_message(client: SchemeValue, ) -> SchemeValue {
-    let Some(mut client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("recv-message", 1, client);
-    };
-    
-    match client.borrow_mut().recv() {
-        Some(message) => {
-            <SchemeSmob<Message> as Into<SchemeObject>>::into(MESSAGE_SMOB_TAG.make(message)).into()
-        }
-        None => {
-            guile_misc_error!("recv-message", "sender died");
-        }
-    }
-}
-
-extern "C" fn send_response(client: SchemeValue, message: SchemeValue, mail: SchemeValue) -> SchemeValue {
-    let Some(client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("send-response", 1, client);
-    };
-    let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("send-response", 2, message);
-    };
-    let Some(mail) = SchemeObject::from(mail).cast_smob(MESSAGE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("send-response", 3, mail);
-    };
-    match client.borrow_mut().send_response(message.borrow().clone(), mail.borrow().clone()) {
-        Ok(_) => {}
-        Err(e) => {
-            panic!("{}", e);
-        }
-    }
-    SchemeValue::undefined()
-}
 
 pub fn broker_module() {
     
