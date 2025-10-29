@@ -339,27 +339,28 @@ bitflags! {
 #[macro_export]
 macro_rules! guile_misc_error {
     ($proc_name:literal, $msg:literal $(,)?) => {
-        let list = $crate::scheme_object::SchemeList::new([]);
-        $crate::guile::Guile::misc_error(concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), list);
+        let list: [u8;0] = [];
+        let list = $crate::scheme_object::SchemeList::new(list);
+        $crate::Guile::misc_error(concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), list);
     };
     ($proc_name:literal, $msg:literal, $($arg:expr),* $(,)?) => {
         let list = [ $($arg),* ];
         let list = $crate::scheme_object::SchemeList::new(list);
-        $crate::guile::Guile::misc_error(concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), list);
+        $crate::Guile::misc_error(concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), list);
     };
 }
 
 #[macro_export]
 macro_rules! guile_wrong_type_arg {
     ($proc_name:literal, $pos:expr, $bad_value:expr) => {
-        $crate::guile::Guile::wrong_type_arg(concat!($proc_name, "\0").as_bytes(), $pos, $bad_value)
+        $crate::Guile::wrong_type_arg(concat!($proc_name, "\0").as_bytes(), $pos, $bad_value)
     }
 }
 
 #[macro_export]
 macro_rules! guile_out_of_range {
     ($proc_name:literal, $bad_value:expr) => {
-        $crate::guile::Guile::out_of_range(concat!($proc_name, "\0").as_bytes(), $bad_value)
+        $crate::Guile::out_of_range(concat!($proc_name, "\0").as_bytes(), $bad_value)
     }
 }
 
@@ -368,7 +369,7 @@ macro_rules! guile_error {
     ($key:expr, $proc_name:literal, $msg:literal, $args:expr, $($rest:expr)*, $(,)?) => {
         let list = [ $($arg),* ];
         let list = $crate::scheme_object::SchemeList::new(list);
-        $crate::guile::Guile::error($key, concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), $args, list)
+        $crate::Guile::error($key, concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), $args, list)
     }
 }
 

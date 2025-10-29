@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use bitflags::bitflags;
 use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
 use guile_rs::{Guile, Module, SchemeValue, SmobTag, SmobData, guile_wrong_type_arg, guile_misc_error};
-use guile_rs::scheme_object::{SchemeObject, SchemeString};
+use guile_rs::scheme_object::{SchemeObject, SchemeSmob, SchemeString};
 use crate::kernel::buffer::Cursor;
 
 bitflags! {
@@ -160,7 +160,7 @@ extern "C" fn styled_text_create(text: SchemeValue, fg: SchemeValue, bg: SchemeV
         _ => {
             let text = StyledText::None(text.to_string());
 
-            return STYLED_TEXT_SMOB_TAG.make(text).into().into()
+            return <SchemeSmob<StyledText> as Into<SchemeObject>>::into(STYLED_TEXT_SMOB_TAG.make(text)).into()
         }
     };
 
@@ -200,7 +200,7 @@ extern "C" fn styled_text_create(text: SchemeValue, fg: SchemeValue, bg: SchemeV
         }
     };
 
-    STYLED_TEXT_SMOB_TAG.make(text).into()
+    <SchemeSmob<StyledText> as Into<SchemeObject>>::into(STYLED_TEXT_SMOB_TAG.make(text)).into()
 }
 
 pub static STYLED_FILE_SMOB_TAG: LazyLock<SmobTag<StyledFile>> = LazyLock::new(||{

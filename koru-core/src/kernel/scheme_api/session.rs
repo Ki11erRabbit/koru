@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use guile_rs::{Guile, Module, SchemeValue};
+use guile_rs::{guile_wrong_type_arg, Guile, Module, SchemeValue};
 use guile_rs::fluid::{Fluid, FluidId};
 use guile_rs::scheme_object::{SchemeObject, SchemeProcedure};
 use crate::kernel::session::SessionId;
@@ -33,7 +33,7 @@ extern "C" fn get_session_id_scheme() -> SchemeValue {
 }
 
 fn get_session_id() -> SessionId {
-    let Some(id) = SchemeObject::new(get_session_id_scheme()).cast_number() else {
+    let Some(id) = SchemeObject::from(get_session_id_scheme()).cast_number() else {
         panic!("Failed to convert number to SessionId");
     };
     SessionId::new(id.as_u64() as usize)
@@ -47,8 +47,8 @@ pub fn set_session_id(session_id: SessionId) {
 }
 
 extern "C" fn create_hook(hook_name: SchemeValue) -> SchemeValue {
-    let Some(hook_name) = SchemeObject::new(hook_name).cast_string() else {
-        return SchemeObject::undefined().into();
+    let Some(hook_name) = SchemeObject::from(hook_name).cast_symbol() else {
+        guile_wrong_type_arg!("create-hook", 1, hook_name);
     };
     let mut session_hooks = get_session_hooks_mut();
     let session_id = get_session_id();
@@ -59,18 +59,18 @@ extern "C" fn create_hook(hook_name: SchemeValue) -> SchemeValue {
         })
         .or_insert_with(HashMap::new);
 
-    SchemeObject::undefined().into()
+    SchemeValue::undefined()
 }
 
 extern "C" fn add_hook(hook_name: SchemeValue, proc_name: SchemeValue, function: SchemeValue) -> SchemeValue {
-    let Some(hook_name) = SchemeObject::new(hook_name).cast_string() else {
-        return SchemeObject::undefined().into();
+    let Some(hook_name) = SchemeObject::from(hook_name).cast_symbol() else {
+        guile_wrong_type_arg!("add-hook", 1, hook_name);
     };
-    let Some(proc_name) = SchemeObject::new(proc_name).cast_string() else {
-        return SchemeObject::undefined().into();
+    let Some(proc_name) = SchemeObject::from(proc_name).cast_symbol() else {
+        guile_wrong_type_arg!("add-hook", 2, proc_name);
     };
-    let Some(function) = SchemeObject::new(function).cast_procedure() else {
-        return SchemeObject::undefined().into();
+    let Some(function) = SchemeObject::from(function).cast_procedure() else {
+        guile_wrong_type_arg!("add-hook", 3, function);
     };
     let mut session_hooks = get_session_hooks_mut();
     let session_id = get_session_id();
@@ -88,15 +88,15 @@ extern "C" fn add_hook(hook_name: SchemeValue, proc_name: SchemeValue, function:
         })
         .or_insert_with(HashMap::new);
 
-    SchemeObject::undefined().into()
+    SchemeValue::undefined()
 }
 
 extern "C" fn remove_hook(hook_name: SchemeValue, proc_name: SchemeValue) -> SchemeValue {
-    let Some(hook_name) = SchemeObject::new(hook_name).cast_string() else {
-        return SchemeObject::undefined().into();
+    let Some(hook_name) = SchemeObject::from(hook_name).cast_symbol() else {
+        guile_wrong_type_arg!("remove-hook", 1, hook_name);
     };
-    let Some(proc_name) = SchemeObject::new(proc_name).cast_string() else {
-        return SchemeObject::undefined().into();
+    let Some(proc_name) = SchemeObject::from(proc_name).cast_symbol() else {
+        guile_wrong_type_arg!("remove-hook", 2, proc_name);
     };
     let mut session_hooks = get_session_hooks_mut();
     let session_id = get_session_id();
@@ -107,15 +107,15 @@ extern "C" fn remove_hook(hook_name: SchemeValue, proc_name: SchemeValue) -> Sch
             hooks.remove(&proc_name.to_string());
         });
     });
-    SchemeObject::undefined().into()
+    SchemeValue::undefined()
 }
 
 extern "C" fn call_hook(hook_name: SchemeValue, rest: SchemeValue) -> SchemeValue {
-    let Some(hook_name) = SchemeObject::new(hook_name).cast_string() else {
-        return SchemeObject::undefined().into();
+    let Some(hook_name) = SchemeObject::from(hook_name).cast_string() else {
+        guile_wrong_type_arg!("call-hook", 1, hook_name);
     };
-    let Some(rest) = SchemeObject::new(rest).cast_list() else {
-        return SchemeObject::undefined().into();
+    let Some(rest) = SchemeObject::from(rest).cast_list() else {
+        guile_wrong_type_arg!("call-hook", 2, rest);
     };
 
     let mut session_hooks = get_session_hooks_mut();
@@ -130,7 +130,7 @@ extern "C" fn call_hook(hook_name: SchemeValue, rest: SchemeValue) -> SchemeValu
         }
     }
 
-    SchemeObject::undefined().into()
+    SchemeValue::undefined()
 }
 
 pub fn koru_session_module() {

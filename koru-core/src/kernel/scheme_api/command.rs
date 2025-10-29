@@ -1,7 +1,7 @@
 use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
-use guile_rs::{Guile, Module, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
-use guile_rs::scheme_object::{SchemeObject, SchemeProcedure, SchemeString, SchemeSymbol};
+use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, Module, SchemeValue, SmobData, SmobTag};
+use guile_rs::scheme_object::{SchemeObject, SchemeProcedure, SchemeSmob, SchemeString};
 
 
 
@@ -74,35 +74,31 @@ impl TryFrom<String> for ArgumentDef {
 }
 
 
-#[derive(Clone)]
-struct CommandInternal {
-    name: String,
-    function: SchemeProcedure,
-    description: String,
-    arguments: Vec<ArgumentDef>
-}
 
 #[derive(Clone)]
 pub struct Command {
-    internal: ManuallyDrop<CommandInternal>,
+    name: String,
+    function: SchemeProcedure,
+    description: String,
+    arguments: Vec<ArgumentDef>,
 }
 
 impl Command {
     pub fn name(&self) -> &str {
-        self.internal.name.as_str()
+        self.name.as_str()
     }
 }
 
 
-pub static COMMAND_SMOB: LazyLock<Smob<Command>> = LazyLock::new(||{
-    Smob::register("Command")
+pub static COMMAND_SMOB_TAG: LazyLock<SmobTag<Command>> = LazyLock::new(||{
+    SmobTag::register("Command")
 });
 
-impl SmobPrint for Command {
+impl SmobData for Command {
     fn print(&self) -> String {
-        let mut output = format!("#<Command {} ", (*self.internal).name);
+        let mut output = format!("#<Command {} ", self.name);
 
-        for (i, arg) in (*self.internal).arguments.iter().enumerate() {
+        for (i, arg) in self.arguments.iter().enumerate() {
             match arg {
                 ArgumentDef::Text => {
                     output.push_str("text");
@@ -123,125 +119,105 @@ impl SmobPrint for Command {
                     output.push_str(out);
                 }
             }
-            if i + 1 < (*self.internal).arguments.len() {
+            if i + 1 < self.arguments.len() {
                 output.push_str(" ");
             }
         }
         output.push_str(">");
         output
     }
-}
-
-impl SmobDrop for Command {
-    fn drop(&mut self) -> usize {
-        let name_capacity = (self.internal).name.capacity();
-        let description_capacity = (self.internal).description.capacity();
-        let argument_capacity = (self.internal).arguments.capacity();
-
-        unsafe {
-            ManuallyDrop::drop(&mut self.internal);
-        }
-        name_capacity + argument_capacity + description_capacity
-    }
 
     fn heap_size(&self) -> usize {
-        let name_capacity = (self.internal).name.capacity();
-        let description_capacity = (self.internal).description.capacity();
-        let argument_capacity = (self.internal).arguments.capacity();
+        let name_capacity = self.name.capacity();
+        let description_capacity = self.description.capacity();
+        let argument_capacity = self.arguments.capacity();
 
         name_capacity + argument_capacity + description_capacity
     }
-}
 
-impl SmobSize for Command {}
-
-impl SmobEqual for Command {
     fn eq(&self, other: SchemeObject) -> bool {
-
-        let Some(other) = other.cast_smob(COMMAND_SMOB.clone()) else {
+        let Some(other) = other.cast_smob(COMMAND_SMOB_TAG.clone()) else {
             return false;
         };
 
-        (self.internal).name == other.internal.name
+        self.name == other.borrow().name
     }
 }
 
-impl SmobData for Command {}
-
-
 extern "C" fn command_apply(command: SchemeValue, rest: SchemeValue) -> SchemeValue {
-    let Some(command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
-        return SchemeObject::undefined().into()
+    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("command-apply", 1, command);
     };
 
-    command.internal.function.call1(rest).into()
+    command.borrow().function.call1(rest).into()
 }
 
 extern "C" fn command_name(command: SchemeValue) -> SchemeValue {
-    let Some(command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
-        return SchemeObject::undefined().into()
+    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("command-name", 1, command);
     };
 
-    let out: SchemeObject = SchemeString::new(&command.internal.name).into();
+    let out: SchemeObject = SchemeString::new(command.borrow().name.clone()).into();
     out.into()
 }
 
 extern "C" fn command_description(command: SchemeValue) -> SchemeValue {
-    let Some(command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
-        return SchemeObject::undefined().into()
+    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("command-description", 1, command);
     };
 
-    let out: SchemeObject = SchemeString::new(&command.internal.description).into();
+    let out: SchemeObject = SchemeString::new(command.borrow().description.clone()).into();
     out.into()
 }
 
 extern "C" fn command_arguments_add(command: SchemeValue, rest: SchemeValue) -> SchemeValue {
-    let Some(mut command) = SchemeObject::new(command).cast_smob(COMMAND_SMOB.clone()) else {
-        return SchemeObject::undefined().into()
+    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("command-add-arguments", 1, command);
     };
-    let Some(list) = SchemeObject::new(rest).cast_list() else {
-        return SchemeObject::undefined().into()
+    let Some(list) = SchemeObject::from(rest).cast_list() else {
+        guile_wrong_type_arg!("command-add-arguments", 2, rest);
     };
 
     for arg in list.iter() {
-        let Some(string) = arg.cast_string() else {
-            return SchemeObject::undefined().into()
+        let Some(symbol) = arg.cast_symbol() else {
+            guile_misc_error!("command-add-arguments", "expected a symbol");
         };
-        let Ok(arg_def) = ArgumentDef::try_from(string.to_string()) else {
-            return SchemeObject::undefined().into()
+        let Ok(arg_def) = ArgumentDef::try_from(symbol.to_string()) else {
+            guile_misc_error!(
+                "command-add-arguments", 
+                "expected one of 'text, 'number, 'path, 'variable:text, 'variable:number', or 'variable:path'"
+            );
         };
-        command.internal.arguments.push(arg_def);
+        command.borrow_mut().arguments.push(arg_def);
     }
 
-    SchemeObject::undefined().into()
+    SchemeValue::undefined()
 }
 
 extern "C" fn command_create(name: SchemeValue, description: SchemeValue, function: SchemeValue) -> SchemeValue {
-    let Some(name) = SchemeObject::new(name).cast_string() else {
-        return SchemeObject::undefined().into()
+    let Some(name) = SchemeObject::from(name).cast_string() else {
+        guile_wrong_type_arg!("command-create", 1, name);
     };
-    let Some(description) = SchemeObject::new(description).cast_string() else {
-        return SchemeObject::undefined().into()
+    let Some(description) = SchemeObject::from(description).cast_string() else {
+        guile_wrong_type_arg!("command-create", 2, description);
     };
-    let Some(function) = SchemeObject::new(function).cast_procedure() else {
-        return SchemeObject::undefined().into()
+    let Some(function) = SchemeObject::from(function).cast_procedure() else {
+        guile_wrong_type_arg!("command-create", 3, function);
     };
 
     let name = name.to_string();
     let description = description.to_string();
 
     let command = Command {
-        internal: ManuallyDrop::new(CommandInternal {
-            name,
-            description,
-            function,
-            arguments: Vec::new(),
-        })
+        name,
+        description,
+        function,
+        arguments: Vec::new(),
     };
 
-    let smob = COMMAND_SMOB.make(command);
+    let smob = COMMAND_SMOB_TAG.make(command);
 
-    smob.into()
+    <SchemeSmob<_> as Into<SchemeObject>>::into(smob).into()
 }
 
 

@@ -17,7 +17,7 @@ impl BrokerPort {
         
         koru_core::spawn_task(async move {
             loop {
-                match client.recv().await {
+                match client.recv() {
                     Some(msg) => {
                         sender.send(UiMessage::BrokerMessage(msg)).unwrap();
                     }

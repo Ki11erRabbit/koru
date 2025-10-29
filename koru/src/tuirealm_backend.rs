@@ -107,7 +107,7 @@ impl Update<UiMessage> for App {
                 koru_core::spawn_task(async move {
                     match client.send(
                         MessageKind::General(GeneralMessage::KeyEvent(key_press)),
-                        session_address).await {
+                        session_address) {
                         Ok(..) => {}
                         Err(e) => println!("Error sending key: {}", e),
                     }
@@ -149,7 +149,7 @@ pub async fn real_main(
         }
     };
 
-    client.send(MessageKind::Broker(BrokerMessage::ConnectToSession), 0).await?;
+    client.send(MessageKind::Broker(BrokerMessage::ConnectToSession), 0)?;
     let mut application = init_app(&mut client);
 
     application.mount(

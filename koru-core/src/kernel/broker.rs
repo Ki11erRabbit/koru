@@ -4,7 +4,7 @@ use std::hash::Hash;
 use std::sync::LazyLock;
 use std::sync::mpsc::{Receiver, Sender};
 use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, SchemeValue, SmobData, SmobTag};
-use guile_rs::scheme_object::SchemeObject;
+use guile_rs::scheme_object::{SchemeObject, SchemeSmob};
 use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
@@ -219,16 +219,14 @@ impl Broker {
     
     pub async fn run_broker(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
-            let Some(message) = self.receiver.recv()? else {
-                break;
-            };
+            let message = self.receiver.recv()?;
             
             match message.kind {
                 MessageKind::Broker(BrokerMessage::Shutdown) => {
                     self.free_client(message.source);
                 }
                 MessageKind::General(_) => {
-                    self.send(message).await?;
+                    self.send(message)?;
                 }
                 MessageKind::Broker(BrokerMessage::CreateClient) => {
                     let client = self.create_client();
@@ -269,17 +267,17 @@ impl Broker {
 }
 
 extern "C" fn send_message(client: SchemeValue, message: SchemeValue, destination: SchemeValue) -> SchemeValue {
-    let Some(mut client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
-        Guile::wrong_type_arg(b"send-message\0", 1, client);
+    let Some(client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("send-message", 1, client);
     };
     let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
-        Guile::wrong_type_arg(b"send-message\0", 2, client);
+        guile_wrong_type_arg!("send-message", 2, message);
     };
     let Some(destination) = SchemeObject::from(destination).cast_number() else {
-        Guile::wrong_type_arg(b"send-message\0", 3, client);
+        guile_wrong_type_arg!("send-message", 3, destination);
     };
     let destination = destination.as_u64() as usize;
-    match client.borrow_mut().send((*message).clone(), destination) {
+    match client.borrow_mut().send(message.borrow().clone(), destination) {
         Ok(_) => {}
         Err(e) => {
             panic!("{}", e);
@@ -295,7 +293,7 @@ extern "C" fn recv_message(client: SchemeValue, ) -> SchemeValue {
     
     match client.borrow_mut().recv() {
         Some(message) => {
-            MESSAGE_SMOB_TAG.make(message).into()
+            <SchemeSmob<Message> as Into<SchemeObject>>::into(MESSAGE_SMOB_TAG.make(message)).into()
         }
         None => {
             guile_misc_error!("recv-message", "sender died");
@@ -304,16 +302,16 @@ extern "C" fn recv_message(client: SchemeValue, ) -> SchemeValue {
 }
 
 extern "C" fn send_response(client: SchemeValue, message: SchemeValue, mail: SchemeValue) -> SchemeValue {
-    let Some(mut client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
-        Guile::wrong_type_arg(b"send-message\0", 1, client);
+    let Some(client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("send-response", 1, client);
     };
     let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
-        Guile::wrong_type_arg(b"send-message\0", 2, client);
+        guile_wrong_type_arg!("send-response", 2, message);
     };
     let Some(mail) = SchemeObject::from(mail).cast_smob(MESSAGE_SMOB_TAG.clone()) else {
-        Guile::wrong_type_arg(b"send-message\0", 3, client);
+        guile_wrong_type_arg!("send-response", 3, mail);
     };
-    match client.borrow_mut().send_response((*message).clone(), (*mail).clone()) {
+    match client.borrow_mut().send_response(message.borrow().clone(), mail.borrow().clone()) {
         Ok(_) => {}
         Err(e) => {
             panic!("{}", e);

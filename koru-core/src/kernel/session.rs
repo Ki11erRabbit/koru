@@ -287,7 +287,7 @@ impl Session {
                 _ => unreachable!("We should only be able to put strings into ui attributes")
             }
         }
-        self.broker_client.send(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id).await?;
+        self.broker_client.send(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id)?;
         
         self.client_ids.push(id);
         
@@ -305,10 +305,10 @@ impl Session {
         Ok(name.into_lua(&self.lua)?)
     }
     
-    async fn notify_clients(&mut self, msg: MessageKind) {
+    fn notify_clients(&mut self, msg: MessageKind) {
         let mut dead_clients = Vec::new();
         for (i, client) in self.client_ids.iter().enumerate() {
-            match self.broker_client.send(msg.clone(), *client).await {
+            match self.broker_client.send(msg.clone(), *client) {
                 Ok(_) => {}
                 Err(_) => {
                     dead_clients.push(i);
@@ -320,7 +320,7 @@ impl Session {
         }
     }
 
-    async fn file_opened_hook(&self, file_name: mlua::Value, file_ext: &str) {
+    fn file_opened_hook(&self, file_name: mlua::Value, file_ext: &str) {
         let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
         for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {
             let (_, function) = hook.unwrap();
@@ -333,7 +333,7 @@ impl Session {
         }
     }
 
-    async fn send_draw(&mut self, buffer_name: mlua::Value) -> Result<(), Box<dyn Error>> {
+    fn send_draw(&mut self, buffer_name: mlua::Value) -> Result<(), Box<dyn Error>> {
         
         if buffer_name == mlua::Value::Nil {
             return Ok(());
@@ -344,7 +344,7 @@ impl Session {
         let buffer = open_buffers.get::<AnyUserData>(buffer_name.clone())?;
         let buffer = buffer.borrow::<Buffer>()?;
         
-        let styled_file = buffer.styled_file().await;
+        let styled_file = buffer.styled_file();
 
         let major_mode = self.lua.globals().get::<Table>("__major_mode")?
             .get::<Table>(buffer_name)?;
@@ -354,7 +354,7 @@ impl Session {
         let styled_file: AnyUserData = major_mode.call_method("modify_line", (styled_file, line_count as i64))?;
         let styled_file = styled_file.take()?;
 
-        self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+        self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file)));
         Ok(())
     }
 
@@ -384,15 +384,15 @@ impl Session {
         }
         
         loop {
-            match self.broker_client.recv().await {
+            match self.broker_client.recv() {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
                     self.key_buffer.clear();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('w'), ..})), .. }) => {
-                    self.send_draw("**Warnings**".into_lua(&self.lua).unwrap()).await.unwrap();
+                    self.send_draw("**Warnings**".into_lua(&self.lua).unwrap()).unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('e'), ..})), .. }) => {
-                    self.send_draw("**Errors**".into_lua(&self.lua).unwrap()).await.unwrap();
+                    self.send_draw("**Errors**".into_lua(&self.lua).unwrap()).unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Up), ..})), .. }) => {
                     let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
@@ -400,7 +400,7 @@ impl Session {
                     let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
                     
                     let _: () = buffer.call_async_method("cursor_up", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Down), ..})), .. }) => {
                     let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
@@ -408,7 +408,7 @@ impl Session {
                     let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
 
                     let _: () = buffer.call_async_method("cursor_down", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Left), ..})), .. }) => {
                     let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
@@ -416,7 +416,7 @@ impl Session {
                     let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
 
                     let _: () = buffer.call_async_method("cursor_left", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Right), ..})), .. }) => {
                     let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
@@ -424,12 +424,12 @@ impl Session {
                     let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
 
                     let _: () = buffer.call_async_method("cursor_right", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(self.focused_buffer.clone()).unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
 
-                    let file = crate::kernel::buffer::TextBufferTable::open(FILE_NAME.to_string()).await.unwrap();
+                    let file = crate::kernel::buffer::TextBufferTable::open(FILE_NAME.to_string()).unwrap();
                     
                     let buffer = Buffer::new_open_file(file);
                     
@@ -437,8 +437,8 @@ impl Session {
                     self.focused_buffer = buffer_name.clone();
                     
                     
-                    self.file_opened_hook(buffer_name.clone(), "rs").await;
-                    match self.send_draw(buffer_name).await {
+                    self.file_opened_hook(buffer_name.clone(), "rs");
+                    match self.send_draw(buffer_name) {
                         Ok(_) => {}
                         Err(e) => {
                             self.write_error(e.to_string()).unwrap();
@@ -451,7 +451,7 @@ impl Session {
                             match key {
                                 KeyValue::CharacterKey(';') => {
                                     self.command_state = CommandState::EnteringCommand(String::from(": "));
-                                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(String::from(": ")))).await;
+                                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(String::from(": "))));
                                 }
                                 _ => {}
                             }
@@ -479,13 +479,13 @@ impl Session {
                                 }
                             };
                             if let Some(msg) = msg {
-                                self.notify_clients(msg).await;
+                                self.notify_clients(msg);
                             }
                         }
                     }
                 }
                 Some(message) => {
-                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(format!("{:?}", message)))).await;
+                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(format!("{:?}", message))));
                     //println!("Received message: {:?}", message);
                 }
                 _ => {}

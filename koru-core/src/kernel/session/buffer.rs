@@ -31,10 +31,10 @@ impl Buffer {
         }
     }
     
-    pub async fn styled_file(&self) -> StyledFile {
+    pub fn styled_file(&self) -> StyledFile {
         match &self.buffer {
             BufferData::OpenFile(handle) => {
-                let text = handle.get_text().await;
+                let text = handle.get_text();
                 let file = StyledFile::from(text);
                 file.place_cursors(&self.cursors)
             },
@@ -67,7 +67,7 @@ impl UserData for Buffer {
             async |_, mut this, _:()| {
                 match &this.buffer {
                     BufferData::OpenFile(handle) => {
-                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Up).await;
+                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Up);
                         this.cursors = cursors;
                     }
                     _ => {}
@@ -80,7 +80,7 @@ impl UserData for Buffer {
             async |_, mut this, _:()| {
                 match &this.buffer {
                     BufferData::OpenFile(handle) => {
-                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Down).await;
+                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Down);
                         this.cursors = cursors;
                     }
                     _ => {}
@@ -93,7 +93,7 @@ impl UserData for Buffer {
             async |_, mut this, _:()| {
                 match &this.buffer {
                     BufferData::OpenFile(handle) => {
-                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Left { wrap: false }).await;
+                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Left { wrap: false });
                         this.cursors = cursors;
                     }
                     _ => {}
@@ -106,7 +106,7 @@ impl UserData for Buffer {
             async |_, mut this, _:()| {
                 match &this.buffer {
                     BufferData::OpenFile(handle) => {
-                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Right { wrap: false }).await;
+                        let cursors = handle.move_cursors(this.cursors.clone(), CursorDirection::Right { wrap: false });
                         this.cursors = cursors;
                     }
                     _ => {}
