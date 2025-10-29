@@ -140,9 +140,9 @@ impl App {
                         // Therefore, we must switch the two around
                         std::mem::swap(client, &mut stream_client);
                         Task::stream(iced::stream::channel(100, async move |mut output| {
-                            stream_client.send(MessageKind::Broker(BrokerMessage::ConnectToSession), 0).unwrap();
+                            stream_client.send_async(MessageKind::Broker(BrokerMessage::ConnectToSession), 0).await.unwrap();
                             loop {
-                                match stream_client.recv() {
+                                match stream_client.recv_async().await {
                                     Some(msg) => {
                                         output.send(UiMessage::BrokerMessage(msg)).await.unwrap();
                                     }
@@ -163,7 +163,7 @@ impl App {
                         let destination = self.session_address.unwrap();
                         let mut client = client.clone();
                         Task::future(async move {
-                            match client.send(MessageKind::General(GeneralMessage::KeyEvent(key_press)), destination) {
+                            match client.send_async(MessageKind::General(GeneralMessage::KeyEvent(key_press)), destination) {
                                 _ => {}
                             }
                             UiMessage::Nop

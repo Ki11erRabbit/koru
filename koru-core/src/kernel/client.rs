@@ -28,8 +28,8 @@ impl ClientConnector {
         if let Some((sender, receiver)) = local_client {
             match receiver.recv()? {
                 ClientConnectingMessage::RequestLocalConnection => {
-                    self.client.send(MessageKind::Broker(BrokerMessage::CreateClient), 0)?;
-                    match self.client.recv() {
+                    self.client.send_async(MessageKind::Broker(BrokerMessage::CreateClient), 0).await?;
+                    match self.client.recv_async().await {
                         Some(msg) => {
                             match msg.kind {
                                 MessageKind::Broker(BrokerMessage::CreateClientResponse(client)) => {

@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
 use std::sync::LazyLock;
-use std::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::{Receiver, Sender};
 use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, SchemeValue, SmobData, SmobTag};
 use guile_rs::scheme_object::{SchemeObject, SchemeSmob};
 use crate::attr_set::AttrSet;
@@ -121,18 +121,34 @@ impl BrokerClient {
     
     pub fn send(&mut self, message: MessageKind, destination: usize) -> Result<(), Box<dyn Error>> {
         let msg = Message::new(destination, self.client_id, message);
-        self.sender.send(msg)?;
+        self.sender.blocking_send(msg)?;
         Ok(())
     }
 
     pub fn send_response(&mut self, message: MessageKind, mail: Message) -> Result<(), Box<dyn Error>> {
         let msg = mail.make_response(message);
-        self.sender.send(msg)?;
+        self.sender.blocking_send(msg)?;
         Ok(())
     }
     
     pub fn recv(&mut self) -> Option<Message> {
-        self.receiver.recv().ok()
+        self.receiver.blocking_recv()
+    }
+
+    pub async fn send_async(&mut self, message: MessageKind, destination: usize) -> Result<(), Box<dyn Error>> {
+        let msg = Message::new(destination, self.client_id, message);
+        self.sender.send(msg).await?;
+        Ok(())
+    }
+
+    pub async fn send_response_async(&mut self, message: MessageKind, mail: Message) -> Result<(), Box<dyn Error>> {
+        let msg = mail.make_response(message);
+        self.sender.send(msg).await?;
+        Ok(())
+    }
+
+    pub async fn recv_async(&mut self) -> Option<Message> {
+        self.receiver.recv().await
     }
     
     pub fn id(&self) -> usize {
@@ -156,7 +172,7 @@ impl Hash for BrokerClient {
 
 impl Clone for BrokerClient {
     fn clone(&self) -> Self {
-        let (_, receiver) = std::sync::mpsc::channel();
+        let (_, receiver) = tokio::sync::mpsc::channel(1);
         Self::new(self.client_id, self.sender.clone(), receiver)
     }
 }
@@ -185,7 +201,7 @@ pub struct Broker {
 
 impl Broker {
     pub fn new() -> Broker {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = tokio::sync::mpsc::channel(100);
         Broker {
             clients: Vec::new(),
             free_clients: VecDeque::new(),
@@ -210,7 +226,7 @@ impl Broker {
     
     pub fn create_client(&mut self) -> BrokerClient {
         let id = self.get_next_client_id();
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = tokio::sync::mpsc::channel(100);
         
         self.clients[id] = Some(sender);
 
@@ -219,22 +235,22 @@ impl Broker {
     
     pub async fn run_broker(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
-            let message = self.receiver.recv()?;
+            let message = self.receiver.recv().await.unwrap();
             
             match message.kind {
                 MessageKind::Broker(BrokerMessage::Shutdown) => {
                     self.free_client(message.source);
                 }
                 MessageKind::General(_) => {
-                    self.send(message)?;
+                    self.send(message).await?;
                 }
                 MessageKind::Broker(BrokerMessage::CreateClient) => {
                     let client = self.create_client();
                     let response = MessageKind::Broker(BrokerMessage::CreateClientResponse(client));
-                    self.send_response(message, response)?;
+                    self.send_response(message, response).await?;
                 }
                 MessageKind::Broker(BrokerMessage::ConnectToSession) => {
-                    self.create_editor_session(message)?;
+                    self.create_editor_session(message).await?;
                 }
                 _ => {}
             }
@@ -242,27 +258,27 @@ impl Broker {
         Ok(())
     }
     
-    fn send_response(&mut self, message: Message, response: MessageKind) -> Result<(), Box<dyn Error>> {
+    async fn send_response(&mut self, message: Message, response: MessageKind) -> Result<(), Box<dyn Error>> {
         let message = message.make_response(response);
-        self.send(message)?;
+        self.send(message).await?;
         Ok(())
     }
     
-    fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
+    async fn send(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
         match &mut self.clients[message.destination] {
             Some(client) => {
-                client.send(message)?;
+                client.send(message).await?;
             }
             None => {}
         }
         Ok(())
     }
     
-    fn create_editor_session(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
+    async fn create_editor_session(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
         let session_client = self.create_client();
         let response = MessageKind::Broker(BrokerMessage::ConnectedToSession(session_client.id()));
         tokio::spawn(Session::run_session(session_client, message.source));
-        self.send_response(message, response)
+        self.send_response(message, response).await
     }
 }
 
