@@ -8,6 +8,7 @@ pub use guile::*;
 pub use module::*;
 pub use smob::*;
 
+#[derive(Clone, Copy)]
 pub struct SchemeValue(guile_rs_sys::SCM);
 
 impl SchemeValue {

@@ -1,5 +1,3 @@
-use std::sync::LazyLock;
-use guile_rs::{Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
 use crate::kernel::buffer::TextBufferImpl;
 
 #[derive(Copy, Clone)]
@@ -327,23 +325,6 @@ impl PartialEq for Cursor {
     }
 }
 
-pub static CURSOR_SMOB_TAG: LazyLock<Smob<Cursor>> = LazyLock::new(|| {
-    Smob::register("Cursor")
-});
-
-impl SmobData for Cursor {}
-impl SmobEqual for Cursor {}
-impl SmobSize for Cursor {}
-impl SmobDrop for Cursor {
-    fn heap_size(&self) -> usize {
-        0
-    }
-}
-impl SmobPrint for Cursor {
-    fn print(&self) -> String {
-        format!("#<Cursor:{}:{}>", self.real_cursor.line_start, self.real_cursor.column_start)
-    }
-}
 
 
 #[derive(Copy, Clone, PartialEq, Eq)]

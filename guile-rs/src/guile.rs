@@ -338,11 +338,15 @@ bitflags! {
 
 #[macro_export]
 macro_rules! guile_misc_error {
+    ($proc_name:literal, $msg:literal $(,)?) => {
+        let list = $crate::scheme_object::SchemeList::new([]);
+        $crate::guile::Guile::misc_error(concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), list);
+    };
     ($proc_name:literal, $msg:literal, $($arg:expr),* $(,)?) => {
         let list = [ $($arg),* ];
         let list = $crate::scheme_object::SchemeList::new(list);
         $crate::guile::Guile::misc_error(concat!($proc_name, "\0").as_bytes(), concat!($msg, "\0").as_bytes(), list);
-    }
+    };
 }
 
 #[macro_export]

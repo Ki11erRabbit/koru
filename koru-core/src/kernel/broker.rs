@@ -1,10 +1,9 @@
 use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
-use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
 use std::sync::mpsc::{Receiver, Sender};
-use guile_rs::{Guile, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
+use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, SchemeValue, SmobData, SmobTag};
 use guile_rs::scheme_object::SchemeObject;
 use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
@@ -33,69 +32,55 @@ impl PartialEq for Message {
     }
 }
 
-pub static MESSAGE_SMOB_TAG: LazyLock<Smob<Message>> = LazyLock::new(|| {
-    Smob::register("Message")
+pub static MESSAGE_SMOB_TAG: LazyLock<SmobTag<Message>> = LazyLock::new(|| {
+    SmobTag::register("Message")
 });
 
-impl SmobData for Message {}
-impl SmobEqual for Message {}
-impl SmobSize for Message {}
-impl SmobPrint for Message {
-    fn print(&self) -> String {
-        String::from("#<Message>")
-    }
-}
-impl SmobDrop for Message {
-    fn drop(&mut self) -> usize {
-        let heap_size = self.heap_size();
-        let _ = std::mem::replace(&mut self.kind, MessageKind::Blank);
-        heap_size
-    }
-
+impl SmobData for Message {
     fn heap_size(&self) -> usize {
-        self.kind.heap_size()
+        0
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum MessageKind {
-    Blank,
     General(GeneralMessage),
     Broker(BrokerMessage),
 }
 
-pub static MESSAGE_KIND_SMOB_TAG: LazyLock<Smob<MessageKind>> = LazyLock::new(|| {
-    Smob::register("MessageKind")
+pub static MESSAGE_KIND_SMOB_TAG: LazyLock<SmobTag<MessageKind>> = LazyLock::new(|| {
+    SmobTag::register("MessageKind")
 });
 
-impl SmobData for MessageKind {}
-impl SmobEqual for MessageKind {}
-impl SmobSize for MessageKind {}
-impl SmobPrint for MessageKind {
+impl SmobData for MessageKind {
     fn print(&self) -> String {
-        String::from("#<MessageKind>")
-    }
-}
-impl SmobDrop for MessageKind {
-    fn drop(&mut self) -> usize {
-        let heap_size = self.heap_size();
-        let _ = std::mem::replace(self, MessageKind::Blank);
-        heap_size
+        let kind = match self {
+            MessageKind::General(GeneralMessage::Command) => "General:Command",
+            MessageKind::General(GeneralMessage::Draw(_)) => "General:Draw",
+            MessageKind::General(GeneralMessage::FlushKeyBuffer) => "General:FlushKeyBuffer",
+            MessageKind::General(GeneralMessage::KeyEvent(_)) => "General:KeyEvent",
+            MessageKind::General(GeneralMessage::MouseEvent) => "General:MouseEvent",
+            MessageKind::General(GeneralMessage::SetColorDef(_)) => "General:SetColorDef",
+            MessageKind::General(GeneralMessage::SetUiAttrs(_)) => "General:SetUiAttrs",
+            MessageKind::General(GeneralMessage::UpdateMessageBar(_)) => "General:UpdateMessageBar",
+            MessageKind::Broker(BrokerMessage::Shutdown) => "Broker:Shutdown",
+            MessageKind::Broker(BrokerMessage::ConnectedToSession(_)) => "Broker:ConnectedToSession",
+            MessageKind::Broker(BrokerMessage::ConnectToSession) => "Broker:ConnectToSession",
+            MessageKind::Broker(BrokerMessage::CreateClient) => "Broker:CreateClient",
+            MessageKind::Broker(BrokerMessage::CreateClientResponse(_)) => "Broker:CreateClientResponse",
+        };
+        format!("#<MessageKind:{kind}>")
     }
 
     fn heap_size(&self) -> usize {
-        match self {
-            MessageKind::General(GeneralMessage::Draw(styled_file)) => {
-                styled_file.lines().iter().map(|line| line.len()).sum()
-            }
-            MessageKind::General(GeneralMessage::SetUiAttrs(attrs)) => {
-                size_of::<AttrSet>() * attrs.capacity()
-            }
-            MessageKind::General(GeneralMessage::UpdateMessageBar(string)) => {
-                string.capacity()
-            }
-            _ => 0
-        }
+        0
+    }
+
+    fn eq(&self, other: SchemeObject) -> bool {
+        let Some(other) = other.cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
+            return false;
+        };
+        *self == *other.borrow()
     }
 }
 
@@ -121,45 +106,37 @@ pub enum BrokerMessage {
     ConnectedToSession(usize),
 }
 
+
 #[derive(Debug)]
-pub struct BrokerClientInternal {
+pub struct BrokerClient {
     client_id: usize,
     sender: Sender<Message>,
     receiver: Receiver<Message>,
 }
 
-#[derive(Debug)]
-pub struct BrokerClient {
-    internal: ManuallyDrop<BrokerClientInternal>,
-}
-
 impl BrokerClient {
     pub fn new(client_id: usize, sender: Sender<Message>, receiver: Receiver<Message>) -> Self {
-        Self {
-            internal: ManuallyDrop::new(
-                BrokerClientInternal
-                { client_id, sender, receiver })
-        }
+        Self { client_id, sender, receiver }
     }
     
     pub fn send(&mut self, message: MessageKind, destination: usize) -> Result<(), Box<dyn Error>> {
-        let msg = Message::new(destination, self.internal.client_id, message);
-        self.internal.sender.send(msg)?;
+        let msg = Message::new(destination, self.client_id, message);
+        self.sender.send(msg)?;
         Ok(())
     }
 
     pub fn send_response(&mut self, message: MessageKind, mail: Message) -> Result<(), Box<dyn Error>> {
         let msg = mail.make_response(message);
-        self.internal.sender.send(msg)?;
+        self.sender.send(msg)?;
         Ok(())
     }
     
     pub fn recv(&mut self) -> Option<Message> {
-        self.internal.receiver.recv().ok()
+        self.receiver.recv().ok()
     }
     
     pub fn id(&self) -> usize {
-        self.internal.client_id
+        self.client_id
     }
 }
 
@@ -180,39 +157,21 @@ impl Hash for BrokerClient {
 impl Clone for BrokerClient {
     fn clone(&self) -> Self {
         let (_, receiver) = std::sync::mpsc::channel();
-        Self::new(self.internal.client_id, self.internal.sender.clone(), receiver)
+        Self::new(self.client_id, self.sender.clone(), receiver)
     }
 }
 
-impl Drop for BrokerClient {
-    fn drop(&mut self) {
-        unsafe {
-            ManuallyDrop::drop(&mut self.internal);
-        }
-    }
-}
 
-pub static BROKER_CLIENT_SMOB_TAG: LazyLock<Smob<BrokerClient>> = LazyLock::new(|| {
-    Smob::register("BrokerClient")
+pub static BROKER_CLIENT_SMOB_TAG: LazyLock<SmobTag<BrokerClient>> = LazyLock::new(|| {
+    SmobTag::register("BrokerClient")
 });
 
-impl SmobData for BrokerClient {}
-impl SmobSize for BrokerClient {}
-impl SmobDrop for BrokerClient {
-    fn drop(&mut self) -> usize {
-        unsafe {
-            ManuallyDrop::drop(&mut self.internal);
-        }
-        self.heap_size()
+impl SmobData for BrokerClient {
+    fn print(&self) -> String {
+        format!("#<BrokerClient:{}>", self.client_id)
     }
     fn heap_size(&self) -> usize {
         0
-    }
-}
-impl SmobEqual for BrokerClient {}
-impl SmobPrint for BrokerClient {
-    fn print(&self) -> String {
-        format!("#<BrokerClient:{}>", self.internal.client_id)
     }
 }
 
@@ -310,57 +269,57 @@ impl Broker {
 }
 
 extern "C" fn send_message(client: SchemeValue, message: SchemeValue, destination: SchemeValue) -> SchemeValue {
-    let Some(mut client) = SchemeObject::new(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
+    let Some(mut client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
         Guile::wrong_type_arg(b"send-message\0", 1, client);
     };
-    let Some(message) = SchemeObject::new(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
+    let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
         Guile::wrong_type_arg(b"send-message\0", 2, client);
     };
-    let Some(destination) = SchemeObject::new(destination).cast_number() else {
+    let Some(destination) = SchemeObject::from(destination).cast_number() else {
         Guile::wrong_type_arg(b"send-message\0", 3, client);
     };
     let destination = destination.as_u64() as usize;
-    match client.send((*message).clone(), destination) {
+    match client.borrow_mut().send((*message).clone(), destination) {
         Ok(_) => {}
         Err(e) => {
             panic!("{}", e);
         }
     }
-    SchemeObject::undefined().into()
+    SchemeValue::undefined()
 }
 
 extern "C" fn recv_message(client: SchemeValue, ) -> SchemeValue {
-    let Some(mut client) = SchemeObject::new(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
-        Guile::wrong_type_arg(b"send-message\0", 1, client);
+    let Some(mut client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
+        guile_wrong_type_arg!("recv-message", 1, client);
     };
     
-    match client.recv() {
+    match client.borrow_mut().recv() {
         Some(message) => {
-            return MESSAGE_SMOB_TAG.make(message).into();
+            MESSAGE_SMOB_TAG.make(message).into()
         }
         None => {
-            panic!("sender died");
+            guile_misc_error!("recv-message", "sender died");
         }
     }
 }
 
 extern "C" fn send_response(client: SchemeValue, message: SchemeValue, mail: SchemeValue) -> SchemeValue {
-    let Some(mut client) = SchemeObject::new(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
+    let Some(mut client) = SchemeObject::from(client).cast_smob(BROKER_CLIENT_SMOB_TAG.clone()) else {
         Guile::wrong_type_arg(b"send-message\0", 1, client);
     };
-    let Some(message) = SchemeObject::new(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
+    let Some(message) = SchemeObject::from(message).cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
         Guile::wrong_type_arg(b"send-message\0", 2, client);
     };
-    let Some(mail) = SchemeObject::new(mail).cast_smob(MESSAGE_SMOB_TAG.clone()) else {
+    let Some(mail) = SchemeObject::from(mail).cast_smob(MESSAGE_SMOB_TAG.clone()) else {
         Guile::wrong_type_arg(b"send-message\0", 3, client);
     };
-    match client.send_response((*message).clone(), (*mail).clone()) {
+    match client.borrow_mut().send_response((*message).clone(), (*mail).clone()) {
         Ok(_) => {}
         Err(e) => {
             panic!("{}", e);
         }
     }
-    SchemeObject::undefined().into()
+    SchemeValue::undefined()
 }
 
 pub fn broker_module() {

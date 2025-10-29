@@ -6,13 +6,10 @@ use std::sync::{LazyLock, Mutex};
 use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
 use crate::attr_set::AttrSet;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
-use crate::kernel::buffer::cursor::Cursor;
-use crate::kernel::{files, lua_api};
-use crate::kernel::files::{OpenFileHandle, OpenFileTable};
+use crate::kernel::{lua_api};
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
 use crate::kernel::session::buffer::{Buffer, BufferData};
 use crate::keybinding::Keybinding;
-use crate::styled_text::StyledFile;
 
 static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
     Mutex::new(SessionIdManager::new())

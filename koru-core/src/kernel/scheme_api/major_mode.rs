@@ -2,11 +2,11 @@ use std::collections::HashMap;
 use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
 use guile_rs::scheme_object::{SchemeObject, SchemeProcedure};
-use guile_rs::{Guile, Module, SchemeValue, Smob, SmobData, SmobDrop, SmobEqual, SmobPrint, SmobSize};
+use guile_rs::{Guile, Module, SchemeValue, SmobTag, SmobData};
 use crate::kernel::scheme_api::command::{Command, COMMAND_SMOB};
 
-pub static MAJOR_MODE_SMOB_TAG: LazyLock<Smob<MajorMode>> = LazyLock::new(|| {
-    Smob::register("MajorMode") 
+pub static MAJOR_MODE_SMOB_TAG: LazyLock<SmobTag<MajorMode>> = LazyLock::new(|| {
+    SmobTag::register("MajorMode") 
 });
 
 #[derive(Clone)]

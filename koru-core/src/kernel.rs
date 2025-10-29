@@ -7,7 +7,7 @@ mod files;
 mod session;
 pub mod client;
 pub mod broker;
-mod buffer;
+pub(crate) mod buffer;
 mod scheme_api;
 
 use std::error::Error;
