@@ -11,7 +11,6 @@ mod smob;
 mod keyword;
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 pub use crate::scheme_object::character::SchemeChar;
 pub use crate::scheme_object::hashtable::SchemeHashtable;
 pub use crate::scheme_object::list::SchemeList;
@@ -33,10 +32,19 @@ struct SchemeObjectInner {
 
 impl SchemeObjectInner {
     pub fn new(raw: guile_rs_sys::SCM) -> SchemeObjectInner {
+        if raw.is_null() || SchemeObjectInner::is_immediate(raw) {
+            return SchemeObjectInner { raw };
+        }
         unsafe {
             guile_rs_sys::scm_gc_protect_object(raw);
         }
         SchemeObjectInner { raw }
+    }
+
+    fn is_immediate(raw: guile_rs_sys::SCM) -> bool {
+        unsafe {
+            guile_rs_sys::rust_is_heap_object(raw) == 0
+        }
     }
 }
 
@@ -49,6 +57,9 @@ impl std::ops::Deref for SchemeObjectInner {
 
 impl Drop for SchemeObjectInner {
     fn drop(&mut self) {
+        if self.raw.is_null() || SchemeObjectInner::is_immediate(self.raw) {
+            return;
+        }
         unsafe {
             guile_rs_sys::scm_gc_unprotect_object(self.raw);
         }
@@ -66,6 +77,10 @@ impl SchemeObject {
     /// Takes a raw SCM value and prevents garbage collection of it
     pub fn new(raw: guile_rs_sys::SCM) -> SchemeObject {
         SchemeObject { raw: Arc::new(SchemeObjectInner::new(raw)) }
+    }
+
+    pub fn undefined() -> SchemeObject {
+        SchemeObject::from(SchemeValue::undefined())
     }
 
     /// Constructor for a Pair

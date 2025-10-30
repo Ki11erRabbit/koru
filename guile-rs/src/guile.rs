@@ -13,22 +13,25 @@ impl Guile {
     
     /// Allows for a thread to enter into Scheme Mode
     /// This can be called in threads and even multiple times in each thread.
-    pub fn init<F: FnOnce() + 'static>(f: F) {
+    pub fn init<F: FnOnce() -> SchemeObject + 'static>(f: F) -> SchemeObject {
         unsafe extern "C" fn trampoline(data: *mut std::os::raw::c_void) -> *mut std::os::raw::c_void {
             async_module();
-            let closure: Box<Box<dyn FnOnce()>> = unsafe {
+            let closure: Box<Box<dyn FnOnce() -> SchemeObject>> = unsafe {
                 Box::from_raw(data as *mut _)
             };
-            closure();
-            std::ptr::null_mut()
+            let value = Box::new(closure());
+            Box::into_raw(value) as *mut _
         }
-        let closure: Box<Box<dyn FnOnce()>> = Box::new(Box::new(f));
-        unsafe {
+        let closure: Box<Box<dyn FnOnce() -> SchemeObject>> = Box::new(Box::new(f));
+        let out = unsafe {
             guile_rs_sys::scm_with_guile(
                 Some(trampoline),
                 Box::into_raw(closure) as *mut std::os::raw::c_void,
-            );
-        }
+            )
+        };
+        let out = out as *mut SchemeObject;
+        let out = unsafe { Box::from_raw(out) };
+        (*out).clone()
     }
 
     /// Evaluates a string for a scheme expression and returns its value.

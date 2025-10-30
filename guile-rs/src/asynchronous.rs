@@ -197,6 +197,7 @@ extern "C" fn await_future(continuation: SchemeValue, future_handle: SchemeValue
                     let value = value.await;
                     Guile::init(move || {
                         continuation.call1(value);
+                        SchemeObject::undefined()
                     });
                 }
                 Err(panic) => {
@@ -206,7 +207,7 @@ extern "C" fn await_future(continuation: SchemeValue, future_handle: SchemeValue
 
                     Guile::init(move || {
                         guile_misc_error!("await-rust-future", "an error occured while completing the future", error);
-                    })
+                    });
                 }
             }
         });
@@ -247,6 +248,7 @@ extern "C" fn spawn_future(future_handle: SchemeValue) -> SchemeValue {
                 if let Some(continuation) = Tasks::remove_continuation(task_id) {
                     Guile::init(move || {
                         continuation.call1(value);
+                        SchemeObject::undefined()
                     });
                 } else {
                     Tasks::insert_result(task_id, value);
@@ -322,6 +324,7 @@ mod tests {
                                  validate_input as extern "C" fn(SchemeValue) -> SchemeValue
                 );
                 Guile::load("scheme_test_files/async01.scm").unwrap();
+                SchemeObject::from(SchemeValue::undefined())
             });
         });
     }
