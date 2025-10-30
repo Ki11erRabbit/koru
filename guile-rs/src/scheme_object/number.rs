@@ -24,42 +24,42 @@ impl SchemeNumber {
     
     pub fn as_u8(&self) -> u8 {
         unsafe {
-            guile_rs_sys::scm_to_uint8(*self.base.raw)
+            guile_rs_sys::scm_to_uint8(**self.base.raw)
         }
     }
     pub fn as_u16(&self) -> u16 {
         unsafe {
-            guile_rs_sys::scm_to_uint16(*self.base.raw)
+            guile_rs_sys::scm_to_uint16(**self.base.raw)
         }
     }
     pub fn as_u32(&self) -> u32 {
         unsafe {
-            guile_rs_sys::scm_to_uint32(*self.base.raw)
+            guile_rs_sys::scm_to_uint32(**self.base.raw)
         }
     }
     pub fn as_u64(&self) -> u64 {
         unsafe {
-            guile_rs_sys::scm_to_uint64(*self.base.raw)
+            guile_rs_sys::scm_to_uint64(**self.base.raw)
         }
     }
     pub fn as_i8(&self) -> i8 {
         unsafe {
-            guile_rs_sys::scm_to_int8(*self.base.raw)
+            guile_rs_sys::scm_to_int8(**self.base.raw)
         }
     }
     pub fn as_i16(&self) -> i16 {
         unsafe {
-            guile_rs_sys::scm_to_int16(*self.base.raw)
+            guile_rs_sys::scm_to_int16(**self.base.raw)
         }
     }
     pub fn as_i32(&self) -> i32 {
         unsafe {
-            guile_rs_sys::scm_to_int32(*self.base.raw)
+            guile_rs_sys::scm_to_int32(**self.base.raw)
         }
     }
     pub fn as_i64(&self) -> i64 {
         unsafe {
-            guile_rs_sys::scm_to_int64(*self.base.raw)
+            guile_rs_sys::scm_to_int64(**self.base.raw)
         }
     }
 }

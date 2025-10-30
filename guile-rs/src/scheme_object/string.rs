@@ -27,7 +27,7 @@ impl SchemeString {
     /// Converts the String into a List
     pub fn to_list(self) -> SchemeList {
         let value = unsafe {
-            guile_rs_sys::scm_string_to_list(*self.base.raw)
+            guile_rs_sys::scm_string_to_list(**self.base.raw)
         };
         unsafe {
             SchemeList::from_base(SchemeObject::new(value))
@@ -44,7 +44,7 @@ impl Into<SchemeObject> for SchemeString {
 impl std::fmt::Display for SchemeString {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let (c_string, c_str) = unsafe {
-            let c_str = guile_rs_sys::scm_to_utf8_string(*self.base.raw);
+            let c_str = guile_rs_sys::scm_to_utf8_string(**self.base.raw);
             (std::ffi::CStr::from_ptr(c_str), c_str)
         };
         write!(f, "{}", c_string.to_str().unwrap())?;

@@ -5,12 +5,21 @@ use pkg_config;
 fn main() {
     let conf = pkg_config::probe_library("guile-3.0").unwrap();
     let guile_dir = env::var("GUILE_DIR").unwrap_or("/usr/local/lib/".to_string());
+
+    cc::Build::new()
+        .file("wrapper.c")
+        .include("wrapper.h")
+        .includes(&conf.include_paths)
+        .flag("-O2")
+        .compile("guile_glue");
+
     // Tell cargo to look for shared libraries in the specified directory
     println!("cargo:rustc-link-search={guile_dir}");
 
     // Tell cargo to tell rustc to link the system bzip2
     // shared library.
     println!("cargo:rustc-link-lib=guile-3.0");
+    println!("cargo:rustc-link-lib=guile_glue");
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for

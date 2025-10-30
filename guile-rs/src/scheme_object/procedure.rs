@@ -25,10 +25,10 @@ impl SchemeProcedure {
     /// Invokes the function with a Rust vector for the arguments.
     /// Returns a SchemeObject value
     pub fn call(&self, args: Vec<impl Into<SchemeObject>>) -> SchemeObject {
-        let mut args: Vec<guile_rs_sys::SCM> = args.into_iter().map(Into::into).map(|x| *x.raw).collect();
+        let mut args: Vec<guile_rs_sys::SCM> = args.into_iter().map(Into::into).map(|x| **x.raw).collect();
         let len = args.len();
         let result = unsafe {
-            guile_rs_sys::scm_call_n(*self.base.raw, args.as_mut_ptr(), len)
+            guile_rs_sys::scm_call_n(**self.base.raw, args.as_mut_ptr(), len)
         };
         SchemeObject::from(result)
     }
@@ -36,7 +36,7 @@ impl SchemeProcedure {
     /// Invokes a function with 0 arguments.
     pub fn call0(&self) -> SchemeObject {
         let result = unsafe {
-            guile_rs_sys::scm_call_0(*self.base.raw)
+            guile_rs_sys::scm_call_0(**self.base.raw)
         };
         SchemeObject::new(result)
     }
@@ -44,7 +44,7 @@ impl SchemeProcedure {
     /// Invokes a function with 1 argument.
     pub fn call1(&self, arg1: impl Into<SchemeObject>) -> SchemeObject {
         let result = unsafe {
-            guile_rs_sys::scm_call_1(*self.base.raw, *arg1.into().raw)
+            guile_rs_sys::scm_call_1(**self.base.raw, **arg1.into().raw)
         };
         SchemeObject::new(result)
     }
@@ -52,7 +52,7 @@ impl SchemeProcedure {
     /// Invokes a function with 2 arguments.
     pub fn call2(&self, arg1: impl Into<SchemeObject>, arg2: impl Into<SchemeObject>) -> SchemeObject {
         let result = unsafe {
-            guile_rs_sys::scm_call_2(*self.base.raw, *arg1.into().raw, *arg2.into().raw)
+            guile_rs_sys::scm_call_2(**self.base.raw, **arg1.into().raw, **arg2.into().raw)
         };
         SchemeObject::new(result)
     }
@@ -66,10 +66,10 @@ impl SchemeProcedure {
     ) -> SchemeObject {
         let result = unsafe {
             guile_rs_sys::scm_call_3(
-                *self.base.raw,
-                *arg1.into().raw,
-                *arg2.into().raw,
-                *arg3.into().raw
+                **self.base.raw,
+                **arg1.into().raw,
+                **arg2.into().raw,
+                **arg3.into().raw
             )
         };
         SchemeObject::new(result)
@@ -84,11 +84,11 @@ impl SchemeProcedure {
     ) -> SchemeObject {
         let result = unsafe {
             guile_rs_sys::scm_call_4(
-                *self.base.raw,
-                *arg1.into().raw,
-                *arg2.into().raw,
-                *arg3.into().raw,
-                *arg4.into().raw,
+                **self.base.raw,
+                **arg1.into().raw,
+                **arg2.into().raw,
+                **arg3.into().raw,
+                **arg4.into().raw,
             )
         };
         SchemeObject::new(result)
@@ -104,12 +104,12 @@ impl SchemeProcedure {
     ) -> SchemeObject {
         let result = unsafe {
             guile_rs_sys::scm_call_5(
-                *self.base.raw,
-                *arg1.into().raw,
-                *arg2.into().raw,
-                *arg3.into().raw,
-                *arg4.into().raw,
-                *arg5.into().raw,
+                **self.base.raw,
+                **arg1.into().raw,
+                **arg2.into().raw,
+                **arg3.into().raw,
+                **arg4.into().raw,
+                **arg5.into().raw,
             )
         };
         SchemeObject::new(result)
@@ -126,13 +126,13 @@ impl SchemeProcedure {
     ) -> SchemeObject {
         let result = unsafe {
             guile_rs_sys::scm_call_6(
-                *self.base.raw,
-                *arg1.into().raw,
-                *arg2.into().raw,
-                *arg3.into().raw,
-                *arg4.into().raw,
-                *arg5.into().raw,
-                *arg6.into().raw,
+                **self.base.raw,
+                **arg1.into().raw,
+                **arg2.into().raw,
+                **arg3.into().raw,
+                **arg4.into().raw,
+                **arg5.into().raw,
+                **arg6.into().raw,
             )
         };
         SchemeObject::new(result)
@@ -150,14 +150,14 @@ impl SchemeProcedure {
     ) -> SchemeObject {
         let result = unsafe {
             guile_rs_sys::scm_call_7(
-                *self.base.raw,
-                *arg1.into().raw,
-                *arg2.into().raw,
-                *arg3.into().raw,
-                *arg4.into().raw,
-                *arg5.into().raw,
-                *arg6.into().raw,
-                *arg7.into().raw,
+                **self.base.raw,
+                **arg1.into().raw,
+                **arg2.into().raw,
+                **arg3.into().raw,
+                **arg4.into().raw,
+                **arg5.into().raw,
+                **arg6.into().raw,
+                **arg7.into().raw,
             )
         };
         SchemeObject::new(result)
@@ -176,15 +176,15 @@ impl SchemeProcedure {
     ) -> SchemeObject {
         let result = unsafe {
             guile_rs_sys::scm_call_8(
-                *self.base.raw,
-                *arg1.into().raw,
-                *arg2.into().raw,
-                *arg3.into().raw,
-                *arg4.into().raw,
-                *arg5.into().raw,
-                *arg6.into().raw,
-                *arg7.into().raw,
-                *arg8.into().raw,
+                **self.base.raw,
+                **arg1.into().raw,
+                **arg2.into().raw,
+                **arg3.into().raw,
+                **arg4.into().raw,
+                **arg5.into().raw,
+                **arg6.into().raw,
+                **arg7.into().raw,
+                **arg8.into().raw,
             )
         };
         SchemeObject::new(result)
@@ -204,16 +204,16 @@ impl SchemeProcedure {
     ) -> SchemeObject {
         let result = unsafe {
             guile_rs_sys::scm_call_9(
-                *self.base.raw,
-                *arg1.into().raw,
-                *arg2.into().raw,
-                *arg3.into().raw,
-                *arg4.into().raw,
-                *arg5.into().raw,
-                *arg6.into().raw,
-                *arg7.into().raw,
-                *arg8.into().raw,
-                *arg9.into().raw,
+                **self.base.raw,
+                **arg1.into().raw,
+                **arg2.into().raw,
+                **arg3.into().raw,
+                **arg4.into().raw,
+                **arg5.into().raw,
+                **arg6.into().raw,
+                **arg7.into().raw,
+                **arg8.into().raw,
+                **arg9.into().raw,
             )
         };
         SchemeObject::new(result)

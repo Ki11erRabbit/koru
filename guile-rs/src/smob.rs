@@ -7,6 +7,8 @@
 
 use std::any::type_name;
 use std::marker::PhantomData;
+use std::mem;
+use futures::future::BoxFuture;
 use crate::scheme_object::{SchemeObject, SchemeSmob};
 
 
@@ -17,17 +19,47 @@ pub enum SmobWrapper<T: SmobData> {
 
 impl<T: SmobData> SmobWrapper<T> {
 
-    pub fn borrow(&self) -> parking_lot::RwLockReadGuard<T> {
+    pub fn borrow(&'_ self) -> parking_lot::RwLockReadGuard<'_, T> {
         match self {
             SmobWrapper::Blank => unreachable!("Value already freed"),
             SmobWrapper::Data(r) => r.read(),
         }
     }
 
-    pub fn borrow_mut(&self) -> parking_lot::RwLockWriteGuard<T> {
+    pub fn borrow_mut(&'_ self) -> parking_lot::RwLockWriteGuard<'_, T> {
         match self {
             SmobWrapper::Blank => unreachable!("Value already freed"),
             SmobWrapper::Data(r) => r.write(),
+        }
+    }
+    
+    pub fn take(&mut self) -> T {
+        println!("take called");
+        let data = mem::replace(self, SmobWrapper::Blank);
+        match data { 
+            SmobWrapper::Blank => unreachable!("Value already freed"),
+            SmobWrapper::Data(rwlock) => {
+                rwlock.into_inner()
+            }
+        }
+    }
+    
+    pub fn try_take(&mut self) -> Option<T> {
+        println!("try take called");
+        match self {
+            SmobWrapper::Blank => {
+                println!("TryTake: Does not have Data")
+            },
+            SmobWrapper::Data(_) => {
+                println!("TryTake: Has Data");
+            }
+        }
+        let data = mem::replace(self, SmobWrapper::Blank);
+        match data {
+            SmobWrapper::Blank => None,
+            SmobWrapper::Data(rwlock) => {
+                Some(rwlock.into_inner())
+            }
         }
     }
 
@@ -36,7 +68,12 @@ impl<T: SmobData> SmobWrapper<T> {
     }
 
     fn heap_size(&self) -> usize {
-        self.borrow().heap_size()
+        match self {
+            SmobWrapper::Blank => 0,
+            SmobWrapper::Data(rwlock) => {
+                rwlock.read().heap_size()
+            }
+        }
     }
 
     fn eq(&self, other: SchemeObject) -> bool {
@@ -82,8 +119,8 @@ impl<T: SmobData> SmobTag<T> {
                 guile_rs_sys::rust_smob_data(obj)
             };
             let data = data as *mut SmobWrapper<T>;
-            let data = unsafe { data.as_mut().unwrap() };
-            let data = std::mem::replace(data, SmobWrapper::Blank);
+            let mut data = unsafe { Box::from_raw(data) };
+            let data = std::mem::replace(data.as_mut(), SmobWrapper::Blank);
 
             data.heap_size()
         }
@@ -144,12 +181,12 @@ impl<T: SmobData> SmobTag<T> {
 
     /// Creates a SMOB from the provided data
     pub fn make(&self, data: T) -> SchemeSmob<T> {
-        let data = SmobWrapper::Data(parking_lot::RwLock::new(data));
+        let data = Box::new(SmobWrapper::Data(parking_lot::RwLock::new(data)));
+        let ptr = Box::into_raw(data);
 
         let value = unsafe {
-            guile_rs_sys::rust_new_smob(self.tag, &data as * const _ as usize)
+            guile_rs_sys::rust_new_smob(self.tag, ptr as * const _ as usize)
         };
-        std::mem::forget(data);
         unsafe {
             SchemeSmob::from_base(SchemeObject::new(value))
         }
@@ -172,6 +209,20 @@ impl<T: SmobData> SmobData for Box<T> {
     }
     fn eq(&self, other: SchemeObject) -> bool {
         (**self).eq(other)
+    }
+
+    fn size() -> usize {
+        0
+    }
+}
+
+impl SmobData for BoxFuture<'_, SchemeObject> {
+    fn print(&self) -> String {
+        String::from("#<Future>")
+    }
+
+    fn heap_size(&self) -> usize {
+        0
     }
 
     fn size() -> usize {

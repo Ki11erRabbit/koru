@@ -38,7 +38,7 @@ impl Into<SchemeObject> for SchemeSymbol {
 impl std::fmt::Display for SchemeSymbol {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let string = unsafe {
-            guile_rs_sys::scm_symbol_to_string(*self.base.raw)
+            guile_rs_sys::scm_symbol_to_string(**self.base.raw)
         };
         let ptr = unsafe {
             scm_to_utf8_string(string)

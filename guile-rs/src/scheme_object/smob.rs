@@ -27,7 +27,7 @@ impl<T: SmobData> SchemeSmob<T> {
     
     pub fn borrow(&self) -> parking_lot::RwLockReadGuard<'_, T> {
         let ptr = unsafe {
-            guile_rs_sys::rust_smob_data(*self.base.raw)
+            guile_rs_sys::rust_smob_data(**self.base.raw)
         };
         let data = unsafe { (ptr as *mut SmobWrapper<T>).as_ref() }.unwrap();
         data.borrow()
@@ -35,10 +35,26 @@ impl<T: SmobData> SchemeSmob<T> {
 
     pub fn borrow_mut(&self) -> parking_lot::RwLockWriteGuard<'_, T> {
         let ptr = unsafe {
-            guile_rs_sys::rust_smob_data(*self.base.raw)
+            guile_rs_sys::rust_smob_data(**self.base.raw)
         };
         let data = unsafe { (ptr as *mut SmobWrapper<T>).as_ref() }.unwrap();
         data.borrow_mut()
+    }
+    
+    pub fn take(&mut self) -> T {
+        let ptr = unsafe {
+            guile_rs_sys::rust_smob_data(**self.base.raw)
+        };
+        let data = unsafe { (ptr as *mut SmobWrapper<T>).as_mut() }.unwrap();
+        data.take()
+    }
+    
+    pub fn try_take(&mut self) -> Option<T> {
+        let ptr = unsafe {
+            guile_rs_sys::rust_smob_data(**self.base.raw)
+        };
+        let data = unsafe { (ptr as *mut SmobWrapper<T>).as_mut() }.unwrap();
+        data.try_take()
     }
 }
 

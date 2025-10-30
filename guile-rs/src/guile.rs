@@ -1,3 +1,5 @@
+use std::panic::AssertUnwindSafe;
+use std::path::Path;
 use bitflags::bitflags;
 use guile_rs_sys;
 use crate::scheme_object::{SchemeList, SchemeObject, SchemeSymbol};
@@ -13,13 +15,13 @@ impl Guile {
     /// This can be called in threads and even multiple times in each thread.
     pub fn init<F: FnOnce() + 'static>(f: F) {
         unsafe extern "C" fn trampoline(data: *mut std::os::raw::c_void) -> *mut std::os::raw::c_void {
-            let closure: Box<Box<dyn FnOnce() -> *mut std::os::raw::c_void>> = unsafe {
+            let closure: Box<Box<dyn FnOnce()>> = unsafe {
                 Box::from_raw(data as *mut _)
             };
             closure();
             std::ptr::null_mut()
         }
-        let closure = Box::new(Box::new(f));
+        let closure: Box<Box<dyn FnOnce()>> = Box::new(Box::new(f));
         unsafe {
             guile_rs_sys::scm_with_guile(
                 Some(trampoline),
@@ -324,6 +326,21 @@ impl Guile {
                 <SchemeList as Into<SchemeObject>>::into(args).into(),
                 <SchemeList as Into<SchemeObject>>::into(rest).into(),
             )
+        }
+    }
+    
+    /// Loads and executes a scheme file specified by the path
+    pub fn load<P: AsRef<Path>>(path: P) -> Result<SchemeObject, String> {
+        let path = std::ffi::CString::new(path.as_ref().to_str().unwrap()).unwrap();
+        
+        let result = unsafe {
+            std::panic::catch_unwind(AssertUnwindSafe(|| {
+                guile_rs_sys::scm_c_primitive_load(path.as_ptr())
+            }))
+        };
+        match result {
+            Ok(val) => Ok(SchemeObject::new(val)),
+            Err(err) => Err(format!("{:?}", err)),
         }
     }
 }
