@@ -34,7 +34,6 @@ impl<T: SmobData> SmobWrapper<T> {
     }
     
     pub fn take(&mut self) -> T {
-        println!("take called");
         let data = mem::replace(self, SmobWrapper::Blank);
         match data { 
             SmobWrapper::Blank => unreachable!("Value already freed"),
@@ -45,15 +44,6 @@ impl<T: SmobData> SmobWrapper<T> {
     }
     
     pub fn try_take(&mut self) -> Option<T> {
-        println!("try take called");
-        match self {
-            SmobWrapper::Blank => {
-                println!("TryTake: Does not have Data")
-            },
-            SmobWrapper::Data(_) => {
-                println!("TryTake: Has Data");
-            }
-        }
         let data = mem::replace(self, SmobWrapper::Blank);
         match data {
             SmobWrapper::Blank => None,

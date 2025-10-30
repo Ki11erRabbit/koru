@@ -37,6 +37,9 @@ impl From<guile_rs_sys::SCM> for SchemeValue {
     }
 }
 
+unsafe impl Sync for SchemeValue {}
+unsafe impl Send for SchemeValue {}
+
 impl From<bool> for SchemeValue {
     fn from(raw: bool) -> SchemeValue {
         if raw {

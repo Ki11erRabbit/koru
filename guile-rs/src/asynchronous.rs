@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::panic::AssertUnwindSafe;
 use std::sync::{LazyLock, Mutex};
 use futures::future::BoxFuture;
-use crate::scheme_object::{SchemeObject, SchemeProcedure, SchemeString};
+use crate::scheme_object::{SchemeObject, SchemeProcedure, SchemeSmob, SchemeString};
 use crate::{guile_misc_error, guile_wrong_type_arg, Guile, Module, SchemeValue, SmobData, SmobTag};
 
 
@@ -54,11 +54,26 @@ impl<'a> SmobData for BoxFutureWrapper<'a> {
     }
 }
 
+pub static TASK_ID_SMOB_TAG: LazyLock<SmobTag<TaskId>> = LazyLock::new(|| {
+    SmobTag::register("TaskId")
+});
+
 #[derive(Copy, Clone, Eq, PartialEq, Hash)]
 pub struct TaskId(usize);
 
+impl SmobData for TaskId {
+    fn print(&self) -> String {
+        format!("#<task#{}>", self.0)
+    }
+
+    fn heap_size(&self) -> usize {
+        0
+    }
+}
+
 struct Tasks {
     continuations: HashMap<TaskId, SchemeProcedure>,
+    results: HashMap<TaskId, SchemeValue>,
     next_task_id: TaskId,
     free_list: VecDeque<TaskId>,
 }
@@ -67,12 +82,13 @@ impl Tasks {
     pub fn new() -> Self {
         Tasks {
             continuations: HashMap::new(),
+            results: HashMap::new(),
             next_task_id: TaskId(0),
             free_list: VecDeque::new(),
         }
     }
 
-    fn insert_internal(&mut self, continuation: SchemeProcedure) -> TaskId {
+    fn get_next_task_id(&mut self) -> TaskId {
         let task_id = if let Some(task_id) = self.free_list.pop_front() {
             task_id
         } else {
@@ -80,27 +96,76 @@ impl Tasks {
             self.next_task_id.0 += 1;
             task_id
         };
+        task_id
+    }
+
+    fn insert_continuation_internal(&mut self, continuation: SchemeProcedure) -> TaskId {
+        let task_id = self.get_next_task_id();
         self.continuations.insert(task_id, continuation);
         task_id
     }
 
-    fn remove_internal(&mut self, task_id: TaskId) -> Option<SchemeProcedure> {
+    fn remove_continuation_internal(&mut self, task_id: TaskId) -> Option<SchemeProcedure> {
         self.continuations.remove(&task_id)
     }
 
-    pub fn insert(continuation: SchemeProcedure) -> TaskId {
-        let Ok(mut tasks) = TASKS.lock() else {
-            panic!("Tasks mutex poisoned");
-        };
-        let task_id = tasks.insert_internal(continuation);
+    fn insert_result_internal(&mut self, task_id: TaskId, result: SchemeValue) -> TaskId {
+        self.results.insert(task_id, result);
         task_id
     }
 
-    pub fn remove(task_id: TaskId) -> Option<SchemeProcedure> {
+    fn insert_task_internal(&mut self, task_id: TaskId, result: SchemeProcedure) -> TaskId {
+        self.continuations.insert(task_id, result);
+        task_id
+    }
+
+    fn remove_result_internal(&mut self, task_id: TaskId) -> Option<SchemeValue> {
+        self.results.remove(&task_id)
+    }
+
+    pub fn insert_continuation(continuation: SchemeProcedure) -> TaskId {
         let Ok(mut tasks) = TASKS.lock() else {
             panic!("Tasks mutex poisoned");
         };
-        tasks.remove_internal(task_id)
+        let task_id = tasks.insert_continuation_internal(continuation);
+        task_id
+    }
+
+    pub fn remove_continuation(task_id: TaskId) -> Option<SchemeProcedure> {
+        let Ok(mut tasks) = TASKS.lock() else {
+            panic!("Tasks mutex poisoned");
+        };
+        tasks.remove_continuation_internal(task_id)
+    }
+
+    pub fn insert_result(task_id: TaskId, result: SchemeValue) -> TaskId {
+        let Ok(mut tasks) = TASKS.lock() else {
+            panic!("Tasks mutex poisoned");
+        };
+        let task_id = tasks.insert_result_internal(task_id, result);
+        task_id
+    }
+    
+    pub fn insert_task(task_id: TaskId, continuation: SchemeProcedure) -> TaskId {
+        let Ok(mut tasks) = TASKS.lock() else {
+            panic!("Tasks mutex poisoned");
+        };
+        let task_id = tasks.insert_task_internal(task_id, continuation);
+        task_id
+    }
+
+    pub fn remove_result(task_id: TaskId) -> Option<SchemeValue> {
+        let Ok(mut tasks) = TASKS.lock() else {
+            panic!("Tasks mutex poisoned");
+        };
+        tasks.remove_result_internal(task_id)
+    }
+
+    pub fn create_task_id() -> TaskId {
+        let Ok(mut tasks) = TASKS.lock() else {
+            panic!("Tasks mutex poisoned");
+        };
+        tasks.get_next_task_id()
     }
 }
 
@@ -109,67 +174,112 @@ static TASKS: LazyLock<Mutex<Tasks>> = LazyLock::new(|| {
 });
 
 
-extern "C" fn await_rust_future(continuation: SchemeValue, future_handle: SchemeValue) -> SchemeValue {
+extern "C" fn await_future(continuation: SchemeValue, future_handle: SchemeValue) -> SchemeValue {
     let Some(continuation) = SchemeObject::from(continuation).cast_procedure() else {
         guile_wrong_type_arg!("await-rust-future", 1, continuation);
     };
+    
+    if let Some(mut future_handle) = SchemeObject::from(future_handle).cast_smob(FUTURE_SMOB_TAG.clone()) {
+        let task_id = Tasks::insert_continuation(continuation);
+        let Some(future) = future_handle.try_take() else {
+            Tasks::remove_continuation(task_id);
+            return SchemeValue::undefined();
+        };
+
+        tokio::spawn(async move {
+            let result = std::panic::catch_unwind(AssertUnwindSafe(async move || {
+                future.take().await
+            }));
+
+            match result {
+                Ok(value) => {
+                    let continuation = Tasks::remove_continuation(task_id).expect("Continuation not found");
+                    let value = value.await;
+                    Guile::init(move || {
+                        continuation.call1(value);
+                    });
+                }
+                Err(panic) => {
+                    Tasks::remove_continuation(task_id).expect("Continuation not found");
+                    let error = format!("{:?}", panic);
+                    let error = SchemeString::new(error);
+
+                    Guile::init(move || {
+                        guile_misc_error!("await-rust-future", "an error occured while completing the future", error);
+                    })
+                }
+            }
+        });
+        SchemeValue::undefined()
+    } else if let Some(task_handle) = SchemeObject::from(future_handle).cast_smob(TASK_ID_SMOB_TAG.clone()) {
+        let task_id = task_handle.borrow().clone();
+        if let Some(result) = Tasks::remove_result(task_id) {
+            /*let resume_fn = SchemeProcedure::new("resume-continuation-with-prompt");
+            resume_fn.call2(continuation, result).into()*/
+            continuation.call1(result).into()
+        } else {
+            Tasks::insert_task(task_id, continuation);
+            SchemeValue::undefined()
+        }
+    } else {
+        guile_wrong_type_arg!("await-rust-future", 2, future_handle);
+    }
+}
+
+extern "C" fn spawn_future(future_handle: SchemeValue) -> SchemeValue {
     let Some(mut future_handle) = SchemeObject::from(future_handle).cast_smob(FUTURE_SMOB_TAG.clone()) else {
         guile_wrong_type_arg!("await-rust-future", 2, future_handle);
     };
 
-    let task_id = Tasks::insert(continuation);
-    println!("4. Inserted Task");
+    let task_id = Tasks::create_task_id();
+
     let Some(future) = future_handle.try_take() else {
-        println!("try_take returned none");
-        Tasks::remove(task_id);
         return SchemeValue::undefined();
     };
-    println!("5. Got future");
-    
-    //let handle = tokio::runtime::Handle::current();
 
     tokio::spawn(async move {
         let result = std::panic::catch_unwind(AssertUnwindSafe(async move || {
             future.take().await
         }));
-
         match result {
             Ok(value) => {
-                let continuation = Tasks::remove(task_id).expect("Continuation not found");
                 let value = value.await;
-                Guile::init(move || {
-                    println!("calling continuation");
-                    continuation.call1(value);
-                    println!("continuation done");
-                });
+                if let Some(continuation) = Tasks::remove_continuation(task_id) {
+                    Guile::init(move || {
+                        continuation.call1(value);
+                    });
+                } else {
+                    Tasks::insert_result(task_id, value);
+                }
             }
             Err(panic) => {
-                Tasks::remove(task_id).expect("Continuation not found");
+                Tasks::remove_continuation(task_id).expect("Continuation not found");
                 let error = format!("{:?}", panic);
                 let error = SchemeString::new(error);
-                
                 Guile::init(move || {
-                    guile_misc_error!("await-rust-future", "an error occured while completing the future", error);
-                })
+                    guile_misc_error!("spawn-future", "an error occured while completing the future", error);
+                });
             }
         }
     });
 
-    println!("6. Spawned Task");
-
-
-    println!("7. about to return");
-    SchemeValue::undefined()
+    let smob = TASK_ID_SMOB_TAG.make(task_id);
+    <SchemeSmob<TaskId> as Into<SchemeObject>>::into(smob).into()
 }
 
 pub fn async_module() {
-    Guile::define_fn("await-rust-future", 2, 0, false,
-        await_rust_future as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
+    Guile::define_fn("await-future", 2, 0, false,
+        await_future as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
+    );
+    Guile::define_fn("spawn-future", 1, 0, false,
+        spawn_future as extern "C" fn(SchemeValue) -> SchemeValue
     );
     let mut module: Module<()> = Module::new_default("async");
-    module.add_export("await-rust-future");
+    module.add_export("await-future");
+    module.add_export("spawn-future");
     module.export();
     module.define_default();
+    Guile::eval(include_str!("async-support.scm"));
 }
 
 #[cfg(test)]
@@ -188,7 +298,7 @@ mod tests {
     #[test]
     fn test_async_code() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
-        
+
         
         runtime.block_on(async {
             Guile::init(|| {
