@@ -3,7 +3,7 @@ use std::path::Path;
 use bitflags::bitflags;
 use guile_rs_sys;
 use crate::scheme_object::{SchemeList, SchemeObject, SchemeSymbol};
-use crate::SchemeValue;
+use crate::{async_module, SchemeValue};
 
 pub struct SchemeFunction(guile_rs_sys::scm_t_subr);
 
@@ -15,6 +15,7 @@ impl Guile {
     /// This can be called in threads and even multiple times in each thread.
     pub fn init<F: FnOnce() + 'static>(f: F) {
         unsafe extern "C" fn trampoline(data: *mut std::os::raw::c_void) -> *mut std::os::raw::c_void {
+            async_module();
             let closure: Box<Box<dyn FnOnce()>> = unsafe {
                 Box::from_raw(data as *mut _)
             };
@@ -43,6 +44,7 @@ impl Guile {
     /// Takes in a mut ref to some data and a function that accepts that data.
     pub fn boot<D, F: FnOnce() + 'static>(main_func: F) -> ! {
         unsafe extern "C" fn trampoline<D, F: FnOnce() + 'static>(data: *mut std::os::raw::c_void, _: std::os::raw::c_int, _: *mut *mut std::os::raw::c_char) {
+            async_module();
             let data: Box<F> = unsafe { Box::from_raw(data as *mut _) };
             let main_func = *data;
             main_func();

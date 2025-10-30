@@ -1,6 +1,3 @@
-(define-module (async-support)
-  #:export (spawn await async-do))
-(use-modules (async))
 (use-modules (ice-9 control))
 
 (define async-prompt (make-prompt-tag "async"))
@@ -27,3 +24,5 @@
   (syntax-rules ()
     ((async-do body ...)
       (run-with-prompts (lambda () body ...)))))
+
+(export spawn await async-do async-prompt run-with-prompts)

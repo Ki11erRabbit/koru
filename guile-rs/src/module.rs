@@ -4,7 +4,7 @@ use guile_rs_sys;
 /// Represents a Module under construction
 pub struct Module<D> {
     name: String,
-    init: Box<dyn FnOnce(&mut D) + 'static>,
+    init: Option<Box<dyn FnOnce(&mut D) + 'static>>,
     exports: Vec<String>,
 }
 
@@ -15,7 +15,7 @@ impl<D> Module<D> {
     /// `init`: a function that initializes any data associated with the module
     pub fn new<S: Into<String>>(name: S, init: Box<dyn FnOnce(&mut D) + 'static>) -> Module<D> {
         Self {
-            init,
+            init: Some(init),
             name: name.into(),
             exports: Vec::new(),
         }
@@ -24,7 +24,7 @@ impl<D> Module<D> {
     /// `name`: the name of the module
     pub fn new_default<S: Into<String>>(name: S) -> Module<D> {
         Self {
-            init: Box::new(|_: &mut D| {}),
+            init: Some(Box::new(|_: &mut D| {})),
             name: name.into(),
             exports: Vec::new(),
         }
@@ -47,7 +47,7 @@ impl<D> Module<D> {
 
     /// Defines the module
     /// `data`: the data to initialize the module with
-    pub fn define(self, data: &mut D) {
+    pub fn define(&mut self, data: &mut D) {
         extern "C" fn trampoline<D>(data: *mut c_void) {
             let data: Box<(Box<dyn FnOnce(&mut D) + 'static>, &mut D)> = unsafe {
                 Box::from_raw(data as *mut _)
@@ -56,7 +56,7 @@ impl<D> Module<D> {
             init(data);
         }
         let name = std::ffi::CString::new(self.name.as_str()).unwrap();
-        let data = Box::new((self.init, data));
+        let data = Box::new((self.init.take().unwrap(), data));
         let data = Box::into_raw(data);
 
         unsafe {
@@ -66,7 +66,7 @@ impl<D> Module<D> {
 }
 
 impl<D: Default> Module<D> {
-    pub fn define_default(self) {
+    pub fn define_default(&mut self) {
         self.define(&mut D::default());
     }
 }

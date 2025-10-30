@@ -145,7 +145,7 @@ impl Tasks {
         let task_id = tasks.insert_result_internal(task_id, result);
         task_id
     }
-    
+
     pub fn insert_task(task_id: TaskId, continuation: SchemeProcedure) -> TaskId {
         let Ok(mut tasks) = TASKS.lock() else {
             panic!("Tasks mutex poisoned");
@@ -178,7 +178,7 @@ extern "C" fn await_future(continuation: SchemeValue, future_handle: SchemeValue
     let Some(continuation) = SchemeObject::from(continuation).cast_procedure() else {
         guile_wrong_type_arg!("await-rust-future", 1, continuation);
     };
-    
+
     if let Some(mut future_handle) = SchemeObject::from(future_handle).cast_smob(FUTURE_SMOB_TAG.clone()) {
         let task_id = Tasks::insert_continuation(continuation);
         let Some(future) = future_handle.try_take() else {
@@ -268,18 +268,23 @@ extern "C" fn spawn_future(future_handle: SchemeValue) -> SchemeValue {
 }
 
 pub fn async_module() {
+    let mut module: Module<()> = Module::new_default("async");
+    module.define_default();
+    
     Guile::define_fn("await-future", 2, 0, false,
         await_future as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
     );
     Guile::define_fn("spawn-future", 1, 0, false,
         spawn_future as extern "C" fn(SchemeValue) -> SchemeValue
     );
-    let mut module: Module<()> = Module::new_default("async");
+    Guile::eval(include_str!("async-support.scm"));
     module.add_export("await-future");
     module.add_export("spawn-future");
+    module.add_export("spawn");
+    module.add_export("await");
+    module.add_export("async-do");
+
     module.export();
-    module.define_default();
-    Guile::eval(include_str!("async-support.scm"));
 }
 
 #[cfg(test)]
@@ -287,28 +292,37 @@ mod tests {
     use crate::scheme_object::SchemeSmob;
     use super::*;
     
-    extern "C" fn async_function() -> SchemeValue {
-        let smob = FUTURE_SMOB_TAG.make(BoxFutureWrapper::new(async move {
-            SchemeValue::from(10)
-        }));
-        
-        <SchemeSmob<BoxFutureWrapper<'_>> as Into<SchemeObject>>::into(smob).into()
-    }
-    
     #[test]
-    fn test_async_code() {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+    fn test_async01() {
+        extern "C" fn async_function() -> SchemeValue {
+            let smob = FUTURE_SMOB_TAG.make(BoxFutureWrapper::new(async move {
+                SchemeValue::from(10)
+            }));
 
+            <SchemeSmob<BoxFutureWrapper<'_>> as Into<SchemeObject>>::into(smob).into()
+        }
+        extern "C" fn validate_input(value: SchemeValue) -> SchemeValue {
+            let Some(number) = SchemeObject::from(value).cast_number() else {
+                panic!("Expected a number");
+            };
+            let value = number.as_u64();
+            
+            assert_eq!(value, 30, "Expected value to be 30");
+            
+            SchemeValue::undefined()
+        }
+        let runtime = tokio::runtime::Runtime::new().unwrap();
         
         runtime.block_on(async {
             Guile::init(|| {
-                async_module();
                 Guile::define_fn("async-function", 0, 0, false,
                                  async_function as extern "C" fn() -> SchemeValue
                 );
-                Guile::load("scheme_test_files/async.scm").unwrap();
+                Guile::define_fn("validate-input", 1, 0, false,
+                                 validate_input as extern "C" fn(SchemeValue) -> SchemeValue
+                );
+                Guile::load("scheme_test_files/async01.scm").unwrap();
             });
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         });
     }
 }

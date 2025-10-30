@@ -8,7 +8,7 @@ mod asynchronous;
 pub use guile::*;
 pub use module::*;
 pub use smob::*;
-use crate::scheme_object::SchemeObject;
+pub use asynchronous::*;
 
 #[derive(Clone, Copy)]
 #[repr(C)]
