@@ -1,9 +1,6 @@
-use std::mem::ManuallyDrop;
 use std::sync::LazyLock;
 use bitflags::bitflags;
 use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
-use guile_rs::{Guile, Module, SchemeValue, SmobTag, SmobData, guile_wrong_type_arg, guile_misc_error};
-use guile_rs::scheme_object::{SchemeObject, SchemeSmob, SchemeString};
 use crate::kernel::buffer::Cursor;
 
 bitflags! {
@@ -111,11 +108,6 @@ impl TryFrom<&str> for ColorType {
     }
 }
 
-pub static STYLED_TEXT_SMOB_TAG: LazyLock<SmobTag<StyledText>> = LazyLock::new(||{
-    SmobTag::register("StyledText")
-});
-
-
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum StyledText {
@@ -131,7 +123,7 @@ pub enum StyledText {
 impl UserData for StyledText {
 }
 
-impl SmobData for StyledText {
+/* impl SmobData for StyledText {
     fn heap_size(&self) -> usize {
         size_of::<StyledText>()
     }
@@ -207,7 +199,7 @@ pub static STYLED_FILE_SMOB_TAG: LazyLock<SmobTag<StyledFile>> = LazyLock::new(|
     SmobTag::register("StyledFile")
 });
 
-
+*/
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct StyledFile {
     lines: Vec<Vec<StyledText>>,
@@ -379,6 +371,7 @@ impl From<String> for StyledFile {
     }
 }
 
+/*
 impl SmobData for StyledFile {
     fn heap_size(&self) -> usize {
         self.lines.capacity() * size_of::<StyledText>()
@@ -433,7 +426,7 @@ pub fn styled_file_module() {
     module.export();
     module.define(&mut ());
 }
-
+*/
 
 impl UserData for StyledFile {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
@@ -458,10 +451,6 @@ impl UserData for StyledFile {
     }
 }
 
-pub static COLOR_VALUE_SMOB_TAG: LazyLock<SmobTag<ColorValue>> = LazyLock::new(|| {
-    SmobTag::register("ColorValue")
-});
-
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ColorValue {
     Rgb {
@@ -476,6 +465,7 @@ impl UserData for ColorValue {
 
 }
 
+/*
 impl SmobData for ColorValue {
     fn print(&self) -> String {
         match self {
@@ -499,7 +489,7 @@ impl SmobData for ColorValue {
         *self == *other.borrow()
     }
 }
-
+*/
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct ColorDefinition {

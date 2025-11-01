@@ -1,30 +1,26 @@
+use scheme_rs::gc::Gc;
 use std::collections::HashMap;
-use std::mem::ManuallyDrop;
-use std::sync::LazyLock;
-use guile_rs::scheme_object::{SchemeObject, SchemeProcedure, SchemeSmob};
-use guile_rs::{Guile, Module, SchemeValue, SmobTag, SmobData, guile_wrong_type_arg};
-use crate::kernel::scheme_api::command::{Command, COMMAND_SMOB_TAG};
+use std::sync::{Arc};
+use scheme_rs::exceptions::Condition;
+use scheme_rs::gc::Trace;
+use scheme_rs::proc::Procedure;
+use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::registry::bridge;
+use scheme_rs::value::Value;
+use crate::kernel::scheme_api::command::{Command};
 
-pub static MAJOR_MODE_SMOB_TAG: LazyLock<SmobTag<MajorMode>> = LazyLock::new(|| {
-    SmobTag::register("MajorMode") 
-});
 
-#[derive(Clone)]
-struct MajorModeInternal {
-    
-}
-
-#[derive(Clone)]
+#[derive(Clone, Debug, Trace)]
 pub struct MajorMode {
     name: String,
-    commands: Vec<Command>,
+    commands: Vec<Gc<Command>>,
     aliases: HashMap<String, usize>,
-    data: SchemeObject,
-    modify_line: SchemeProcedure,
+    data: Value,
+    modify_line: Procedure,
 }
 
 impl MajorMode {
-    pub fn new(name: String, data: SchemeObject, modify_line: SchemeProcedure) -> Self {
+    pub fn new(name: String, data: Value, modify_line: Procedure) -> Self {
         MajorMode {
             name,
             commands: Vec::new(),
@@ -34,7 +30,7 @@ impl MajorMode {
         }
     }
     
-    pub fn register_command(&mut self, name: String, command: Command) {
+    pub fn register_command(&mut self, name: String, command: Gc<Command>) {
         let index = self.commands.len();
         self.commands.push(command);
         self.aliases.insert(name, index);
@@ -56,86 +52,61 @@ impl MajorMode {
     }
 }
 
-impl SmobData for MajorMode {
-    fn print(&self) -> String {
-        format!("#<MajorMode:{}>", self.name)
-    }
-    fn heap_size(&self) -> usize {
-        let command_mem_size = self.commands.capacity() * size_of::<Command>();
-        let string_size = self.name.capacity();
-        let aliases_size = self.aliases.capacity() * (size_of::<String>() + size_of::<usize>());
-
-        command_mem_size + string_size + aliases_size
+impl SchemeCompatible for MajorMode {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&MajorMode")
     }
 }
 
+#[bridge(name = "major-mode-create", lib = "(major-mode)")]
+pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((name, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let name: String = name.clone().try_into()?;
+    let Some((modify_line, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let modify_line: Procedure = modify_line.clone().try_into()?;
+    let data = if let Some((data, _)) = rest.split_first() {
+        data.clone()
+    } else {
+        Value::undefined()
+    };
 
-pub extern "C" fn major_mode_create(name: SchemeValue, modify_line: SchemeValue, data: SchemeValue) -> SchemeValue {
-    let Some(name) = SchemeObject::from(name).cast_symbol() else {
-        guile_wrong_type_arg!("major-mode-create", 1, name);
-    };
-    let Some(modify_line) = SchemeObject::from(modify_line).cast_procedure() else {
-        guile_wrong_type_arg!("major-mode-create", 2, modify_line);
-    };
-    let data = SchemeObject::from(data);
-    
-    let major_mode = MajorMode::new(name.to_string(), data, modify_line);
-    
-    let smob = MAJOR_MODE_SMOB_TAG.make(major_mode);
-    
-    <SchemeSmob<_> as Into<SchemeObject>>::into(smob).into()
+    let major_mode = MajorMode::new(name, data, modify_line);
+
+    Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }
 
-extern "C" fn major_mode_data(mode: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::from(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("major-mode-data", 1, mode);
-    };
-    
-    mode.borrow().data.clone().into()
+#[bridge(name = "major-mode-data", lib = "(major-mode)")]
+pub fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
+    let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
+    Ok(vec![mode.read().clone().data])
 }
 
-pub extern "C" fn major_mode_register_command(mode: SchemeValue, command: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::from(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("major-mode-register-command", 1, mode);
+#[bridge(name = "major-mode-register-command", lib = "(major-mode)")]
+pub fn major_mode_register_command(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
     };
-    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("major-mode-register-command", 2, command);
+    let Some((command, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
     };
-    
-    mode.borrow_mut().register_command(command.borrow().name().to_string(), (command.borrow()).clone());
-    
-    SchemeValue::undefined()
+    let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
+    let command: Gc<Command> = command.clone().try_into_rust_type()?;
+
+    mode.write().register_command(command.read().name().to_string(), command.clone());
+
+    Ok(Vec::new())
 }
 
-pub extern "C" fn major_mode_register_alias(mode: SchemeValue, command_name: SchemeValue, alias: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::from(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("major-mode-register-alias", 1, mode);
-    };
-    let Some(command_name) = SchemeObject::from(command_name).cast_symbol() else {
-        guile_wrong_type_arg!("major-mode-register-alias", 2, command_name);
-    };
-    let Some(alias) = SchemeObject::from(alias).cast_symbol() else {
-        guile_wrong_type_arg!("major-mode-register-alias", 2, command_name);
-    };
-    
-    mode.borrow_mut().register_alias(command_name.to_string(), alias.to_string());
-    
-    SchemeValue::undefined()
-}
 
-pub extern "C" fn major_mode_unregister(mode: SchemeValue, command_name: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::from(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("major-mode-unregister-alias", 1, mode);
-    };
-    let Some(command_name) = SchemeObject::from(command_name).cast_symbol() else {
-        guile_wrong_type_arg!("major-mode-unregister-alias", 2, command_name);
-    };
-    
-    mode.borrow_mut().remove_alias(command_name.to_string());
-    SchemeValue::undefined()
-}
 
-pub extern "C" fn major_mode_modify_line(mode: SchemeValue, styled_file: SchemeValue, total_lines: SchemeValue) -> SchemeValue {
+/*pub extern "C" fn major_mode_modify_line(mode: SchemeValue, styled_file: SchemeValue, total_lines: SchemeValue) -> SchemeValue {
     let Some(mode) = SchemeObject::from(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
         guile_wrong_type_arg!("major-mode-modify-line", 1, mode);
     };
@@ -181,4 +152,4 @@ pub fn major_mode_module() {
     module.add_export("modify-line-default");
     module.export();
     module.define(&mut ());
-}
+}*/

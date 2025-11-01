@@ -1,12 +1,14 @@
 
 [workspace]
 resolver = "3"
-members = ["koru","koru-core", "guile-rs-sys", "guile-rs"]
+members = ["koru","koru-core"]
 
 [workspace.dependencies]
-guile-rs-sys = { path = "./guile-rs-sys" }
-guile-rs = { path = "./guile-rs" }
+#guile-rs-sys = { path = "./guile-rs-sys" }
+#guile-rs = { path = "./guile-rs" }
 mlua = "0.11.4"
 koru-core = { path = "./koru-core" }
 futures = "0.3.31"
 tokio = { version = "1.47.1", features = ["full"] }
+scheme-rs = { git = "https://github.com/maplant/scheme-rs", rev = "50ef996", features = ["async", "tokio"]}
+inventory = "0.3"

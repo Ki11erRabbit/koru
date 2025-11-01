@@ -1,11 +1,13 @@
 use std::mem::ManuallyDrop;
-use std::sync::LazyLock;
-use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, Module, SchemeValue, SmobData, SmobTag};
-use guile_rs::scheme_object::{SchemeObject, SchemeProcedure, SchemeSmob, SchemeString};
+use std::sync::{Arc, LazyLock};
+use scheme_rs::exceptions::Condition;
+use scheme_rs::gc::{Gc, Trace};
+use scheme_rs::proc::Procedure;
+use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::registry::bridge;
+use scheme_rs::value::Value;
 
-
-
-#[derive(Clone)]
+#[derive(Clone, Debug, Trace)]
 pub enum ArgumentDef {
     Text,
     Number,
@@ -73,177 +75,122 @@ impl TryFrom<String> for ArgumentDef {
     }
 }
 
+impl SchemeCompatible for ArgumentDef {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&ArgumentDef")
+    }
+}
 
 
-#[derive(Clone)]
+
+#[derive(Clone, Debug, Trace)]
 pub struct Command {
     name: String,
-    function: SchemeProcedure,
+    function: Procedure,
     description: String,
     arguments: Vec<ArgumentDef>,
 }
 
 impl Command {
+
+    pub fn new(name: String, function: Procedure, description: String, arguments: Vec<ArgumentDef>) -> Self {
+        Command {
+            name,
+            function,
+            description,
+            arguments,
+        }
+    }
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
 }
 
+impl PartialEq for Command {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
 
-pub static COMMAND_SMOB_TAG: LazyLock<SmobTag<Command>> = LazyLock::new(||{
-    SmobTag::register("Command")
-});
+impl Eq for Command {}
 
-impl SmobData for Command {
-    fn print(&self) -> String {
-        let mut output = format!("#<Command {} ", self.name);
 
-        for (i, arg) in self.arguments.iter().enumerate() {
-            match arg {
-                ArgumentDef::Text => {
-                    output.push_str("text");
-                }
-                ArgumentDef::Number => {
-                    output.push_str("number");
-                }
-                ArgumentDef::Path => {
-                    output.push_str("path");
-                }
-                ArgumentDef::Variable(x) => {
-                    let out = match x.as_ref() {
-                        ArgumentDef::Text => "variable:text",
-                        ArgumentDef::Number => "variable:number",
-                        ArgumentDef::Path => "variable:path",
-                        _ => unreachable!("invalid variable arg")
-                    };
-                    output.push_str(out);
-                }
-            }
-            if i + 1 < self.arguments.len() {
-                output.push_str(" ");
+impl SchemeCompatible for Command {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&Command")
+    }
+}
+
+#[bridge(name = "=", lib = "(koru-command)")]
+pub fn equal_command(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    if let Some((first, rest)) = args.split_first() {
+        let first: Gc<Command> = first.clone().try_into_rust_type()?;
+        for next in rest {
+            let next: Gc<Command> = next.clone().try_into_rust_type()?;
+            if first != next {
+                return Ok(vec![Value::from(false)]);
             }
         }
-        output.push_str(">");
-        output
+    }
+    Ok(vec![Value::from(true)])
+}
+
+#[bridge(name = "command-apply", lib = "(koru-command)")]
+pub async fn command_apply(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    if let Some((first, rest)) = args.split_first() {
+        let command: Gc<Command> = first.clone().try_into_rust_type()?;
+        let function = command.read().function.clone();
+        let _ = function.call(rest).await?;
+    }
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-name", lib = "(koru-command)")]
+pub fn command_name(command: &Value) -> Result<Vec<Value>, Condition> {
+    let command: Gc<Command> = command.clone().try_into_rust_type()?;
+
+    Ok(vec![Value::from(command.read().name.clone())])
+}
+
+#[bridge(name = "command-description", lib = "(koru-command)")]
+pub fn command_description(command: &Value) -> Result<Vec<Value>, Condition> {
+    let command: Gc<Command> = command.clone().try_into_rust_type()?;
+
+    Ok(vec![Value::from(command.read().description.clone())])
+}
+
+#[bridge(name = "command-create", lib = "(koru-command)")]
+pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((first, rest)) = args.split_first() else {
+        return Err(Condition::type_error("String", "invalid"));
+    };
+    let name: String = first.clone().try_into()?;
+    let Some((first, rest)) = rest.split_first() else {
+        return Err(Condition::type_error("String", "invalid"));
+    };
+    let description: String = first.clone().try_into()?;
+    let Some((first, rest)) = rest.split_first() else {
+        return Err(Condition::type_error("Procedure", "invalid"));
+    };
+    let function: Procedure = first.clone().try_into()?;
+
+    let mut arguments: Vec<ArgumentDef> = Vec::new();
+    for arg in rest {
+        let arg: String = arg.clone().try_into()?;
+        match ArgumentDef::try_from(arg.as_str()) {
+            Ok(x) => arguments.push(x),
+            Err(msg) => {
+                return Err(Condition::error(msg))
+            }
+        }
     }
 
-    fn heap_size(&self) -> usize {
-        let name_capacity = self.name.capacity();
-        let description_capacity = self.description.capacity();
-        let argument_capacity = self.arguments.capacity();
-
-        name_capacity + argument_capacity + description_capacity
-    }
-
-    fn eq(&self, other: SchemeObject) -> bool {
-        let Some(other) = other.cast_smob(COMMAND_SMOB_TAG.clone()) else {
-            return false;
-        };
-
-        self.name == other.borrow().name
-    }
-}
-
-extern "C" fn command_apply(command: SchemeValue, rest: SchemeValue) -> SchemeValue {
-    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("command-apply", 1, command);
-    };
-
-    command.borrow().function.call1(rest).into()
-}
-
-extern "C" fn command_name(command: SchemeValue) -> SchemeValue {
-    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("command-name", 1, command);
-    };
-
-    let out: SchemeObject = SchemeString::new(command.borrow().name.clone()).into();
-    out.into()
-}
-
-extern "C" fn command_description(command: SchemeValue) -> SchemeValue {
-    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("command-description", 1, command);
-    };
-
-    let out: SchemeObject = SchemeString::new(command.borrow().description.clone()).into();
-    out.into()
-}
-
-extern "C" fn command_arguments_add(command: SchemeValue, rest: SchemeValue) -> SchemeValue {
-    let Some(command) = SchemeObject::from(command).cast_smob(COMMAND_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("command-add-arguments", 1, command);
-    };
-    let Some(list) = SchemeObject::from(rest).cast_list() else {
-        guile_wrong_type_arg!("command-add-arguments", 2, rest);
-    };
-
-    for arg in list.iter() {
-        let Some(symbol) = arg.cast_symbol() else {
-            guile_misc_error!("command-add-arguments", "expected a symbol");
-        };
-        let Ok(arg_def) = ArgumentDef::try_from(symbol.to_string()) else {
-            guile_misc_error!(
-                "command-add-arguments", 
-                "expected one of 'text, 'number, 'path, 'variable:text, 'variable:number', or 'variable:path'"
-            );
-        };
-        command.borrow_mut().arguments.push(arg_def);
-    }
-
-    SchemeValue::undefined()
-}
-
-extern "C" fn command_create(name: SchemeValue, description: SchemeValue, function: SchemeValue) -> SchemeValue {
-    let Some(name) = SchemeObject::from(name).cast_string() else {
-        guile_wrong_type_arg!("command-create", 1, name);
-    };
-    let Some(description) = SchemeObject::from(description).cast_string() else {
-        guile_wrong_type_arg!("command-create", 2, description);
-    };
-    let Some(function) = SchemeObject::from(function).cast_procedure() else {
-        guile_wrong_type_arg!("command-create", 3, function);
-    };
-
-    let name = name.to_string();
-    let description = description.to_string();
-
-    let command = Command {
-        name,
-        description,
-        function,
-        arguments: Vec::new(),
-    };
-
-    let smob = COMMAND_SMOB_TAG.make(command);
-
-    <SchemeSmob<_> as Into<SchemeObject>>::into(smob).into()
-}
-
-
-pub fn koru_command_module() {
-    Guile::define_fn("command-create", 3, 0, false,
-                     command_create as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("command-apply", 1, 0, true,
-                     command_apply as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("command-name", 1, 0, false,
-                     command_name as extern "C" fn(SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("command-description", 1, 0, false,
-                     command_description as extern "C" fn(SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("command-add-arguments", 1, 0, true,
-                     command_arguments_add as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
-    );
-
-    let mut module = Module::new("koru-command", Box::new(|_: &mut ()| {}));
-    module.add_export("command-create");
-    module.add_export("command-apply");
-    module.add_export("command-name");
-    module.add_export("command-description");
-    module.add_export("command-add-arguments");
-    module.export();
-    module.define(&mut ());
+    let command = Command::new(name, function, description, arguments);
+    Ok(vec![Value::from(Record::from_rust_type(command))])
 }

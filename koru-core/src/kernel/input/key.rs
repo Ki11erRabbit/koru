@@ -1,10 +1,13 @@
-use std::fmt::format;
-use std::ops::BitAnd;
-use std::sync::{Arc, LazyLock};
+use scheme_rs::records::Record;
+use std::sync::{Arc};
 use bitflags::bitflags;
-use mlua::{Lua, UserData, UserDataMethods, Value};
-use guile_rs::scheme_object::{SchemeObject, SchemeSmob};
-use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, Module, SchemeValue, SmobData, SmobTag};
+use mlua::{Lua, UserData, UserDataMethods};
+use mlua::prelude::LuaResult;
+use scheme_rs::exceptions::Condition;
+use scheme_rs::gc::{OpaqueGcPtr, Trace};
+use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::registry::bridge;
+use scheme_rs::value::Value;
 
 bitflags! {
     #[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
@@ -13,6 +16,21 @@ bitflags! {
         const Control = 0b0000_0010;
         const Alt = 0b0000_0100;
         const Meta = 0b0000_1000;
+    }
+}
+
+unsafe impl Trace for ModifierKey {
+    unsafe fn visit_children(&self, _: &mut dyn FnMut(OpaqueGcPtr)) {
+        
+    }
+}
+
+impl SchemeCompatible for ModifierKey {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&ModifierKey")
     }
 }
 
@@ -47,7 +65,7 @@ impl std::fmt::Display for ModifierKey {
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Trace)]
 pub enum KeyValue {
     CharacterKey(char),
     ControlKey(ControlKey),
@@ -63,7 +81,7 @@ impl std::fmt::Display for KeyValue {
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Trace)]
 pub enum ControlKey {
     Enter,
     Tab,
@@ -172,11 +190,8 @@ impl std::fmt::Display for ControlKey {
     }
 }
 
-pub static KEY_PRESS_SMOB_TAG: LazyLock<SmobTag<KeyPress>> = LazyLock::new(|| {
-    SmobTag::register("KeyPress")
-});
 
-#[derive(Eq, PartialEq, Clone, Hash, Debug)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Trace)]
 pub struct KeyPress {
     pub key: KeyValue,
     pub modifiers: ModifierKey,
@@ -326,20 +341,12 @@ impl KeyPress {
 }
 
 
-impl SmobData for KeyPress {
-    fn print(&self) -> String {
-        format!("{}", self)
-    }
-
-    fn heap_size(&self) -> usize {
-        0
-    }
-
-    fn eq(&self, other: SchemeObject) -> bool {
-        let Some(other) = other.cast_smob(KEY_PRESS_SMOB_TAG.clone()) else {
-            return false
-        };
-        *self == *other.borrow()
+impl SchemeCompatible for KeyPress {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&KeyPress")
     }
 }
 
@@ -351,27 +358,17 @@ impl std::fmt::Display for KeyPress {
     }
 }
 
-extern "C" fn string_to_keypress(string: SchemeValue) -> SchemeValue {
-    let Some(string) = SchemeObject::from(string).cast_string() else {
-        guile_wrong_type_arg!("string->keypress", 1, string);
+#[bridge(name = "string->keypress", lib = "(key-press)")]
+pub fn string_to_keypress(string: &Value) -> Result<Vec<Value>, Condition> {
+    let string: String = string.clone().try_into()?;
+    let Some(keypress) = KeyPress::from_string(&string) else {
+        return Err(Condition::error(string.to_string()));
     };
-    let Some(press) = KeyPress::from_string(&string.to_string()) else {
-        guile_misc_error!("string->keypress", "invalid string for string->keypress");
-    };
-    let smob = KEY_PRESS_SMOB_TAG.make(press);
-    
-    <SchemeSmob<KeyPress> as Into<SchemeObject>>::into(smob).into()
+
+    Ok(vec![Value::from(Record::from_rust_type(keypress))])
 }
 
-pub fn guile_key_module() {
-    Guile::define_fn("string->keypress", 1, 0, false,
-                     string_to_keypress as extern "C" fn(SchemeValue) -> SchemeValue
-    );
-    let mut module: Module<()> = Module::new_default("key-press");
-    module.add_export("string->keypress");
-    module.export();
-    module.define_default();
-}
+
 
 impl UserData for KeyPress {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
@@ -429,7 +426,7 @@ pub fn key_module(lua: &Lua) -> mlua::Result<mlua::Table> {
             let table = lua.create_table()?;
             for (i, value) in vaargs.iter_mut().enumerate() {
                 match value {
-                    Value::String(string) => {
+                    mlua::Value::String(string) => {
                         let key_string = string.to_str()?.to_string();
                         let key = KeyPress::from_string(&key_string)
                             .ok_or(mlua::Error::external(String::from("invalid key string")))?;
@@ -438,7 +435,7 @@ pub fn key_module(lua: &Lua) -> mlua::Result<mlua::Table> {
                             lua.create_userdata(key)?
                         )?;
                     }
-                    Value::UserData(data) => {
+                    mlua::Value::UserData(data) => {
                         let data = data.take::<KeyPress>()?;
                         table.set(
                             i + 1,

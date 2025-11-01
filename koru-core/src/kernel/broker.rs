@@ -1,10 +1,9 @@
 use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
-use std::sync::LazyLock;
+use std::sync::{Arc};
+use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
 use tokio::sync::mpsc::{Receiver, Sender};
-use guile_rs::{guile_misc_error, guile_wrong_type_arg, Guile, SchemeValue, SmobData, SmobTag};
-use guile_rs::scheme_object::{SchemeObject, SchemeSmob};
 use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
 use crate::kernel::session::Session;
@@ -32,56 +31,11 @@ impl PartialEq for Message {
     }
 }
 
-pub static MESSAGE_SMOB_TAG: LazyLock<SmobTag<Message>> = LazyLock::new(|| {
-    SmobTag::register("Message")
-});
-
-impl SmobData for Message {
-    fn heap_size(&self) -> usize {
-        0
-    }
-}
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum MessageKind {
     General(GeneralMessage),
     Broker(BrokerMessage),
-}
-
-pub static MESSAGE_KIND_SMOB_TAG: LazyLock<SmobTag<MessageKind>> = LazyLock::new(|| {
-    SmobTag::register("MessageKind")
-});
-
-impl SmobData for MessageKind {
-    fn print(&self) -> String {
-        let kind = match self {
-            MessageKind::General(GeneralMessage::Command) => "General:Command",
-            MessageKind::General(GeneralMessage::Draw(_)) => "General:Draw",
-            MessageKind::General(GeneralMessage::FlushKeyBuffer) => "General:FlushKeyBuffer",
-            MessageKind::General(GeneralMessage::KeyEvent(_)) => "General:KeyEvent",
-            MessageKind::General(GeneralMessage::MouseEvent) => "General:MouseEvent",
-            MessageKind::General(GeneralMessage::SetColorDef(_)) => "General:SetColorDef",
-            MessageKind::General(GeneralMessage::SetUiAttrs(_)) => "General:SetUiAttrs",
-            MessageKind::General(GeneralMessage::UpdateMessageBar(_)) => "General:UpdateMessageBar",
-            MessageKind::Broker(BrokerMessage::Shutdown) => "Broker:Shutdown",
-            MessageKind::Broker(BrokerMessage::ConnectedToSession(_)) => "Broker:ConnectedToSession",
-            MessageKind::Broker(BrokerMessage::ConnectToSession) => "Broker:ConnectToSession",
-            MessageKind::Broker(BrokerMessage::CreateClient) => "Broker:CreateClient",
-            MessageKind::Broker(BrokerMessage::CreateClientResponse(_)) => "Broker:CreateClientResponse",
-        };
-        format!("#<MessageKind:{kind}>")
-    }
-
-    fn heap_size(&self) -> usize {
-        0
-    }
-
-    fn eq(&self, other: SchemeObject) -> bool {
-        let Some(other) = other.cast_smob(MESSAGE_KIND_SMOB_TAG.clone()) else {
-            return false;
-        };
-        *self == *other.borrow()
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -178,20 +132,6 @@ impl Clone for BrokerClient {
 }
 
 
-pub static BROKER_CLIENT_SMOB_TAG: LazyLock<SmobTag<BrokerClient>> = LazyLock::new(|| {
-    SmobTag::register("BrokerClient")
-});
-
-impl SmobData for BrokerClient {
-    fn print(&self) -> String {
-        format!("#<BrokerClient:{}>", self.client_id)
-    }
-    fn heap_size(&self) -> usize {
-        0
-    }
-}
-
-
 pub struct Broker {
     clients: Vec<Option<Sender<Message>>>,
     free_clients: VecDeque<usize>,
@@ -280,10 +220,4 @@ impl Broker {
         tokio::spawn(Session::run_session(session_client, message.source));
         self.send_response(message, response).await
     }
-}
-
-
-
-pub fn broker_module() {
-    
 }
