@@ -89,8 +89,6 @@ impl App {
     }
 
     fn update(&mut self, message: UiMessage) -> Task<UiMessage>{
-        println!("updating!!");
-        println!("{:#?}", message);
 
         match message {
             UiMessage::Nop => Task::none(),
@@ -180,7 +178,6 @@ impl App {
     fn handle_broker_message(&mut self, message: Message) -> Task<UiMessage> {
         match message.kind {
             MessageKind::Broker(BrokerMessage::ConnectedToSession(session_address)) => {
-                println!("connected to session");
                 self.session_address = Some(session_address);
                 let state = std::mem::replace(&mut self.initialization_state, AppInitializationState::Blank);
                 match state {
@@ -192,12 +189,10 @@ impl App {
                 Task::none()
             }
             MessageKind::General(GeneralMessage::Draw(styled_file)) => {
-                println!("draw");
                 self.text = styled_file;
                 Task::none()
             }
             MessageKind::General(GeneralMessage::UpdateMessageBar(message_bar)) => {
-                println!("update message bar");
                 self.message_bar = message_bar;
                 Task::none()
             }

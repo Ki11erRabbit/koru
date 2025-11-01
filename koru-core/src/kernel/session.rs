@@ -5,7 +5,7 @@ use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
-use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
+use mlua::{AnyUserData, Function, IntoLua, Lua, LuaNativeAsyncFn, ObjectLike, Table};
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::{Environment, Var};
 use scheme_rs::gc::{Gc, Trace};
@@ -43,7 +43,6 @@ pub struct Session {
     command_state: CommandState,
     key_buffer: KeyBuffer,
     keybinding: Keybinding<mlua::Function>,
-    focused_buffer: String,
 }
 
 impl Session {
@@ -78,7 +77,6 @@ impl Session {
             command_state: CommandState::None,
             key_buffer: KeyBuffer::new(),
             keybinding: Keybinding::new(),
-            focused_buffer: String::new(),
         }
     }
 
@@ -187,10 +185,7 @@ impl Session {
         };
 
         let major_mode = buffer.get_major_mode();
-        let text = buffer.get_handle().get_text().await;
-        let styled_file = StyledFile::from(text);
-        
-        //let major_mode = into_scheme_compatible(major_mode);
+        let styled_file = buffer.get_styled_text().await;
 
         let args = &[major_mode, Value::from(Record::from_rust_type(styled_file))];
 
@@ -240,23 +235,78 @@ impl Session {
                     self.key_buffer.clear();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Up), ..})), .. }) => {
-                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-up")).await.unwrap().unwrap();
+
+                    let function: Procedure = match move_cursor {
+                        Var::Global(value) => value.value().read().clone().try_into().unwrap(),
+                        Var::Local(_) => unimplemented!("fetching var from local"),
+                    };
+                    function.call(&[]).await.unwrap();
+                    
+                    let focused_buffer = {
+                        let state = SessionState::get_state();
+                        let guard = state.lock().await;
+                        guard.current_focused_buffer().unwrap().clone()
+                    };
+                    self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Down), ..})), .. }) => {
-                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-down")).await.unwrap().unwrap();
+
+                    let function: Procedure = match move_cursor {
+                        Var::Global(value) => value.value().read().clone().try_into().unwrap(),
+                        Var::Local(_) => unimplemented!("fetching var from local"),
+                    };
+                    function.call(&[]).await.unwrap();
+                    let focused_buffer = {
+                        let state = SessionState::get_state();
+                        let guard = state.lock().await;
+                        guard.current_focused_buffer().unwrap().clone()
+                    };
+                    self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Left), ..})), .. }) => {
-                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-left")).await.unwrap().unwrap();
+
+                    let function: Procedure = match move_cursor {
+                        Var::Global(value) => value.value().read().clone().try_into().unwrap(),
+                        Var::Local(_) => unimplemented!("fetching var from local"),
+                    };
+                    function.call(&[Value::from(false)]).await.unwrap();
+                    let focused_buffer = {
+                        let state = SessionState::get_state();
+                        let guard = state.lock().await;
+                        guard.current_focused_buffer().unwrap().clone()
+                    };
+                    self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Right), ..})), .. }) => {
-                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-right")).await.unwrap().unwrap();
+
+                    let function: Procedure = match move_cursor {
+                        Var::Global(value) => value.value().read().clone().try_into().unwrap(),
+                        Var::Local(_) => unimplemented!("fetching var from local"),
+                    };
+                    function.call(&[Value::from(false)]).await.unwrap();
+                    let focused_buffer = {
+                        let state = SessionState::get_state();
+                        let guard = state.lock().await;
+                        guard.current_focused_buffer().unwrap().clone()
+                    };
+                    self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     println!("j press");
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
                     
                     let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
-                    self.focused_buffer = buffer_name.to_string();
+                    let focused_buffer = {
+                        let state = SessionState::get_state();
+                        let mut guard = state.lock().await;
+                        guard.set_current_buffer(buffer_name.to_string());
+                        guard.current_focused_buffer().unwrap().clone()
+                    };
+                    self.send_draw(&focused_buffer).await.unwrap();
                     match self.send_draw(FILE_NAME).await {
                         Ok(_) => {}
                         Err(e) => {
@@ -318,11 +368,8 @@ impl Session {
     }
 
     pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
-        println!("run_session");
         let lua = Lua::new();
-        println!("created lua");
         let mut session = Session::new(lua, broker_client).await;
-        println!("session created");
 
         session.run(client_id).await;
     }
