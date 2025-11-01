@@ -12,7 +12,10 @@ mod scheme_api;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{LazyLock, OnceLock};
 use futures::future::BoxFuture;
+use scheme_rs::runtime::Runtime;
+use tokio::sync::Mutex;
 use crate::kernel::broker::Broker;
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse, ClientConnector};
 
@@ -34,6 +37,10 @@ impl ChannelPair {
 unsafe impl Send for ChannelPair {}
 unsafe impl Sync for ChannelPair {}
 
+
+pub static SCHEME_RUNTIME: LazyLock<Mutex<Option<Runtime>>> = LazyLock::new(|| {
+    Mutex::new(Some(Runtime::new()))
+});
 
 /// Starts the Kernel's Runtime
 ///
@@ -81,6 +88,7 @@ where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingRespon
     let channel_pair = ChannelPair::new(send_response, recv_message);
 
     let runtime = start_runtime(channel_pair);
+    let _ = SCHEME_RUNTIME.blocking_lock();
 
     func(send_message, recv_response, Box::pin(runtime))
 }
@@ -123,6 +131,7 @@ where F: AsyncFnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingR
     let (send_response, recv_response) = std::sync::mpsc::channel();
 
     let channel_pair = ChannelPair::new(send_response, recv_message);
+    let _ = SCHEME_RUNTIME.blocking_lock();
 
     let runtime = async move {
         start_runtime(channel_pair).await;

@@ -7,99 +7,25 @@ use std::path::Path;
 use std::sync::{Arc, LazyLock, Mutex};
 use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
 use scheme_rs::ast::DefinitionBody;
-use scheme_rs::env::Environment;
+use scheme_rs::env::{Environment, Var};
 use scheme_rs::gc::{Gc, Trace};
-use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::num::Number;
+use scheme_rs::proc::Procedure;
+use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
-use scheme_rs::syntax::{Span, Syntax};
+use scheme_rs::symbols::Symbol;
+use scheme_rs::syntax::{Identifier, Span, Syntax};
+use scheme_rs::value::Value;
 use crate::attr_set::AttrSet;
+use crate::kernel;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::{lua_api};
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
+use crate::kernel::scheme_api::session::SessionState;
 use crate::kernel::session::buffer::{Buffer, BufferData};
 use crate::keybinding::Keybinding;
-
-static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
-    Mutex::new(SessionIdManager::new())
-});
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Trace)]
-pub struct SessionId(usize);
-
-impl SessionId {
-    pub fn new(id: usize) -> SessionId {
-        SessionId(id)
-    }
-    pub fn get(&self) -> usize {
-        self.0
-    }
-}
-
-impl SchemeCompatible for SessionId {
-    fn rtd() -> Arc<RecordTypeDescriptor>
-    where
-        Self: Sized
-    {
-        rtd!(name: "&SessionId")
-    }
-}
-
-pub struct SessionIdManager {
-    next_session_id: usize,
-    free_ids: VecDeque<usize>,
-    active_sessions: HashSet<usize>,
-}
-
-impl SessionIdManager {
-    fn new() -> Self {
-        SessionIdManager {
-            next_session_id: 0,
-            free_ids: VecDeque::new(),
-            active_sessions: HashSet::new(),
-        }
-    }
-    
-    fn next_session_id(&mut self) -> SessionId {
-        if self.next_session_id == usize::MAX {
-            match self.free_ids.pop_front() {
-                Some(id) => {
-                    self.active_sessions.insert(id);
-                    SessionId(id)
-                },
-                None => {
-                    panic!("SessionIdManager free ids exhausted");
-                }
-            }
-        } else {
-            let id = self.next_session_id;
-            self.next_session_id += 1;
-            self.active_sessions.insert(id);
-            SessionId(id)
-        }
-    }
-    
-    fn remove_session_id(&mut self, session_id: SessionId) {
-        self.active_sessions.remove(&session_id.0);
-        self.free_ids.push_back(session_id.0);
-    }
-    
-    pub fn get_new_id() -> SessionId {
-        let Ok(mut id_manager) = ID_MANAGER.lock() else {
-            panic!("SessionIdManager lock poisoned");
-        };
-        
-        id_manager.next_session_id()
-    }
-    
-    pub fn free_id(session_id: SessionId) {
-        let Ok(mut id_manager) = ID_MANAGER.lock() else {
-            panic!("SessionIdManager lock poisoned");
-        };
-        id_manager.remove_session_id(session_id);
-    }
-    
-}
+use crate::styled_text::StyledFile;
 
 pub enum CommandState {
     None,
@@ -108,14 +34,15 @@ pub enum CommandState {
 
 
 pub struct Session {
-    session_id: SessionId,
     lua: Lua,
+    runtime: Runtime,
+    env: Environment,
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
     command_state: CommandState,
     key_buffer: KeyBuffer,
     keybinding: Keybinding<mlua::Function>,
-    focused_buffer: mlua::Value,
+    focused_buffer: String,
 }
 
 impl Session {
@@ -123,12 +50,16 @@ impl Session {
         lua: Lua,
         broker_client: BrokerClient,
     ) -> Self {
-        let id = SessionIdManager::get_new_id();
-        let runtime = Runtime::new();
-        let prog = Library::new_program(&runtime, &Path::new("scheme/koru.scm"));
-        let env = Environment::Top(prog);
+        println!("new session");
+        let runtime = kernel::SCHEME_RUNTIME.lock().await.take().unwrap();
 
-        let sexprs = Syntax::from_str(include_str!("../../../scheme/koru.scm"), Some("koru.scm")).unwrap();
+        let prog = Library::new_program(&runtime, &Path::new("scheme/text-edit-mode.scm"));
+        println!("created library");
+        let env = Environment::Top(prog);
+        println!("created environment");
+
+        let sexprs = Syntax::from_str(include_str!("../../../scheme/text-edit-mode.scm"), Some("text-edit-mode.scm")).unwrap();
+        println!("created sexprs");
         let span = Span::default();
         let base = DefinitionBody::parse_lib_body(
             &runtime,
@@ -136,180 +67,43 @@ impl Session {
             &env,
             &span,
         ).await.unwrap();
+        println!("created base");
 
         let compiled = base.compile_top_level();
+        println!("created compiled base");
         let proc = runtime.compile_expr(compiled).await;
 
+        println!("running toplevel");
         proc.call(&[]).await.unwrap();
 
-        Self { 
-            session_id: id,
+        Self {
             lua,
+            runtime,
+            env,
             broker_client,
             client_ids: vec![],
             command_state: CommandState::None,
             key_buffer: KeyBuffer::new(),
             keybinding: Keybinding::new(),
-            focused_buffer: mlua::Value::Nil,
+            focused_buffer: String::new(),
         }
     }
 
-    fn set_globals(&self) -> Result<(), Box<dyn Error>> {
-        let session_id = self.session_id.0;
-        self.lua.globals().set(
-            "get_session_id",
-            self.lua.create_function(move |_, ()| {
-                Ok(session_id)
-            })?,
-        )?;
-        
-        self.lua.globals().set(
-            "__open_buffers",
-            self.lua.create_table()?
-        )?;
-
-        self.lua.globals().set(
-            "__major_mode",
-            self.lua.create_table()?
-        )?;
-
-        self.lua.globals().set(
-            "set_major_mode",
-            self.lua.create_function(|lua, (file_index, mode): (mlua::Value, mlua::Value)| {
-                lua.globals().get::<Table>("__major_mode")?.set(file_index, mode)
-            })?
-        )?;
-
-        self.lua.globals().set(
-            "__file_open_hooks",
-            self.lua.create_table()?
-        )?;
-
-        self.lua.globals().set(
-            "add_file_open_hook",
-            self.lua.create_function(|lua, (hook_name, mode): (mlua::String, Function)| {
-                lua.globals().get::<Table>("__file_open_hooks")?.set(hook_name, mode)
-            })?
-        )?;
-
-        self.lua.globals().set(
-            "__minor_modes",
-            self.lua.create_table()?
-        )?;
-
-        self.lua.globals().set(
-            "add_minor_mode",
-            self.lua.create_function(|lua, (file_index, mode_name, mode): (mlua::Value, mlua::String, mlua::Value)| {
-                if let Ok(file_modes) = lua.globals().get::<Table>("__minor_modes")?.get::<Table>(file_index.clone()) {
-                    file_modes.set(mode_name, mode)?;
-                } else {
-                    let table = lua.create_table()?;
-                    table.set(mode_name, mode)?;
-                    lua.globals().get::<Table>("__minor_modes")?.set(file_index, table)?;
-                }
-                Ok(())
-            })?
-        )?;
-        
-        self.create_buffer("**Warnings**", Buffer::new_log())?;
-        
-        self.lua.globals().set(
-            "write_warning",
-            self.lua.create_function(|lua, string: mlua::String| {
-                let buffer = lua.globals().get::<Table>("__open_buffers")?
-                    .get::<AnyUserData>("**Warnings**")?;
-                let mut buffer = buffer.borrow_mut::<Buffer>()?;
-                
-                let string = string.to_str()?;
-                
-                buffer.manipulate_data(|data| {
-                    match data {
-                        BufferData::Log(log) => {
-                            log.push(string.to_string());
-                        }
-                        _ => unreachable!("We should only have a log buffer here"),
-                    }
-                });
-                
-                Ok(())
-            })?
-        )?;
-        
-        self.create_buffer("**Errors**", Buffer::new_log())?;
-
-        self.lua.globals().set(
-            "write_error",
-            self.lua.create_function(|lua, string: mlua::String| {
-                let buffer = lua.globals().get::<Table>("__open_buffers")?
-                    .get::<AnyUserData>("**Errors**")?;
-                let mut buffer = buffer.borrow_mut::<Buffer>()?;
-
-                let string = string.to_str()?;
-
-                buffer.manipulate_data(|data| {
-                    match data {
-                        BufferData::Log(log) => {
-                            log.push(string.to_string());
-                        }
-                        _ => unreachable!("We should only have a log buffer here"),
-                    }
-                });
-
-                Ok(())
-            })?
-        )?;
-        
-        let package = self.lua.globals().get::<Table>("package").unwrap();
-        let preload = package.get::<Table>("preload").unwrap();
-
-        preload.set(
-            "Koru",
-            self.lua.create_function(|lua, _:()| {
-                lua_api::kernel_mod(&lua)
-            })?
-        )?;
-
-        self.lua.load(include_str!("../../../lua/textviewmode.lua")).exec()?;
-        self.lua.load(include_str!("../../../lua/logviewmode.lua")).exec()?;
+    async fn set_globals(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
     
-    fn write_warning(&self, msg: String) -> Result<(), Box<dyn Error>> {
-        let buffer = self.lua.globals().get::<Table>("__open_buffers")?
-            .get::<AnyUserData>("**Warnings**")?;
-        let mut buffer = buffer.borrow_mut::<Buffer>()?;
-
-        buffer.manipulate_data(move |data| {
-            match data {
-                BufferData::Log(log) => {
-                    log.push(msg);
-                }
-                _ => unreachable!("We should only have a log buffer here"),
-            }
-        });
-        
-        Ok(())
+    fn write_warning(&self, _msg: String) -> Result<(), Box<dyn Error>> {
+        todo!()
     }
     
-    fn write_error(&self, msg: String) -> Result<(), Box<dyn Error>> {
-        let buffer = self.lua.globals().get::<Table>("__open_buffers")?
-            .get::<AnyUserData>("**Errors**")?;
-        let mut buffer = buffer.borrow_mut::<Buffer>()?;
-
-        buffer.manipulate_data(|data| {
-            match data {
-                BufferData::Log(log) => {
-                    log.push(msg);
-                }
-                _ => unreachable!("We should only have a log buffer here"),
-            }
-        });
-        
-        Ok(())
+    fn write_error(&self, _msg: String) -> Result<(), Box<dyn Error>> {
+        todo!()
     }
     
     async fn new_client_connection(&mut self, id: usize) -> Result<(), Box<dyn Error>> {
-        let ui_attrs = self.lua.globals().get::<Table>("__ui_attrs")?;
+        //todo!();
+        /*let ui_attrs = self.lua.globals().get::<Table>("__ui_attrs")?;
         let mut values = Vec::new();
         for pair in ui_attrs.pairs() {
             let (key, value) = pair?;
@@ -325,20 +119,21 @@ impl Session {
         }
         self.broker_client.send_async(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id).await?;
         
-        self.client_ids.push(id);
+        self.client_ids.push(id);*/
         
         Ok(())
     }
     
     fn create_buffer(&self, name: &str, buffer: Buffer) -> Result<mlua::Value, Box<dyn Error>> {
-        let open_buffers = self.lua.globals().get::<Table>("__open_buffers")?;
+        todo!()
+        /*let open_buffers = self.lua.globals().get::<Table>("__open_buffers")?;
         
         open_buffers.set(
             name,
             buffer,
         )?;
         
-        Ok(name.into_lua(&self.lua)?)
+        Ok(name.into_lua(&self.lua)?)*/
     }
     
     async fn notify_clients(&mut self, msg: MessageKind) {
@@ -356,8 +151,18 @@ impl Session {
         }
     }
 
-    async fn file_opened_hook(&self, file_name: mlua::Value, file_ext: &str) {
-        let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
+    async fn file_opened_hook(&self, file_name: &str, file_ext: &str) {
+
+        let hooks = {
+            let state = SessionState::get_state();
+            state.lock().await.get_hooks().clone()
+        };
+        let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
+
+        hooks.lock().await.execute_hook("file-open", args).await.unwrap();
+
+
+        /*let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
         for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {
             let (_, function) = hook.unwrap();
             match function.call::<()>((file_name.clone(), file_ext.to_string())) {
@@ -366,38 +171,48 @@ impl Session {
                     self.write_warning(e.to_string()).unwrap()
                 }
             }
-        }
+        }*/
     }
 
-    async fn send_draw(&mut self, buffer_name: mlua::Value) -> Result<(), Box<dyn Error>> {
-        
-        if buffer_name == mlua::Value::Nil {
-            return Ok(());
-        }
-        
-        let open_buffers = self.lua.globals().get::<Table>("__open_buffers")?;
-        
-        let buffer = open_buffers.get::<AnyUserData>(buffer_name.clone())?;
-        let buffer = buffer.borrow::<Buffer>()?;
-        
-        let styled_file = buffer.styled_file().await;
+    async fn send_draw(&mut self, buffer_name: &str) -> Result<(), Box<dyn Error>> {
+        println!("sending draw");
 
-        let major_mode = self.lua.globals().get::<Table>("__major_mode")?
-            .get::<Table>(buffer_name)?;
+        let buffer = {
+            let state = SessionState::get_state();
+            let mut guard = state.lock().await;
+            guard.get_buffers().get(buffer_name).unwrap().clone()
+        };
 
+
+
+        let modify_line: Var = self.env.fetch_var(&Identifier::new("major-mode-modify-line")).await.unwrap().unwrap();
+
+        let function: Procedure = match modify_line {
+            Var::Global(value) => value.value().read().clone().try_into().unwrap(),
+            Var::Local(_) => unimplemented!("fetching var from local"),
+        };
+
+        let text = buffer.get_handle().get_text().await;
+        let styled_file = StyledFile::from(text);
         let line_count = styled_file.line_count();
 
-        let styled_file: AnyUserData = major_mode.call_method("modify_line", (styled_file, line_count as i64))?;
-        let styled_file = styled_file.take()?;
+        let args = &[Value::from(Record::from_rust_type(styled_file)), Value::from(Number::FixedInteger(line_count as i64))];
+
+        let result = function.call(args).await?;
+
+        let tweaked_file: Gc<StyledFile> = result[0].clone().try_into_rust_type().unwrap();
+        let mut styled_file = StyledFile::new();
+
+        std::mem::swap(&mut styled_file, &mut tweaked_file.write());
 
         self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
         Ok(())
     }
 
     
-    pub async fn run(&mut self, session_code: &str, client_id: usize) {
+    pub async fn run(&mut self, client_id: usize) {
 
-        match self.set_globals() {
+        match self.set_globals().await {
             Ok(_) => {}
             Err(e) => {
                 eprintln!("{}", e);
@@ -405,12 +220,12 @@ impl Session {
             }
         }
         
-        match self.lua.load(session_code).exec_async().await {
+        /*match self.lua.load(session_code).exec_async().await {
             Ok(_) => {}
             Err(e) => {
                 self.write_error(e.to_string()).unwrap();
             }
-        }
+        }*/
         match self.new_client_connection(client_id).await {
             Ok(_) => {}
             Err(e) => {
@@ -420,47 +235,23 @@ impl Session {
         }
         
         loop {
-            match self.broker_client.recv_async().await {
+            println!("looping");
+            let message = self.broker_client.recv_async().await;
+            match message {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
                     self.key_buffer.clear();
                 }
-                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('w'), ..})), .. }) => {
-                    self.send_draw("**Warnings**".into_lua(&self.lua).unwrap()).await.unwrap();
-                }
-                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('e'), ..})), .. }) => {
-                    self.send_draw("**Errors**".into_lua(&self.lua).unwrap()).await.unwrap();
-                }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Up), ..})), .. }) => {
-                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
-
-                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
-                    
-                    let _: () = buffer.call_async_method("cursor_up", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Down), ..})), .. }) => {
-                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
-
-                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
-
-                    let _: () = buffer.call_async_method("cursor_down", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Left), ..})), .. }) => {
-                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
-
-                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
-
-                    let _: () = buffer.call_async_method("cursor_left", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Right), ..})), .. }) => {
-                    let open_buffers = self.lua.globals().get::<Table>("__open_buffers").unwrap();
-
-                    let buffer = open_buffers.get::<AnyUserData>(self.focused_buffer.clone()).unwrap();
-
-                    let _: () = buffer.call_async_method("cursor_right", ()).await.unwrap();
-                    self.send_draw(self.focused_buffer.clone()).await.unwrap();
+                    self.send_draw(&self.focused_buffer.clone()).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
@@ -470,11 +261,11 @@ impl Session {
                     let buffer = Buffer::new_open_file(file);
                     
                     let buffer_name = self.create_buffer(FILE_NAME, buffer).unwrap();
-                    self.focused_buffer = buffer_name.clone();
+                    self.focused_buffer = FILE_NAME.to_string();
                     
                     
-                    self.file_opened_hook(buffer_name.clone(), "rs").await;
-                    match self.send_draw(buffer_name).await {
+                    self.file_opened_hook(FILE_NAME, "rs").await;
+                    match self.send_draw(FILE_NAME).await {
                         Ok(_) => {}
                         Err(e) => {
                             self.write_error(e.to_string()).unwrap();
@@ -487,7 +278,7 @@ impl Session {
                             match key {
                                 KeyValue::CharacterKey(';') => {
                                     self.command_state = CommandState::EnteringCommand(String::from(": "));
-                                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(String::from(": "))));
+                                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(String::from(": ")))).await;
                                 }
                                 _ => {}
                             }
@@ -515,13 +306,13 @@ impl Session {
                                 }
                             };
                             if let Some(msg) = msg {
-                                self.notify_clients(msg);
+                                self.notify_clients(msg).await;
                             }
                         }
                     }
                 }
                 Some(message) => {
-                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(format!("{:?}", message))));
+                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(format!("{:?}", message)))).await;
                     //println!("Received message: {:?}", message);
                 }
                 _ => {}
@@ -529,28 +320,21 @@ impl Session {
         }
         // TODO: add a way to send error to the frontend
     }
+    
+    fn get_runtime() -> Runtime {
+        Runtime::new()
+    }
 
     pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
+        println!("run_session");
         let lua = Lua::new();
+        println!("created lua");
         let mut session = Session::new(lua, broker_client).await;
+        println!("session created");
 
-        session.run("\
-local koru = require \"Koru\"\
-local command = require \"Koru.Command\"\
-koru.hello()
-local command = command('hello', 'prints hello', function()
-    print('hello')
-end, {})
-        ", client_id).await;
+        session.run(client_id).await;
     }
 }
 
 unsafe impl Send for Session {}
 unsafe impl Sync for Session {}
-
-
-impl Drop for Session {
-    fn drop(&mut self) {
-        SessionIdManager::free_id(self.session_id);
-    }
-}

@@ -8,7 +8,6 @@ use scheme_rs::value::Value;
 use tokio::sync::Mutex;
 use crate::kernel::buffer::BufferHandle;
 use crate::kernel::scheme_api::major_mode::MajorMode;
-use crate::kernel::session::SessionId;
 
 pub struct Hooks {
     hooks: HashMap<String, HashMap<String, Procedure>>,
@@ -54,6 +53,7 @@ impl Hooks {
 }
 
 
+#[derive(Clone)]
 pub struct Buffer {
     major_mode: Gc<MajorMode>,
     handle: BufferHandle,
@@ -73,6 +73,9 @@ impl Buffer {
 
     pub fn get_handle(&self) -> BufferHandle {
         self.handle.clone()
+    }
+    pub fn get_major_mode(&self) -> Gc<MajorMode> {
+        self.major_mode.clone()
     }
 }
 

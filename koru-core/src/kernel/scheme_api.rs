@@ -1,4 +1,4 @@
-mod major_mode;
-mod command;
-mod session;
+pub mod major_mode;
+pub mod command;
+pub mod session;
 
