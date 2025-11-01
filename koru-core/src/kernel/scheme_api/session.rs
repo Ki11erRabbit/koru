@@ -84,7 +84,7 @@ pub struct SessionState {
 impl SessionState {
     pub fn new() -> Self {
         let mut hooks = Hooks::new();
-        hooks.add_new_hook_kind(String::from("file-open-hook"));
+        hooks.add_new_hook_kind(String::from("file-open"));
 
         let hooks = Arc::new(Mutex::new(hooks));
 
@@ -101,14 +101,20 @@ impl SessionState {
     pub fn get_hooks(&self) -> &Arc<Mutex<Hooks>> {
         &self.hooks
     }
+    pub fn get_state() -> Arc<Mutex<SessionState>> {
+        STATE.clone()
+    }
 }
 
 
+
+
+static STATE: LazyLock<Arc<Mutex<SessionState>>> = LazyLock::new(|| Arc::new(Mutex::new(SessionState::new())));
+
+/*
 pub struct SessionStates {
     states: HashMap<SessionId, Arc<Mutex<SessionState>>>,
 }
-
-static STATES: LazyLock<Mutex<SessionStates>> = LazyLock::new(|| Mutex::new(SessionStates::new()));
 
 impl SessionStates {
     fn new() -> Self {
@@ -140,25 +146,18 @@ impl SessionStates {
     pub async fn get_state(session_id: SessionId) -> Option<Arc<Mutex<SessionState>>> {
         STATES.lock().await.get_state_internal(session_id).cloned()
     }
-}
+}*/
 
 
 
 #[bridge(name = "create-hook", lib = "(koru-session)")]
 pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((session_id, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+    let Some((hook_name, _)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(1, args.len()))
     };
-    let Some((hook_name, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
-    };
-    let session_id: Gc<SessionId> = session_id.try_into_rust_type()?;
     let hook_name: String = hook_name.clone().try_into()?;
-    let session_id = *session_id.read();
 
-    let Some(state) = SessionStates::get_state(session_id).await else {
-        panic!("Session state does not exist");
-    };
+    let state = SessionState::get_state();
 
     let hooks = state.lock().await.hooks.clone();
     hooks.lock().await.add_new_hook_kind(hook_name);
@@ -168,19 +167,12 @@ pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "destroy-hook", lib = "(koru-session)")]
 pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((session_id, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+    let Some((hook_name, _)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(1, args.len()))
     };
-    let Some((hook_name, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
-    };
-    let session_id: Gc<SessionId> = session_id.try_into_rust_type()?;
-    let session_id = *session_id.read();
     let hook_name: String = hook_name.clone().try_into()?;
 
-    let Some(state) = SessionStates::get_state(session_id).await else {
-        panic!("Session state does not exist");
-    };
+    let state = SessionState::get_state();
 
     let hooks = state.lock().await.hooks.clone();
     hooks.lock().await.remove_hook_kind(&hook_name);
@@ -190,27 +182,20 @@ pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "add-hook", lib = "(koru-session)")]
 pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((session_id, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()))
-    };
-    let Some((hook_name_kind, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()))
+    let Some((hook_name_kind, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()))
     };
     let Some((hook_name, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()))
+        return Err(Condition::wrong_num_of_args(3, args.len()))
     };
     let Some((procedure, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()))
+        return Err(Condition::wrong_num_of_args(3, args.len()))
     };
-    let session_id: Gc<SessionId> = session_id.try_into_rust_type()?;
-    let session_id = *session_id.read();
     let hook_name_kind: String = hook_name_kind.clone().try_into()?;
     let hook_name: String = hook_name.clone().try_into()?;
     let hook: Procedure = procedure.clone().try_into()?;
 
-    let Some(state) = SessionStates::get_state(session_id).await else {
-        panic!("Session state does not exist");
-    };
+    let state = SessionState::get_state();
 
     let hooks = state.lock().await.hooks.clone();
     hooks.lock().await.add_new_hook(&hook_name_kind, hook_name, hook);
@@ -220,23 +205,16 @@ pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "remove-hook", lib = "(koru-session)")]
 pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((session_id, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
-    };
-    let Some((hook_name_kind, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+    let Some((hook_name_kind, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let Some((hook_name, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Condition::wrong_num_of_args(2, args.len()))
     };
-    let session_id: Gc<SessionId> = session_id.try_into_rust_type()?;
-    let session_id = *session_id.read();
     let hook_name_kind: String = hook_name_kind.clone().try_into()?;
     let hook_name: String = hook_name.clone().try_into()?;
 
-    let Some(state) = SessionStates::get_state(session_id).await else {
-        panic!("Session state does not exist");
-    };
+    let state = SessionState::get_state();
 
     let hooks = state.lock().await.hooks.clone();
     hooks.lock().await.remove_hook(&hook_name_kind, &hook_name);
@@ -245,19 +223,12 @@ pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "emit-hook", lib = "(koru-session)")]
 pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((session_id, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+    let Some((hook_name_kind, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(1, args.len()))
     };
-    let Some((hook_name_kind, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
-    };
-    let session_id: Gc<SessionId> = session_id.try_into_rust_type()?;
-    let session_id = *session_id.read();
     let hook_name: String = hook_name_kind.clone().try_into()?;
 
-    let Some(state) = SessionStates::get_state(session_id).await else {
-        panic!("Session state does not exist");
-    };
+    let state = SessionState::get_state();
 
     let hooks = state.lock().await.hooks.clone();
     let hooks = hooks.lock().await;
@@ -267,23 +238,16 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "major-mode-set!", lib = "(koru-session)")]
 pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((session_id, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
-    };
-    let Some((buffer_name, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+    let Some((buffer_name, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let Some((major_mode, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Condition::wrong_num_of_args(2, args.len()))
     };
-    let session_id: Gc<SessionId> = session_id.try_into_rust_type()?;
-    let session_id = *session_id.read();
     let buffer_name: String = buffer_name.clone().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.try_into_rust_type()?;
 
-    let Some(state) = SessionStates::get_state(session_id).await else {
-        panic!("Session state does not exist");
-    };
+    let state = SessionState::get_state();
     let mut guard = state.lock().await;
     let Some(buffer) = guard.buffers.get_mut(&buffer_name) else {
         return Err(Condition::error(String::from("Buffer not found")));
