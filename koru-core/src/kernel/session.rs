@@ -4,10 +4,12 @@ mod buffer;
 use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::path::Path;
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::Environment;
+use scheme_rs::gc::{Gc, Trace};
+use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
 use scheme_rs::syntax::{Span, Syntax};
@@ -22,7 +24,7 @@ static ID_MANAGER: LazyLock<Mutex<SessionIdManager>> = LazyLock::new(|| {
     Mutex::new(SessionIdManager::new())
 });
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Trace)]
 pub struct SessionId(usize);
 
 impl SessionId {
@@ -31,6 +33,15 @@ impl SessionId {
     }
     pub fn get(&self) -> usize {
         self.0
+    }
+}
+
+impl SchemeCompatible for SessionId {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&SessionId")
     }
 }
 
@@ -116,7 +127,7 @@ impl Session {
         let runtime = Runtime::new();
         let prog = Library::new_program(&runtime, &Path::new("scheme/koru.scm"));
         let env = Environment::Top(prog);
-        
+
         let sexprs = Syntax::from_str(include_str!("../../../scheme/koru.scm"), Some("koru.scm")).unwrap();
         let span = Span::default();
         let base = DefinitionBody::parse_lib_body(
@@ -125,12 +136,12 @@ impl Session {
             &env,
             &span,
         ).await.unwrap();
-        
+
         let compiled = base.compile_top_level();
         let proc = runtime.compile_expr(compiled).await;
-        
+
         proc.call(&[]).await.unwrap();
-        
+
         Self { 
             session_id: id,
             lua,

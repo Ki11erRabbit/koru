@@ -8,7 +8,7 @@ use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use crate::kernel::scheme_api::command::{Command};
-
+use crate::styled_text::StyledFile;
 
 #[derive(Clone, Debug, Trace)]
 pub struct MajorMode {
@@ -16,11 +16,11 @@ pub struct MajorMode {
     commands: Vec<Gc<Command>>,
     aliases: HashMap<String, usize>,
     data: Value,
-    modify_line: Procedure,
+    modify_line: Option<Procedure>,
 }
 
 impl MajorMode {
-    pub fn new(name: String, data: Value, modify_line: Procedure) -> Self {
+    pub fn new(name: String, data: Value, modify_line: Option<Procedure>) -> Self {
         MajorMode {
             name,
             commands: Vec::new(),
@@ -52,6 +52,12 @@ impl MajorMode {
     }
 }
 
+impl Default for MajorMode {
+    fn default() -> Self {
+        MajorMode::new(String::from("Bogus"), Value::from(false), None)
+    }
+}
+
 impl SchemeCompatible for MajorMode {
     fn rtd() -> Arc<RecordTypeDescriptor>
     where
@@ -77,7 +83,7 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
         Value::undefined()
     };
 
-    let major_mode = MajorMode::new(name, data, modify_line);
+    let major_mode = MajorMode::new(name, data, Some(modify_line));
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }
@@ -104,6 +110,37 @@ pub fn major_mode_register_command(args: &[Value]) -> Result<Vec<Value>, Conditi
     Ok(Vec::new())
 }
 
+#[bridge(name = "major-mode-modify-line", lib = "(major-mode)")]
+pub async fn modify_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let Some((styled_file, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
+
+    let mod_line = mode.read().modify_line.clone();
+
+    if let Some(mod_line) = mod_line {
+        mod_line.call(&[styled_file.clone()]).await?;
+        Ok(vec![styled_file.clone()])
+    } else {
+        Ok(vec![styled_file.clone()])
+    }
+}
+
+#[bridge(name = "modify-line-default", lib = "(major-mode)")]
+pub fn modify_line_default(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((file, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let Some((_total_lines, _rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+
+    Ok(vec![file.clone()])
+}
 
 
 /*pub extern "C" fn major_mode_modify_line(mode: SchemeValue, styled_file: SchemeValue, total_lines: SchemeValue) -> SchemeValue {
