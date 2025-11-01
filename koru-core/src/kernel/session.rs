@@ -1,9 +1,16 @@
+use scheme_rs::cps::Compile;
 mod buffer;
 
 use std::collections::{HashSet, VecDeque};
 use std::error::Error;
+use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
+use scheme_rs::ast::DefinitionBody;
+use scheme_rs::env::Environment;
+use scheme_rs::registry::Library;
+use scheme_rs::runtime::Runtime;
+use scheme_rs::syntax::{Span, Syntax};
 use crate::attr_set::AttrSet;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::{lua_api};
@@ -101,11 +108,29 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(
+    pub async fn new(
         lua: Lua,
         broker_client: BrokerClient,
     ) -> Self {
         let id = SessionIdManager::get_new_id();
+        let runtime = Runtime::new();
+        let prog = Library::new_program(&runtime, &Path::new("scheme/koru.scm"));
+        let env = Environment::Top(prog);
+        
+        let sexprs = Syntax::from_str(include_str!("../../../scheme/koru.scm"), Some("koru.scm")).unwrap();
+        let span = Span::default();
+        let base = DefinitionBody::parse_lib_body(
+            &runtime,
+            &sexprs,
+            &env,
+            &span,
+        ).await.unwrap();
+        
+        let compiled = base.compile_top_level();
+        let proc = runtime.compile_expr(compiled).await;
+        
+        proc.call(&[]).await.unwrap();
+        
         Self { 
             session_id: id,
             lua,
@@ -496,7 +521,7 @@ impl Session {
 
     pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
         let lua = Lua::new();
-        let mut session = Session::new(lua, broker_client);
+        let mut session = Session::new(lua, broker_client).await;
 
         session.run("\
 local koru = require \"Koru\"\
