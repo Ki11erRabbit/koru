@@ -175,6 +175,7 @@ impl Broker {
     
     pub async fn run_broker(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
+            println!("broker looping");
             let message = self.receiver.recv().await.unwrap();
             
             match message.kind {
@@ -182,6 +183,7 @@ impl Broker {
                     self.free_client(message.source);
                 }
                 MessageKind::General(_) => {
+                    println!("Received general message");
                     self.send(message).await?;
                 }
                 MessageKind::Broker(BrokerMessage::CreateClient) => {

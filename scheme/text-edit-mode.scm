@@ -2,12 +2,12 @@
 (import (major-mode))
 (import (koru-session))
 
-(define (modify-line file total-line)
+(define (modify-lines file total-lines)
   file)
 
 (define text-edit-mode (major-mode-create
                          "TextEdit"
-                         modify-line
+                         modify-lines
                          #t))
 
 (define (file-open-hook buffer-name file-ext)

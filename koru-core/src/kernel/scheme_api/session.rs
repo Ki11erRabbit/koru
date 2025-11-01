@@ -55,26 +55,26 @@ impl Hooks {
 
 #[derive(Clone)]
 pub struct Buffer {
-    major_mode: Gc<MajorMode>,
+    major_mode: Value,
     handle: BufferHandle,
 }
 
 impl Buffer {
     fn new(handle: BufferHandle) -> Self {
         Buffer {
-            major_mode: Gc::new(MajorMode::default()),
+            major_mode: Value::undefined(),
             handle,
         }
     }
 
-    pub fn set_major_mode(&mut self, major_mode: Gc<MajorMode>) {
+    pub fn set_major_mode(&mut self, major_mode: Value) {
         self.major_mode = major_mode;
     }
 
     pub fn get_handle(&self) -> BufferHandle {
         self.handle.clone()
     }
-    pub fn get_major_mode(&self) -> Gc<MajorMode> {
+    pub fn get_major_mode(&self) -> Value {
         self.major_mode.clone()
     }
 }
@@ -99,6 +99,10 @@ impl SessionState {
 
     pub fn get_buffers(&mut self) -> &mut HashMap<String, Buffer> {
         &mut self.buffers
+    }
+    
+    pub fn add_buffer(&mut self, name: &str, handle: BufferHandle) {
+        self.buffers.insert(name.to_string(), Buffer::new(handle));
     }
 
     pub fn get_hooks(&self) -> &Arc<Mutex<Hooks>> {
@@ -248,7 +252,7 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let buffer_name: String = buffer_name.clone().try_into()?;
-    let major_mode: Gc<MajorMode> = major_mode.try_into_rust_type()?;
+    let _: Gc<MajorMode> = major_mode.try_into_rust_type()?;
 
     let state = SessionState::get_state();
     let mut guard = state.lock().await;
@@ -256,7 +260,7 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::error(String::from("Buffer not found")));
     };
     
-    buffer.set_major_mode(major_mode);
+    buffer.set_major_mode(major_mode.clone());
     
     Ok(Vec::new())
 }

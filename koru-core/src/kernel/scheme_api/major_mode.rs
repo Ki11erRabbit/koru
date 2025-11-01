@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::sync::{Arc};
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::Trace;
+use scheme_rs::num::Number;
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
@@ -110,8 +111,9 @@ pub fn major_mode_register_command(args: &[Value]) -> Result<Vec<Value>, Conditi
     Ok(Vec::new())
 }
 
-#[bridge(name = "major-mode-modify-line", lib = "(major-mode)")]
+#[bridge(name = "major-mode-modify-lines", lib = "(major-mode)")]
 pub async fn modify_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    println!("modify line: {}", args.len());
     let Some((mode, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
@@ -119,18 +121,21 @@ pub async fn modify_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
     let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
+    let styled_file_core: Gc<StyledFile> = styled_file.clone().try_into_rust_type()?;
 
     let mod_line = mode.read().modify_line.clone();
 
     if let Some(mod_line) = mod_line {
-        mod_line.call(&[styled_file.clone()]).await?;
+        let len = styled_file_core.read().line_count();
+        
+        mod_line.call(&[styled_file.clone(), Value::from(Number::FixedInteger(len as i64))]).await?;
         Ok(vec![styled_file.clone()])
     } else {
         Ok(vec![styled_file.clone()])
     }
 }
 
-#[bridge(name = "modify-line-default", lib = "(major-mode)")]
+#[bridge(name = "modify-lines-default", lib = "(major-mode)")]
 pub fn modify_line_default(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((file, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));

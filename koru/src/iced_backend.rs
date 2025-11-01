@@ -89,6 +89,8 @@ impl App {
     }
 
     fn update(&mut self, message: UiMessage) -> Task<UiMessage>{
+        println!("updating!!");
+        println!("{:#?}", message);
 
         match message {
             UiMessage::Nop => Task::none(),
@@ -190,6 +192,7 @@ impl App {
                 Task::none()
             }
             MessageKind::General(GeneralMessage::Draw(styled_file)) => {
+                println!("draw");
                 self.text = styled_file;
                 Task::none()
             }

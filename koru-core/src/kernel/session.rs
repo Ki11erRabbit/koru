@@ -3,7 +3,7 @@ mod buffer;
 
 use std::collections::{HashSet, VecDeque};
 use std::error::Error;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
 use mlua::{AnyUserData, Function, IntoLua, Lua, ObjectLike, Table};
 use scheme_rs::ast::DefinitionBody;
@@ -11,7 +11,7 @@ use scheme_rs::env::{Environment, Var};
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::num::Number;
 use scheme_rs::proc::Procedure;
-use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::records::{into_scheme_compatible, rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
 use scheme_rs::symbols::Symbol;
@@ -21,6 +21,7 @@ use crate::attr_set::AttrSet;
 use crate::kernel;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::{lua_api};
+use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
 use crate::kernel::scheme_api::session::SessionState;
 use crate::kernel::session::buffer::{Buffer, BufferData};
@@ -50,16 +51,12 @@ impl Session {
         lua: Lua,
         broker_client: BrokerClient,
     ) -> Self {
-        println!("new session");
         let runtime = kernel::SCHEME_RUNTIME.lock().await.take().unwrap();
 
         let prog = Library::new_program(&runtime, &Path::new("scheme/text-edit-mode.scm"));
-        println!("created library");
         let env = Environment::Top(prog);
-        println!("created environment");
 
         let sexprs = Syntax::from_str(include_str!("../../../scheme/text-edit-mode.scm"), Some("text-edit-mode.scm")).unwrap();
-        println!("created sexprs");
         let span = Span::default();
         let base = DefinitionBody::parse_lib_body(
             &runtime,
@@ -67,13 +64,9 @@ impl Session {
             &env,
             &span,
         ).await.unwrap();
-        println!("created base");
 
         let compiled = base.compile_top_level();
-        println!("created compiled base");
         let proc = runtime.compile_expr(compiled).await;
-
-        println!("running toplevel");
         proc.call(&[]).await.unwrap();
 
         Self {
@@ -97,7 +90,8 @@ impl Session {
         todo!()
     }
     
-    fn write_error(&self, _msg: String) -> Result<(), Box<dyn Error>> {
+    fn write_error(&self, msg: String) -> Result<(), Box<dyn Error>> {
+        println!("{}", msg);
         todo!()
     }
     
@@ -124,16 +118,22 @@ impl Session {
         Ok(())
     }
     
-    fn create_buffer(&self, name: &str, buffer: Buffer) -> Result<mlua::Value, Box<dyn Error>> {
-        todo!()
-        /*let open_buffers = self.lua.globals().get::<Table>("__open_buffers")?;
-        
-        open_buffers.set(
-            name,
-            buffer,
-        )?;
-        
-        Ok(name.into_lua(&self.lua)?)*/
+    async fn create_buffer(&self, name: &str) -> Result<String, Box<dyn Error>> {
+        let out = name.to_string();
+        let handle = TextBufferTable::open(name.to_string()).await?;
+        println!("opened text buffer");
+
+        {
+            let state = SessionState::get_state();
+            let mut guard = state.lock().await;
+            println!("session state lock");
+            guard.add_buffer(name, handle);
+        }
+        let path = PathBuf::from(name);
+        let ext = path.extension().unwrap().to_str().unwrap();
+        self.file_opened_hook(name, ext).await;
+        println!("opened file");
+        Ok(out)
     }
     
     async fn notify_clients(&mut self, msg: MessageKind) {
@@ -161,7 +161,6 @@ impl Session {
 
         hooks.lock().await.execute_hook("file-open", args).await.unwrap();
 
-
         /*let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
         for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {
             let (_, function) = hook.unwrap();
@@ -183,20 +182,20 @@ impl Session {
             guard.get_buffers().get(buffer_name).unwrap().clone()
         };
 
-
-
-        let modify_line: Var = self.env.fetch_var(&Identifier::new("major-mode-modify-line")).await.unwrap().unwrap();
+        let modify_line: Var = self.env.fetch_var(&Identifier::new("major-mode-modify-lines")).await.unwrap().unwrap();
 
         let function: Procedure = match modify_line {
             Var::Global(value) => value.value().read().clone().try_into().unwrap(),
             Var::Local(_) => unimplemented!("fetching var from local"),
         };
 
+        let major_mode = buffer.get_major_mode();
         let text = buffer.get_handle().get_text().await;
         let styled_file = StyledFile::from(text);
-        let line_count = styled_file.line_count();
+        
+        //let major_mode = into_scheme_compatible(major_mode);
 
-        let args = &[Value::from(Record::from_rust_type(styled_file)), Value::from(Number::FixedInteger(line_count as i64))];
+        let args = &[major_mode, Value::from(Record::from_rust_type(styled_file))];
 
         let result = function.call(args).await?;
 
@@ -204,8 +203,11 @@ impl Session {
         let mut styled_file = StyledFile::new();
 
         std::mem::swap(&mut styled_file, &mut tweaked_file.write());
+        
+        assert_ne!(styled_file.line_count(), 0);
 
         self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+        println!("finished sending draw");
         Ok(())
     }
 
@@ -254,17 +256,11 @@ impl Session {
                     self.send_draw(&self.focused_buffer.clone()).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
+                    println!("j press");
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
-
-                    let file = crate::kernel::buffer::TextBufferTable::open(FILE_NAME.to_string()).await.unwrap();
                     
-                    let buffer = Buffer::new_open_file(file);
-                    
-                    let buffer_name = self.create_buffer(FILE_NAME, buffer).unwrap();
-                    self.focused_buffer = FILE_NAME.to_string();
-                    
-                    
-                    self.file_opened_hook(FILE_NAME, "rs").await;
+                    let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
+                    self.focused_buffer = buffer_name.to_string();
                     match self.send_draw(FILE_NAME).await {
                         Ok(_) => {}
                         Err(e) => {
