@@ -1,8 +1,6 @@
 use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
-use std::sync::{Arc};
-use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
@@ -175,7 +173,6 @@ impl Broker {
     
     pub async fn run_broker(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
-            println!("broker looping");
             let message = self.receiver.recv().await.unwrap();
             
             match message.kind {
@@ -183,7 +180,6 @@ impl Broker {
                     self.free_client(message.source);
                 }
                 MessageKind::General(_) => {
-                    println!("Received general message");
                     self.send(message).await?;
                 }
                 MessageKind::Broker(BrokerMessage::CreateClient) => {
@@ -197,7 +193,6 @@ impl Broker {
                 _ => {}
             }
         }
-        Ok(())
     }
     
     async fn send_response(&mut self, message: Message, response: MessageKind) -> Result<(), Box<dyn Error>> {

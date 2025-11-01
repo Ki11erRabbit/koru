@@ -111,9 +111,9 @@ impl Session {
                 _ => unreachable!("We should only be able to put strings into ui attributes")
             }
         }
-        self.broker_client.send_async(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id).await?;
+        self.broker_client.send_async(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id).await?;*/
         
-        self.client_ids.push(id);*/
+        self.client_ids.push(id);
         
         Ok(())
     }
@@ -121,18 +121,15 @@ impl Session {
     async fn create_buffer(&self, name: &str) -> Result<String, Box<dyn Error>> {
         let out = name.to_string();
         let handle = TextBufferTable::open(name.to_string()).await?;
-        println!("opened text buffer");
 
         {
             let state = SessionState::get_state();
             let mut guard = state.lock().await;
-            println!("session state lock");
             guard.add_buffer(name, handle);
         }
         let path = PathBuf::from(name);
         let ext = path.extension().unwrap().to_str().unwrap();
         self.file_opened_hook(name, ext).await;
-        println!("opened file");
         Ok(out)
     }
     
@@ -207,7 +204,6 @@ impl Session {
         assert_ne!(styled_file.line_count(), 0);
 
         self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
-        println!("finished sending draw");
         Ok(())
     }
 
