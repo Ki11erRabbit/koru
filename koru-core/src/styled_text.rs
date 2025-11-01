@@ -1,6 +1,12 @@
-use std::sync::LazyLock;
+use std::sync::{Arc};
 use bitflags::bitflags;
-use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods, Value};
+use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods};
+use scheme_rs::exceptions::Condition;
+use scheme_rs::gc::{Gc, Trace};
+use scheme_rs::num::Number;
+use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::registry::bridge;
+use scheme_rs::value::Value;
 use crate::kernel::buffer::Cursor;
 
 bitflags! {
@@ -13,7 +19,8 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, Trace)]
 pub enum ColorType {
     Base,
     SecondaryBase,
@@ -108,14 +115,23 @@ impl TryFrom<&str> for ColorType {
     }
 }
 
+impl SchemeCompatible for ColorType {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&ColorType")
+    }
+}
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Trace)]
 pub enum StyledText {
     None(String),
     Style {
         fg_color: ColorType,
         bg_color: ColorType,
-        attribute: TextAttribute,
+        attribute: Arc<TextAttribute>,
         text: String,
     }
 }
@@ -123,84 +139,70 @@ pub enum StyledText {
 impl UserData for StyledText {
 }
 
-/* impl SmobData for StyledText {
-    fn heap_size(&self) -> usize {
-        size_of::<StyledText>()
+impl SchemeCompatible for StyledText {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&StyledText")
     }
 }
 
-
-extern "C" fn styled_text_create(text: SchemeValue, fg: SchemeValue, bg: SchemeValue, rest: SchemeValue) -> SchemeValue {
-    let Some(text) = SchemeObject::from(text).cast_string() else {
-        guile_wrong_type_arg!("styled-text-create", 1, text);
+#[bridge(name = "styled-text-create", lib = "(styled-text)")]
+pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((text, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(1, args.len()));
     };
-    let Some(rest) = SchemeObject::from(rest).cast_list() else {
-        unreachable!("rest should always be a list");
-    };
-    let objs = rest.iter().collect::<Vec<_>>();
-
-    let (fg, bg) = match (SchemeObject::from(fg).cast_string(), SchemeObject::from(bg).cast_string()) {
-        (Some(fg), Some(bg)) => {
-            let Ok(fg) = fg.to_string().as_str().try_into() else {
-                guile_wrong_type_arg!("styled-text-create-fg", 2, fg);
-            };
-            let Ok(bg) = bg.to_string().as_str().try_into() else {
-                guile_wrong_type_arg!("styled-text-create-bg", 3, bg);
-            };
-            (fg, bg)
-        }
-        _ => {
-            let text = StyledText::None(text.to_string());
-
-            return <SchemeSmob<StyledText> as Into<SchemeObject>>::into(STYLED_TEXT_SMOB_TAG.make(text)).into()
-        }
-    };
-
-    let text = match objs.as_slice() {
-        [] => {
-            StyledText::Style {
-                fg_color: fg,
-                bg_color: bg,
-                attribute: TextAttribute::empty(),
-                text: text.to_string(),
+    let text: String = text.clone().try_into()?;
+    if let Some((fg_color, rest)) = rest.split_first() {
+        let fg_color: String = fg_color.clone().try_into()?;
+        let Some((bg_color, rest)) = rest.split_first() else {
+            return Err(Condition::wrong_num_of_args(3, args.len()));
+        };
+        let bg_color: String = bg_color.clone().try_into()?;
+        let fg_color = match fg_color.as_str().try_into()  {
+            Ok(color) => color,
+            Err(msg) => {
+                return Err(Condition::error(msg));
             }
-        },
-        attrs => {
-            let mut attributes = TextAttribute::empty();
+        };
+        let bg_color = match bg_color.as_str().try_into()  {
+            Ok(color) => color,
+            Err(msg) => {
+                return Err(Condition::error(msg));
+            }
+        };
 
-            for attr in attrs {
-                let Some(attr) = attr.clone().cast_symbol() else {
-                    guile_misc_error!("styled-text-create", "attribute is not a symbol", attr.clone());
-                };
+        let mut attributes = TextAttribute::empty();
 
-                match attr.to_string().as_str() {
-                    "italic" => attributes |= TextAttribute::Italic,
-                    "bold" => attributes |= TextAttribute::Bold,
-                    "strikethrough" => attributes |= TextAttribute::Strikethrough,
-                    "underline" => attributes |= TextAttribute::Underline,
-                    _ => {
-                        guile_misc_error!("styled-text-create", "attribute is not one of 'italic, 'bold, 'strikethrough, or 'underline", attr.clone());
-                    }
+        for attr in rest {
+            let attr: String = attr.clone().try_into()?;
+            match attr.as_str() {
+                "italic" => attributes |= TextAttribute::Italic,
+                "bold" => attributes |= TextAttribute::Bold,
+                "strikethrough" => attributes |= TextAttribute::Strikethrough,
+                "underline" => attributes |= TextAttribute::Underline,
+                _ => {
+                    return Err(Condition::error(String::from("attribute is not one of 'italic, 'bold, 'strikethrough, or 'underline")));
                 }
             }
-            StyledText::Style {
-                fg_color: fg,
-                bg_color: bg,
-                attribute: attributes,
-                text: text.to_string(),
-            }
         }
-    };
 
-    <SchemeSmob<StyledText> as Into<SchemeObject>>::into(STYLED_TEXT_SMOB_TAG.make(text)).into()
+        let text = StyledText::Style {
+            fg_color,
+            bg_color,
+            attribute: Arc::new(attributes),
+            text,
+        };
+        Ok(vec![Value::from(Record::from_rust_type(text))])
+
+    } else {
+        let text = StyledText::None(text);
+        Ok(vec![Value::from(Record::from_rust_type(text))])
+    }
 }
 
-pub static STYLED_FILE_SMOB_TAG: LazyLock<SmobTag<StyledFile>> = LazyLock::new(||{
-    SmobTag::register("StyledFile")
-});
-
-*/
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Trace)]
 pub struct StyledFile {
     lines: Vec<Vec<StyledText>>,
 }
@@ -262,7 +264,7 @@ impl StyledFile {
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
                                         fg_color: ColorType::Text,
-                                        attribute: TextAttribute::empty(),
+                                        attribute: Arc::new(TextAttribute::empty()),
                                         text: buffer,
                                     });
                                     buffer = String::new();
@@ -278,7 +280,7 @@ impl StyledFile {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color: ColorType::Text,
-                                            attribute: TextAttribute::empty(),
+                                            attribute: Arc::new(TextAttribute::empty()),
                                             text: String::from(' '),
                                         });
                                     }
@@ -303,7 +305,7 @@ impl StyledFile {
                                     current_line.push(StyledText::Style {
                                         fg_color,
                                         bg_color,
-                                        attribute,
+                                        attribute: attribute.clone(),
                                         text: buffer,
                                     });
                                     buffer = String::new();
@@ -314,7 +316,7 @@ impl StyledFile {
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
                                         fg_color,
-                                        attribute,
+                                        attribute: attribute.clone(),
                                         text: buffer,
                                     });
                                     buffer = String::new();
@@ -335,7 +337,7 @@ impl StyledFile {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color: ColorType::Text,
-                                            attribute: TextAttribute::empty(),
+                                            attribute: Arc::new(TextAttribute::empty()),
                                             text: String::from(' '),
                                         });
                                     }
@@ -371,62 +373,65 @@ impl From<String> for StyledFile {
     }
 }
 
-/*
-impl SmobData for StyledFile {
-    fn heap_size(&self) -> usize {
-        self.lines.capacity() * size_of::<StyledText>()
+impl SchemeCompatible for StyledFile {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&StyledFile")
     }
 }
 
-extern "C" fn styled_file_prepend_segment(file: SchemeValue, line: SchemeValue, text: SchemeValue) -> SchemeValue {
-    let Some(mut file) = SchemeObject::from(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("styled-file-prepend-segment", 1, file);
+#[bridge(name = "styled-file-prepend", lib = "(styled-text)")]
+pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((file, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let Some(line) = SchemeObject::from(line).cast_number() else {
-        guile_wrong_type_arg!("styled-file-prepend-segment", 2, line);
+    let Some((line_no, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let Some(text) = SchemeObject::from(text).cast_smob(STYLED_TEXT_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("styled-file-prepend-segment", 3, text);
+    let Some((text, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    file.borrow_mut().prepend_segment(line.as_u64() as usize, text.borrow().clone());
-
-    SchemeValue::undefined()
+    let file: Gc<StyledFile> = file.clone().try_into_rust_type()?;
+    let line_no: Arc<Number> = line_no.clone().try_into()?;
+    let line_no: i64 = match line_no.as_ref() {
+        Number::FixedInteger(line_no) => *line_no,
+        _ => return Err(Condition::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
+    };
+    let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
+    let text: Gc<StyledText> = text.clone().try_into_rust_type()?;
+    let text = text.read().clone();
+    
+    file.write().prepend_segment(line_no as usize, text);
+    Ok(vec![])
 }
 
-extern "C" fn styled_file_append_segment(file: SchemeValue, line: SchemeValue, text: SchemeValue) -> SchemeValue {
-    let Some(mut file) = SchemeObject::from(file).cast_smob(STYLED_FILE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("styled-file-prepend-segment", 1, file);
+#[bridge(name = "styled-file-append", lib = "(styled-text)")]
+pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((file, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let Some(line) = SchemeObject::from(line).cast_number() else {
-        guile_wrong_type_arg!("styled-file-prepend-segment", 2, line);
+    let Some((line_no, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let Some(text) = SchemeObject::from(text).cast_smob(STYLED_TEXT_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("styled-file-prepend-segment", 3, text);
+    let Some((text, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    file.borrow_mut().append_segment(line.as_u64() as usize, text.borrow().clone());
+    let file: Gc<StyledFile> = file.clone().try_into_rust_type()?;
+    let line_no: Arc<Number> = line_no.clone().try_into()?;
+    let line_no: i64 = match line_no.as_ref() {
+        Number::FixedInteger(line_no) => *line_no,
+        _ => return Err(Condition::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
+    };
+    let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
+    let text: Gc<StyledText> = text.clone().try_into_rust_type()?;
+    let text = text.read().clone();
 
-    SchemeValue::undefined()
+    file.write().append_segment(line_no as usize, text);
+    Ok(vec![])
 }
 
-pub fn styled_file_module() {
-    Guile::define_fn("styled-file-prepend", 3, 0, false,
-        styled_file_prepend_segment as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("styled-file-append", 3, 0, false,
-        styled_file_append_segment as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("styled-text-create", 1, 2, true,
-        styled_text_create as extern "C" fn(SchemeValue, SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
-    );
-
-    let mut module = Module::new("styled-text", Box::new(|_: &mut ()| {}));
-    module.add_export("styled-file-prepend");
-    module.add_export("styled-file-append");
-    module.add_export("styled-text-create");
-    module.export();
-    module.define(&mut ());
-}
-*/
 
 impl UserData for StyledFile {
     fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
@@ -520,7 +525,7 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
                     let (args, vaargs) = args.as_slices();
                     let args = &args[1..];
                     
-                    let text = if let Some(Value::String(string)) = args.first() {
+                    let text = if let Some(mlua::Value::String(string)) = args.first() {
                         string.to_str()?.to_string()
                     } else {
                         todo!("Handle missing string argument")
@@ -528,7 +533,7 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
 
                     let text = match vaargs {
                         [] => StyledText::None(text),
-                        [Value::String(fg_color), Value::String(bg_color), attrs_list @ ..] => {
+                        [mlua::Value::String(fg_color), mlua::Value::String(bg_color), attrs_list @ ..] => {
                             let fg_color = fg_color.to_str()?.to_string();
                             let fg: ColorType = fg_color.as_str().try_into().unwrap();
                             let bg_color = bg_color.to_str()?.to_string();
@@ -536,7 +541,7 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
                             let mut attrs = TextAttribute::empty();
                             for attr in attrs_list {
                                 match attr {
-                                    Value::String(attr) => {
+                                    mlua::Value::String(attr) => {
                                         let attr = attr.to_str()?.to_string();
                                         match attr.as_str() {
                                             "italic" => attrs |= TextAttribute::Italic,
@@ -553,7 +558,7 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
                                 text,
                                 fg_color: fg,
                                 bg_color: bg,
-                                attribute: attrs,
+                                attribute: Arc::new(attrs),
                             }
                         }
                         _ => todo!("raise error over arguments")
@@ -597,10 +602,10 @@ pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
                 lua.create_function(|lua, args: mlua::MultiValue| {
                     let (args, _) = args.as_slices();
                     let color = match args {
-                        [_, Value::Integer(ansi)] => {
+                        [_, mlua::Value::Integer(ansi)] => {
                             ColorValue::Ansi(*ansi as u8)
                         }
-                        [_, Value::Integer(r), Value::Integer(g), Value::Integer(b)] => {
+                        [_, mlua::Value::Integer(r), mlua::Value::Integer(g), mlua::Value::Integer(b)] => {
                             ColorValue::Rgb {
                                 r: *r as u8,
                                 g: *g as u8,
