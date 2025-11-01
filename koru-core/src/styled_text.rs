@@ -1,6 +1,5 @@
 use std::sync::{Arc};
 use bitflags::bitflags;
-use mlua::{AnyUserData, Lua, Table, UserData, UserDataMethods};
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::num::Number;
@@ -136,8 +135,6 @@ pub enum StyledText {
     }
 }
 
-impl UserData for StyledText {
-}
 
 impl SchemeCompatible for StyledText {
     fn rtd() -> Arc<RecordTypeDescriptor>
@@ -433,29 +430,6 @@ pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Conditio
 }
 
 
-impl UserData for StyledFile {
-    fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-        methods.add_method_mut(
-            "prepend_segment",
-            |_, this, (line, text): (mlua::Integer, AnyUserData)| {
-                let text = text.take::<StyledText>()?;
-                let line = line as usize;
-                this.prepend_segment(line, text);
-                Ok(())
-            }
-        );
-        methods.add_method_mut(
-            "append_segment",
-            |_, this, (line, text): (mlua::Integer, AnyUserData)| {
-                let line = line as usize;
-                let text = text.take::<StyledText>()?;
-                this.append_segment(line, text);
-                Ok(())
-            }
-        )
-    }
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum ColorValue {
     Rgb {
@@ -466,9 +440,6 @@ pub enum ColorValue {
     Ansi(u8),
 }
 
-impl UserData for ColorValue {
-
-}
 
 /*
 impl SmobData for ColorValue {
@@ -502,152 +473,5 @@ pub struct ColorDefinition {
     value: ColorValue,
 }
 
-impl UserData for ColorDefinition {
-
-}
 
 
-pub fn styled_text_module(lua: &Lua) -> mlua::Result<Table> {
-    let exports = lua.create_table()?;
-
-
-    let package = lua.globals().get::<Table>("package")?;
-    let preload = package.get::<Table>("preload")?;
-    
-    preload.set(
-        "Koru.StyledText.StyledText",
-        lua.create_function(|lua, _:()| {
-            let styled_text_module = lua.create_table()?;
-            let styled_text_metatable = lua.create_table()?;
-            styled_text_metatable.set(
-                "__call",
-                lua.create_function(|lua, args: mlua::MultiValue| {
-                    let (args, vaargs) = args.as_slices();
-                    let args = &args[1..];
-                    
-                    let text = if let Some(mlua::Value::String(string)) = args.first() {
-                        string.to_str()?.to_string()
-                    } else {
-                        todo!("Handle missing string argument")
-                    };
-
-                    let text = match vaargs {
-                        [] => StyledText::None(text),
-                        [mlua::Value::String(fg_color), mlua::Value::String(bg_color), attrs_list @ ..] => {
-                            let fg_color = fg_color.to_str()?.to_string();
-                            let fg: ColorType = fg_color.as_str().try_into().unwrap();
-                            let bg_color = bg_color.to_str()?.to_string();
-                            let bg: ColorType = bg_color.as_str().try_into().unwrap();
-                            let mut attrs = TextAttribute::empty();
-                            for attr in attrs_list {
-                                match attr {
-                                    mlua::Value::String(attr) => {
-                                        let attr = attr.to_str()?.to_string();
-                                        match attr.as_str() {
-                                            "italic" => attrs |= TextAttribute::Italic,
-                                            "bold" => attrs |= TextAttribute::Bold,
-                                            "strikethrough" => attrs |= TextAttribute::Strikethrough,
-                                            "underline" => attrs |= TextAttribute::Underline,
-                                            _ => todo!("raise error over arg values"),
-                                        }
-                                    }
-                                    _ => todo!("raise error over attrs not being a string")
-                                }
-                            }
-                            StyledText::Style {
-                                text,
-                                fg_color: fg,
-                                bg_color: bg,
-                                attribute: Arc::new(attrs),
-                            }
-                        }
-                        _ => todo!("raise error over arguments")
-                    };
-
-                    lua.create_userdata(text)
-                })?
-            )?;
-
-            styled_text_module.set_metatable(Some(styled_text_metatable))?;
-            Ok(styled_text_module)
-        })?
-    )?;
-    
-    preload.set(
-        "Koru.StyledText.StyledFile",
-        lua.create_function(|lua, _:()| {
-            let styled_file_metatable = lua.create_table()?;
-            let styled_file_module = lua.create_table()?;
-
-            styled_file_metatable.set(
-                "__call",
-                lua.create_function(|lua, _: ()| {
-                    lua.create_userdata(StyledFile::new())
-                })?
-            )?;
-
-            styled_file_module.set_metatable(Some(styled_file_metatable))?;
-            Ok(styled_file_module)
-        })?
-    )?;
-    
-    preload.set(
-        "Koru.StyledText.ColorValue",
-        lua.create_function(|lua, _:()| {
-            let color_value_metatable = lua.create_table()?;
-            let color_value_module = lua.create_table()?;
-            
-            color_value_metatable.set(
-                "__call",
-                lua.create_function(|lua, args: mlua::MultiValue| {
-                    let (args, _) = args.as_slices();
-                    let color = match args {
-                        [_, mlua::Value::Integer(ansi)] => {
-                            ColorValue::Ansi(*ansi as u8)
-                        }
-                        [_, mlua::Value::Integer(r), mlua::Value::Integer(g), mlua::Value::Integer(b)] => {
-                            ColorValue::Rgb {
-                                r: *r as u8,
-                                g: *g as u8,
-                                b: *b as u8,
-                            }
-                        }
-                        _ => todo!("handle error for invalid color value")
-                    };
-                    lua.create_userdata(color)
-                })?
-            )?;
-            
-            color_value_module.set_metatable(Some(color_value_metatable))?;
-            Ok(color_value_module)
-        })?
-    )?;
-    
-    preload.set(
-        "Koru.StyledText.ColorDefinition",
-        lua.create_function(|lua, _:()| {
-            let color_definition = lua.create_table()?;
-            let color_definition_metatable = lua.create_table()?;
-            
-            color_definition_metatable.set(
-                "__call",
-                lua.create_function(|lua, (_, def, value): (Table, mlua::String, AnyUserData)| {
-                    let value = value.take::<ColorValue>()?;
-                    let def = def.to_str()?.to_string();
-                    let def = ColorType::try_from(def.as_str()).unwrap();
-                    
-                    lua.create_userdata(ColorDefinition {
-                        color: def,
-                        value,
-                    })
-                })?
-            )?;
-            
-            color_definition.set_metatable(Some(color_definition_metatable))?;
-            
-            Ok(color_definition)
-        })?
-    )?;
-    
-    Ok(exports)
-}

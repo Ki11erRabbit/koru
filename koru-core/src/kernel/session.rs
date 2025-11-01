@@ -1,30 +1,20 @@
 use scheme_rs::cps::Compile;
-mod buffer;
-
-use std::collections::{HashSet, VecDeque};
 use std::error::Error;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock, Mutex};
-use mlua::{AnyUserData, Function, IntoLua, Lua, LuaNativeAsyncFn, ObjectLike, Table};
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::{Environment, Var};
-use scheme_rs::gc::{Gc, Trace};
-use scheme_rs::num::Number;
+use scheme_rs::gc::{Gc};
 use scheme_rs::proc::Procedure;
-use scheme_rs::records::{into_scheme_compatible, rtd, Record, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::records::{Record};
 use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
-use scheme_rs::symbols::Symbol;
 use scheme_rs::syntax::{Identifier, Span, Syntax};
 use scheme_rs::value::Value;
-use crate::attr_set::AttrSet;
 use crate::kernel;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
-use crate::kernel::{lua_api};
 use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
 use crate::kernel::scheme_api::session::SessionState;
-use crate::kernel::session::buffer::{Buffer, BufferData};
 use crate::keybinding::Keybinding;
 use crate::styled_text::StyledFile;
 
@@ -35,19 +25,17 @@ pub enum CommandState {
 
 
 pub struct Session {
-    lua: Lua,
     runtime: Runtime,
     env: Environment,
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
     command_state: CommandState,
     key_buffer: KeyBuffer,
-    keybinding: Keybinding<mlua::Function>,
+    keybinding: Keybinding<Procedure>,
 }
 
 impl Session {
     pub async fn new(
-        lua: Lua,
         broker_client: BrokerClient,
     ) -> Self {
         let runtime = kernel::SCHEME_RUNTIME.lock().await.take().unwrap();
@@ -69,7 +57,6 @@ impl Session {
         proc.call(&[]).await.unwrap();
 
         Self {
-            lua,
             runtime,
             env,
             broker_client,
@@ -169,7 +156,6 @@ impl Session {
     }
 
     async fn send_draw(&mut self, buffer_name: &str) -> Result<(), Box<dyn Error>> {
-        println!("sending draw");
 
         let buffer = {
             let state = SessionState::get_state();
@@ -228,7 +214,6 @@ impl Session {
         }
         
         loop {
-            println!("looping");
             let message = self.broker_client.recv_async().await;
             match message {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
@@ -296,7 +281,6 @@ impl Session {
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
-                    println!("j press");
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
                     
                     let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
@@ -368,8 +352,7 @@ impl Session {
     }
 
     pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
-        let lua = Lua::new();
-        let mut session = Session::new(lua, broker_client).await;
+        let mut session = Session::new(broker_client).await;
 
         session.run(client_id).await;
     }

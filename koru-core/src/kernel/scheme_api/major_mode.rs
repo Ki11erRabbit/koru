@@ -113,7 +113,6 @@ pub fn major_mode_register_command(args: &[Value]) -> Result<Vec<Value>, Conditi
 
 #[bridge(name = "major-mode-modify-lines", lib = "(major-mode)")]
 pub async fn modify_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    println!("modify line: {}", args.len());
     let Some((mode, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
@@ -135,6 +134,31 @@ pub async fn modify_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
     }
 }
 
+#[bridge(name = "write-line-number", lib = "(major-mode)")]
+pub fn write_line_number(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((current_line, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((max_lines, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((separator, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let current_line: Arc<Number> = current_line.clone().try_into()?;
+    let current_line = current_line.checked_add(&Number::FixedInteger(1)).unwrap();
+    let max_lines: Arc<Number> = max_lines.clone().try_into()?;
+    let separator: char = separator.clone().try_into()?;
+    let current_line = current_line.to_string();
+    let max_lines = max_lines.to_string();
+    let needed_padding = max_lines.chars().count();
+    
+    let mut string = format!("{: >1$}", current_line, needed_padding);
+    string.push(separator);
+    
+    Ok(vec![Value::from(string)])
+}
+
 #[bridge(name = "modify-lines-default", lib = "(major-mode)")]
 pub fn modify_line_default(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((file, rest)) = args.split_first() else {
@@ -147,51 +171,3 @@ pub fn modify_line_default(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(vec![file.clone()])
 }
 
-
-/*pub extern "C" fn major_mode_modify_line(mode: SchemeValue, styled_file: SchemeValue, total_lines: SchemeValue) -> SchemeValue {
-    let Some(mode) = SchemeObject::from(mode).cast_smob(MAJOR_MODE_SMOB_TAG.clone()) else {
-        guile_wrong_type_arg!("major-mode-modify-line", 1, mode);
-    };
-    let styled_file = mode.borrow().modify_line.call2(SchemeObject::from(styled_file), SchemeObject::from(total_lines));
-    
-    styled_file.into()
-}
-
-pub extern "C" fn modify_line_default(styled_file: SchemeValue, _total_lines: SchemeValue) -> SchemeValue {
-    styled_file
-}
-
-pub fn major_mode_module() {
-    Guile::define_fn("major-mode-create", 2, 1, false, 
-        major_mode_create as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("major-mode-data", 1, 0, false,
-        major_mode_data as extern "C" fn(SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("major-mode-register-command", 2, 0, false, 
-        major_mode_register_command as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("major-mode-register-alias", 3, 0, false,
-        major_mode_register_alias as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("major-mode-unregister-alias", 2, 0, false,
-        major_mode_unregister as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("major-mode-modify-line", 3, 0, false,
-        major_mode_modify_line as extern "C" fn(SchemeValue, SchemeValue, SchemeValue) -> SchemeValue
-    );
-    Guile::define_fn("modify-line-default", 2, 0, false,
-        modify_line_default as extern "C" fn(SchemeValue, SchemeValue) -> SchemeValue
-    );
-    
-    let mut module = Module::new("major-mode", Box::new(|x: &mut ()| {}));
-    module.add_export("major-mode-create");
-    module.add_export("major-mode-data");
-    module.add_export("major-mode-register-command");
-    module.add_export("major-mode-register-alias");
-    module.add_export("major-mode-unregister-alias");
-    module.add_export("major-mode-modify-line");
-    module.add_export("modify-line-default");
-    module.export();
-    module.define(&mut ());
-}*/

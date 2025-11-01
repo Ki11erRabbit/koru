@@ -1,8 +1,6 @@
 use scheme_rs::records::Record;
 use std::sync::{Arc};
 use bitflags::bitflags;
-use mlua::{Lua, UserData, UserDataMethods};
-use mlua::prelude::LuaResult;
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::{OpaqueGcPtr, Trace};
 use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
@@ -366,95 +364,4 @@ pub fn string_to_keypress(string: &Value) -> Result<Vec<Value>, Condition> {
     };
 
     Ok(vec![Value::from(Record::from_rust_type(keypress))])
-}
-
-
-
-impl UserData for KeyPress {
-    fn add_methods<M: UserDataMethods<Self>>(methods: &mut M) {
-        /*methods.add_function(
-            "is_shift_pressed",
-            |_, this: AnyUserData, _:()| {
-                let this = this.borrow::<KeyPress>()?;
-                Ok(this.is_shift_pressed())
-            }
-        );
-        methods.add_function(
-            "is_control_pressed",
-            |_, this: AnyUserData, _:()| {
-                let this = this.borrow::<KeyPress>()?;
-                Ok(this.is_control_pressed())
-            }
-        );
-        methods.add_function(
-            "is_alt_pressed",
-            |_, this: AnyUserData, _:()| {
-                let this = this.borrow::<KeyPress>()?;
-                Ok(this.is_alt_pressed())
-            }
-        );
-        methods.add_function(
-            "key_string",
-            |_, this: AnyUserData, _:()| {
-                let this = this.borrow::<KeyPress>()?;
-                Ok(this.key_string())
-            }
-        );*/
-    }
-}
-
-
-pub fn key_module(lua: &Lua) -> mlua::Result<mlua::Table> {
-    let exports = lua.create_table()?;
-
-    let meta = lua.create_table()?;
-
-    meta.set(
-        "__call",
-        lua.create_function(|lua, string: String| {
-            let key_press = KeyPress::from_string(&string)
-                .ok_or(mlua::Error::external(String::from("invalid key string")))?;
-            lua.create_userdata(key_press)
-        })?
-    )?;
-    exports.set_metatable(Some(meta))?;
-    
-    exports.set(
-        "create_seq",
-        lua.create_function(|lua, mut args: mlua::MultiValue| {
-            let (_, vaargs) = args.as_mut_slices();
-            let table = lua.create_table()?;
-            for (i, value) in vaargs.iter_mut().enumerate() {
-                match value {
-                    mlua::Value::String(string) => {
-                        let key_string = string.to_str()?.to_string();
-                        let key = KeyPress::from_string(&key_string)
-                            .ok_or(mlua::Error::external(String::from("invalid key string")))?;
-                        table.set(
-                            i + 1,
-                            lua.create_userdata(key)?
-                        )?;
-                    }
-                    mlua::Value::UserData(data) => {
-                        let data = data.take::<KeyPress>()?;
-                        table.set(
-                            i + 1,
-                            lua.create_userdata(data)?
-                        )?
-                    }
-                    _ => {
-                        return Err(mlua::Error::BadArgument {
-                            to: None,
-                            pos: i,
-                            name: None,
-                            cause: Arc::new(mlua::Error::external(String::from("value must be string or keypress"))),
-                        })
-                    }
-                }
-            }
-            Ok(table)
-        })?,
-    )?;
-
-    Ok(exports)
 }
