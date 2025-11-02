@@ -66,7 +66,7 @@ impl Buffer {
         Buffer {
             major_mode: Value::undefined(),
             handle,
-            cursors: vec![Cursor::new_main(GridCursor::default(), LeadingEdge::Start)]
+            cursors: vec![Cursor::new_main(GridCursor::default(), LeadingEdge::End)]
         }
     }
 

@@ -135,7 +135,7 @@ impl Cursor {
             }
             LeadingEdge::End => {
                 let line_len = buffer.line_length(self.line());
-                self.logical_cursor.column_end == line_len
+                self.logical_cursor.column_end.saturating_sub(1) == line_len
             }
         }
     }
@@ -163,10 +163,10 @@ impl Cursor {
                 // Adjust cursor column
                 self.logical_cursor.column_start = self.logical_cursor.column_end.saturating_sub(1);
                 self.real_cursor.column_end = self.logical_cursor.column_end;
-                self.real_cursor.column_start = self.logical_cursor.column_end.saturating_sub(1);
+                self.real_cursor.column_start = self.real_cursor.column_end.saturating_sub(1);
 
                 self.logical_cursor.line_end = self.logical_cursor.line_end.saturating_sub(1);
-                self.logical_cursor.line_start = self.logical_cursor.line_end.saturating_sub(1);
+                self.logical_cursor.line_start = self.logical_cursor.line_end;
                 self.real_cursor.line_start = self.logical_cursor.line_start;
                 self.real_cursor.line_end = self.logical_cursor.line_end;
 
@@ -174,7 +174,7 @@ impl Cursor {
                 if line_len == 0 {
                     self.real_cursor.column_start = 0;
                     self.real_cursor.column_end = 1;
-                } else if line_len < self.real_cursor.column_start {
+                } else if line_len < self.real_cursor.column_end.saturating_sub(1) {
                     self.real_cursor.column_end = line_len;
                     self.real_cursor.column_start = self.real_cursor.column_end - 1;
                 }
@@ -301,9 +301,9 @@ impl Cursor {
                 if line_len == 0 {
                     self.real_cursor.column_end = line_len + 1;
                     self.real_cursor.column_start = line_len;
-                } else if self.logical_cursor.column_end > line_len {
-                    self.real_cursor.column_start = line_len - 1;
-                    self.real_cursor.column_end = line_len;
+                } else if self.logical_cursor.column_end.saturating_sub(1) > line_len {
+                    self.real_cursor.column_start = line_len;
+                    self.real_cursor.column_end = line_len + 1;
                 }
             }
         }
