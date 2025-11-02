@@ -375,57 +375,129 @@ impl StyledFile {
                             if cursor_index < cursors.len() {
                                 if column_index == cursors[cursor_index].column()
                                     && line_index == cursors[cursor_index].line() {
-                                    current_line.push(StyledText::Style {
-                                        fg_color,
-                                        bg_color,
-                                        attribute: attribute.clone(),
-                                        text: buffer,
-                                    });
-                                    buffer = String::new();
-                                }
-                                if column_index == cursors[cursor_index].column() + 1
-                                    && line_index == cursors[cursor_index].line() {
-                                    cursor_index += 1;
-                                    current_line.push(StyledText::Style {
-                                        bg_color: ColorType::Cursor,
-                                        fg_color,
-                                        attribute: attribute.clone(),
-                                        text: buffer,
-                                    });
-                                    buffer = String::new();
-                                }
-                            }
-                            if ch == '\n' {
-                                current_line.push(StyledText::Style {
-                                    fg_color,
-                                    bg_color,
-                                    attribute: attribute.clone(),
-                                    text: buffer,
-                                });
-                                buffer = String::new();
-                                if cursor_index < cursors.len() {
-                                    if column_index == cursors[cursor_index].column()
-                                        && line_index == cursors[cursor_index].line() {
+                                    found_cursor = true;
+                                    if !found_mark {
+                                        current_line.push(StyledText::Style {
+                                            fg_color,
+                                            bg_color,
+                                            attribute: attribute.clone(),
+                                            text: buffer,
+                                        });
+                                        buffer = String::new();
+                                    }
+
+                                } else if cursors[cursor_index].is_mark_set()
+                                    && column_index == cursors[cursor_index].mark_column().unwrap()
+                                    && line_index == cursors[cursor_index].mark_line().unwrap() {
+                                    found_mark = true;
+                                    if !found_cursor {
+                                        current_line.push(StyledText::Style {
+                                            fg_color,
+                                            bg_color,
+                                            attribute: attribute.clone(),
+                                            text: buffer,
+                                        });
+                                        buffer = String::new();
+                                    } else {
+                                        buffer.push(ch);
+                                        current_line.push(StyledText::Style {
+                                            bg_color: ColorType::Selection,
+                                            fg_color,
+                                            attribute: attribute.clone(),
+                                            text: buffer,
+                                        });
+                                        buffer = String::new();
+                                        found_mark = false;
+                                        found_cursor = false;
                                         cursor_index += 1;
+                                        column_index += 1;
+                                        continue;
+                                    }
+                                }
+                                if (found_cursor
+                                    && column_index == cursors[cursor_index].column() + 1
+                                    && line_index == cursors[cursor_index].line())
+                                    || (found_cursor
+                                    && ch == '\n'
+                                    && column_index == cursors[cursor_index].column()
+                                    && line_index == cursors[cursor_index].line()) {
+
+                                    if ch == '\n'
+                                        && column_index == cursors[cursor_index].column()
+                                        && line_index == cursors[cursor_index].line() {
+                                        buffer.push(' ');
+                                    }
+
+                                    if cursors[cursor_index].is_mark_and_cursor_same() {
+                                        found_mark = false;
+                                    }
+
+                                    if found_mark {
+                                        let Some(cursor_char) = buffer.pop() else {
+                                            unreachable!();
+                                        };
+                                        current_line.push(StyledText::Style {
+                                            bg_color: ColorType::Selection,
+                                            fg_color,
+                                            attribute: attribute.clone(),
+                                            text: buffer,
+                                        });
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
-                                            fg_color: ColorType::Text,
-                                            attribute: Arc::new(TextAttribute::empty()),
-                                            text: String::from(' '),
+                                            fg_color,
+                                            attribute: attribute.clone(),
+                                            text: String::from(cursor_char),
+                                        });
+                                    } else {
+                                        current_line.push(StyledText::Style {
+                                            bg_color: ColorType::Cursor,
+                                            fg_color,
+                                            attribute: attribute.clone(),
+                                            text: buffer,
                                         });
                                     }
+                                    buffer = String::new();
+                                    if !cursors[cursor_index].is_mark_set() {
+                                        cursor_index += 1;
+                                    }
+                                } else if found_mark
+                                    && column_index == cursors[cursor_index].mark_column().unwrap()
+                                    && line_index == cursors[cursor_index].mark_line().unwrap() {
+                                    current_line.push(StyledText::Style {
+                                        bg_color: ColorType::Selection,
+                                        fg_color,
+                                        attribute: attribute.clone(),
+                                        text: buffer,
+                                    });
+                                    buffer = String::new();
                                 }
                             }
                             buffer.push(ch);
                             column_index += 1;
-                            //index += ch.len_utf8();
                         }
-                        current_line.push(StyledText::Style {
-                            fg_color,
-                            bg_color,
-                            attribute: attribute.clone(),
-                            text: buffer,
-                        });
+                        if found_mark && !found_cursor {
+                            current_line.push(StyledText::Style {
+                                bg_color: ColorType::Selection,
+                                fg_color,
+                                attribute: attribute.clone(),
+                                text: buffer,
+                            });
+                        } else if found_cursor && (!found_mark && cursor_index < cursors.len() && cursors[cursor_index].is_mark_set() && !cursors[cursor_index].is_mark_and_cursor_same()) {
+                            current_line.push(StyledText::Style {
+                                bg_color: ColorType::Selection,
+                                fg_color,
+                                attribute: attribute.clone(),
+                                text: buffer,
+                            });
+                        } else {
+                            current_line.push(StyledText::Style {
+                                fg_color,
+                                bg_color,
+                                attribute: attribute.clone(),
+                                text: buffer,
+                            });
+                        }
+                        
                     }
                 }
             }
