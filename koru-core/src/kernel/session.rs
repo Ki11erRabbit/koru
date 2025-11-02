@@ -281,6 +281,7 @@ impl Session {
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('m'), ..})), .. }) => {
+                    println!("placing mark");
                     let place_mark: Var = self.env.fetch_var(&Identifier::new("place-cursors-mark")).await.unwrap().unwrap();
 
                     let function: Procedure = match place_mark {
@@ -296,6 +297,7 @@ impl Session {
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('r'), ..})), .. }) => {
+                    println!("removing mark");
                     let remove_mark: Var = self.env.fetch_var(&Identifier::new("remove-cursors-mark")).await.unwrap().unwrap();
 
                     let function: Procedure = match remove_mark {

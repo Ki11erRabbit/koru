@@ -31,7 +31,7 @@ where
                         }
                         ColorType::Selection => {
                             let span = Span::new(text)
-                                .background(Color::from_rgb8(70, 70, 70))
+                                .background(Color::from_rgb8(170, 170, 170))
                                 .color(Color::from_rgb8(255, 255, 255));
                             spans.push(span);
                         }
