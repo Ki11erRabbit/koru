@@ -1,7 +1,7 @@
 use iced::widget::text::Rich;
 use iced_core::Color;
 use iced_core::text::Span;
-use koru_core::styled_text::StyledText;
+use koru_core::styled_text::{ColorType, StyledText};
 use crate::iced_backend::UiMessage;
 
 pub fn rich<'a, Theme, Renderer>(text: &'a Vec<Vec<StyledText>>) -> Rich<'a, UiMessage, Theme, Renderer> 
@@ -19,12 +19,25 @@ where
                 }
                 StyledText::Style {
                     text,
+                    bg_color,
                     ..
                 } => {
-                    let span = Span::new(text)
-                        .background(Color::from_rgb8(100, 100, 100))
-                        .color(Color::from_rgb8(255, 255, 255));
-                    spans.push(span);
+                    match bg_color {
+                        ColorType::Cursor => {
+                            let span = Span::new(text)
+                                .background(Color::from_rgb8(100, 100, 100))
+                                .color(Color::from_rgb8(255, 255, 255));
+                            spans.push(span);
+                        }
+                        ColorType::Selection => {
+                            let span = Span::new(text)
+                                .background(Color::from_rgb8(70, 70, 70))
+                                .color(Color::from_rgb8(255, 255, 255));
+                            spans.push(span);
+                        }
+                        _ => spans.push(Span::new(text)),
+                    }
+                    
                 }
             }
         }

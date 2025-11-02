@@ -241,6 +241,7 @@ impl StyledFile {
     pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
         let mut cursor_index = 0;
         let mut lines = Vec::new();
+        let mut mark_active = false;
         for (line_index, line) in self.lines.into_iter().enumerate() {
             let mut current_line = Vec::new();
             let mut column_index = 0;
@@ -254,32 +255,90 @@ impl StyledFile {
                                     && line_index == cursors[cursor_index].line() {
                                     current_line.push(StyledText::None(buffer));
                                     buffer = String::new();
+                                } else if cursors[cursor_index].is_mark_set() 
+                                    && (column_index == cursors[cursor_index].mark_column().unwrap()
+                                    && line_index == cursors[cursor_index].mark_line().unwrap()) {
+                                    mark_active = true;
+                                    current_line.push(StyledText::None(buffer));
+                                    buffer = String::new();
                                 }
                                 if column_index == cursors[cursor_index].column() + 1
                                     && line_index == cursors[cursor_index].line() {
-                                    cursor_index += 1;
-                                    current_line.push(StyledText::Style {
-                                        bg_color: ColorType::Cursor,
-                                        fg_color: ColorType::Text,
-                                        attribute: Arc::new(TextAttribute::empty()),
-                                        text: buffer,
-                                    });
+                                    if mark_active {
+                                        if cursors[cursor_index].is_mark_and_cursor_same() {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: Arc::new(TextAttribute::empty()),
+                                                text: buffer,
+                                            });
+                                        } else {
+                                            let cursor_char = buffer.pop().unwrap();
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color: ColorType::Text,
+                                                attribute: Arc::new(TextAttribute::empty()),
+                                                text: buffer,
+                                            });
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: Arc::new(TextAttribute::empty()),
+                                                text: String::from(cursor_char),
+                                            })
+                                        }
+                                        cursor_index += 1;
+                                    } else {
+                                        current_line.push(StyledText::Style {
+                                            bg_color: ColorType::Cursor,
+                                            fg_color: ColorType::Text,
+                                            attribute: Arc::new(TextAttribute::empty()),
+                                            text: buffer,
+                                        });
+                                        cursor_index += 1;
+                                    }
                                     buffer = String::new();
                                 }
                             }
-                            if ch == '\n' {
-                                current_line.push(StyledText::None(buffer));
-                                buffer = String::new();
-                                if cursor_index < cursors.len() {
-                                    if column_index == cursors[cursor_index].column()
-                                        && line_index == cursors[cursor_index].line() {
+                            if ch == '\n' && cursor_index < cursors.len() {
+                                if column_index == cursors[cursor_index].column()
+                                    && line_index == cursors[cursor_index].line() {
+                                    if mark_active {
+                                        if cursors[cursor_index].is_mark_and_cursor_same() {
+                                            current_line.push(StyledText::None(buffer));
+                                            buffer = String::new();
+                                            
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: Arc::new(TextAttribute::empty()),
+                                                text: String::from(' '),
+                                            });
+                                        } else {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color: ColorType::Text,
+                                                attribute: Arc::new(TextAttribute::empty()),
+                                                text: buffer,
+                                            });
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: Arc::new(TextAttribute::empty()),
+                                                text: String::from(' '),
+                                            });
+
+                                            buffer = String::new();
+                                        }
                                         cursor_index += 1;
+                                    } else {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color: ColorType::Text,
                                             attribute: Arc::new(TextAttribute::empty()),
                                             text: String::from(' '),
                                         });
+                                        cursor_index += 1;
                                     }
                                 }
                             }

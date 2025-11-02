@@ -119,7 +119,32 @@ impl TextBuffer {
             }
         }
     }
+    
+    pub fn place_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.place_mark(cursor));
+        }
+        output
+    }
 
+    fn place_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_mark();
+        cursor
+    }
+
+    pub fn remove_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.remove_mark(cursor));
+        }
+        output
+    }
+
+    fn remove_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.remove_mark();
+        cursor
+    }
 }
 
 pub trait TextBufferImpl {

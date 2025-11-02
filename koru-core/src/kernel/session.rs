@@ -280,6 +280,36 @@ impl Session {
                     };
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('m'), ..})), .. }) => {
+                    let place_mark: Var = self.env.fetch_var(&Identifier::new("place-cursors-mark")).await.unwrap().unwrap();
+
+                    let function: Procedure = match place_mark {
+                        Var::Global(value) => value.value().read().clone().try_into().unwrap(),
+                        Var::Local(_) => unimplemented!("fetching var from local"),
+                    };
+                    function.call(&[]).await.unwrap();
+                    let focused_buffer = {
+                        let state = SessionState::get_state();
+                        let guard = state.lock().await;
+                        guard.current_focused_buffer().unwrap().clone()
+                    };
+                    self.send_draw(&focused_buffer).await.unwrap();
+                }
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('r'), ..})), .. }) => {
+                    let remove_mark: Var = self.env.fetch_var(&Identifier::new("remove-cursors-mark")).await.unwrap().unwrap();
+
+                    let function: Procedure = match remove_mark {
+                        Var::Global(value) => value.value().read().clone().try_into().unwrap(),
+                        Var::Local(_) => unimplemented!("fetching var from local"),
+                    };
+                    function.call(&[]).await.unwrap();
+                    let focused_buffer = {
+                        let state = SessionState::get_state();
+                        let guard = state.lock().await;
+                        guard.current_focused_buffer().unwrap().clone()
+                    };
+                    self.send_draw(&focused_buffer).await.unwrap();
+                }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel.rs";
                     

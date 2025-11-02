@@ -60,6 +60,26 @@ impl Cursor {
     pub fn column(&self) -> usize {
         self.real_cursor.column
     }
+    
+    pub fn mark_line(&self) -> Option<usize> {
+        self.mark.map(|c| c.line)
+    }
+    
+    pub fn mark_column(&self) -> Option<usize> {
+        self.mark.map(|c| c.column)
+    }
+    
+    pub fn is_mark_set(&self) -> bool {
+        self.mark.is_some()
+    }
+    
+    pub fn is_mark_and_cursor_same(&self) -> bool {
+        if let Some(mark) = self.mark {
+            mark == self.real_cursor
+        } else {
+            false
+        }
+    }
 
     pub fn set_column(&mut self, column: usize) {
         self.real_cursor.column = column;
@@ -126,8 +146,21 @@ impl Cursor {
             self.logical_cursor.column = line_len;
         }
     }
-
     
+    pub fn place_mark(&mut self) {
+        self.mark = Some(self.real_cursor);
+    }
+    
+    pub fn remove_mark(&mut self) {
+        self.mark = None;
+    }
+    
+    pub fn flip_mark(&mut self) {
+        if let Some(mark) = self.mark.as_mut() {
+            std::mem::swap(&mut self.real_cursor, mark);
+            self.logical_cursor = self.real_cursor;
+        }
+    }
 }
 
 impl Default for Cursor {

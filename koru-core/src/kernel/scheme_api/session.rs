@@ -91,6 +91,16 @@ impl Buffer {
         let handle = self.handle.clone();
         self.cursors = handle.move_cursors(self.cursors.clone(), direction).await
     }
+
+    pub async fn place_marks(&mut self) {
+        let handle = self.handle.clone();
+        self.cursors = handle.place_marks(self.cursors.clone()).await
+    }
+
+    pub async fn remove_marks(&mut self) {
+        let handle = self.handle.clone();
+        self.cursors = handle.remove_marks(self.cursors.clone()).await
+    }
 }
 
 pub struct SessionState {
@@ -311,5 +321,27 @@ pub async fn move_cursors_right(wrap: &Value) -> Result<Vec<Value>, Condition> {
         return Err(Condition::error(String::from("Buffer not found")));
     };
     buffer.move_cursors(CursorDirection::Right { wrap }).await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "place-cursors-mark", lib = "(koru-session)")]
+pub async fn place_marks() -> Result<Vec<Value>, Condition> {
+    let state = SessionState::get_state();
+    let mut guard = state.lock().await;
+    let Some(buffer) = guard.get_current_buffer_mut() else {
+        return Err(Condition::error(String::from("Buffer not found")));
+    };
+    buffer.place_marks().await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "remove-cursors-mark", lib = "(koru-session)")]
+pub async fn remove_marks() -> Result<Vec<Value>, Condition> {
+    let state = SessionState::get_state();
+    let mut guard = state.lock().await;
+    let Some(buffer) = guard.get_current_buffer_mut() else {
+        return Err(Condition::error(String::from("Buffer not found")));
+    };
+    buffer.remove_marks().await;
     Ok(Vec::new())
 }
