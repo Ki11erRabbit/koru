@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder};
-use crate::kernel::buffer::cursor::{Cursor, CursorDirection, LeadingEdge};
+use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 
 pub struct TextBuffer {
     buffer: Rope,
@@ -85,8 +85,7 @@ impl TextBuffer {
                     if length == 0 {
                         length += 1;
                     }
-                    cursor.set_column_end(length);
-                    cursor.set_column_start(length - 1);
+                    cursor.set_column(length - 1);
                 } else if !at_line_start {
                     cursor.move_left(self.buffer.line_length(cursor.line()));
                 }
@@ -104,8 +103,7 @@ impl TextBuffer {
                         }
                         return None;
                     };
-                    cursor.set_column_start(0);
-                    cursor.set_column_end(1);
+                    cursor.set_column(0);
                 } else if !at_line_end {
                     cursor.move_right(self.buffer.line_length(cursor.line()));
                 }

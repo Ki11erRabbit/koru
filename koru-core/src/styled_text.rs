@@ -250,13 +250,13 @@ impl StyledFile {
                         let mut buffer = String::new();
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
-                                if column_index == cursors[cursor_index].column_start()
-                                    && line_index == cursors[cursor_index].line_start() {
+                                if column_index == cursors[cursor_index].column()
+                                    && line_index == cursors[cursor_index].line() {
                                     current_line.push(StyledText::None(buffer));
                                     buffer = String::new();
                                 }
-                                if column_index == cursors[cursor_index].column_end()
-                                    && line_index == cursors[cursor_index].line_end() {
+                                if column_index == cursors[cursor_index].column() + 1
+                                    && line_index == cursors[cursor_index].line() {
                                     cursor_index += 1;
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
@@ -271,8 +271,8 @@ impl StyledFile {
                                 current_line.push(StyledText::None(buffer));
                                 buffer = String::new();
                                 if cursor_index < cursors.len() {
-                                    if column_index == cursors[cursor_index].column_start()
-                                        && line_index == cursors[cursor_index].line_end() {
+                                    if column_index == cursors[cursor_index].column()
+                                        && line_index == cursors[cursor_index].line() {
                                         cursor_index += 1;
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
@@ -297,8 +297,8 @@ impl StyledFile {
                         let mut buffer = String::new();
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
-                                if column_index == cursors[cursor_index].column_start()
-                                    && line_index == cursors[cursor_index].line_start() {
+                                if column_index == cursors[cursor_index].column()
+                                    && line_index == cursors[cursor_index].line() {
                                     current_line.push(StyledText::Style {
                                         fg_color,
                                         bg_color,
@@ -307,8 +307,8 @@ impl StyledFile {
                                     });
                                     buffer = String::new();
                                 }
-                                if column_index == cursors[cursor_index].column_end()
-                                    && line_index == cursors[cursor_index].line_end() {
+                                if column_index == cursors[cursor_index].column() + 1
+                                    && line_index == cursors[cursor_index].line() {
                                     cursor_index += 1;
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Cursor,
@@ -328,8 +328,8 @@ impl StyledFile {
                                 });
                                 buffer = String::new();
                                 if cursor_index < cursors.len() {
-                                    if column_index == cursors[cursor_index].column_start()
-                                        && line_index == cursors[cursor_index].line_end() {
+                                    if column_index == cursors[cursor_index].column()
+                                        && line_index == cursors[cursor_index].line() {
                                         cursor_index += 1;
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,

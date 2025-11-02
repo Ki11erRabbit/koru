@@ -6,7 +6,7 @@ use scheme_rs::proc::Procedure;
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use tokio::sync::Mutex;
-use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, GridCursor, LeadingEdge};
+use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, GridCursor};
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::styled_text::StyledFile;
 
@@ -66,7 +66,7 @@ impl Buffer {
         Buffer {
             major_mode: Value::undefined(),
             handle,
-            cursors: vec![Cursor::new_main(GridCursor::default(), LeadingEdge::End)]
+            cursors: vec![Cursor::new_main(GridCursor::default())]
         }
     }
 
