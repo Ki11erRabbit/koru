@@ -347,6 +347,7 @@ impl StyledFile {
                                         current_line.push(StyledText::None { text: TextChunk::new(self.rope.clone(), start, end) });
                                         start = end;
                                     } else {
+                                        end += ch.len_utf8();
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Selection,
                                             fg_color: ColorType::Text,
@@ -354,7 +355,6 @@ impl StyledFile {
                                             text: TextChunk::new(self.rope.clone(), start, end),
                                         });
                                         start = end;
-                                        end += ch.len_utf8();
                                         found_mark = false;
                                         found_cursor = false;
                                         cursor_index += 1;
