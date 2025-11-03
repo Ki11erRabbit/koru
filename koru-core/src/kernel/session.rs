@@ -1,5 +1,6 @@
 use scheme_rs::cps::Compile;
 use std::error::Error;
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::{Environment, Var};
@@ -113,7 +114,7 @@ impl Session {
             guard.add_buffer(name, handle);
         }
         let path = PathBuf::from(name);
-        let ext = path.extension().unwrap().to_str().unwrap();
+        let ext = path.extension().unwrap_or(&OsStr::new("")).to_str().unwrap();
         self.file_opened_hook(name, ext).await;
         Ok(out)
     }
