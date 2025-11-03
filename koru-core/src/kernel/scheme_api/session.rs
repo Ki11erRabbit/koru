@@ -81,7 +81,8 @@ impl Buffer {
     pub async fn get_styled_text(&self) -> StyledFile {
         let text = self.handle.get_text().await;
         let file = StyledFile::from(text);
-        file.place_cursors(&self.cursors)
+        let major_mode: Gc<MajorMode> = self.major_mode.clone().try_into_rust_type().unwrap();
+        file.place_cursors(&self.cursors, major_mode).await
     }
     pub fn get_major_mode(&self) -> Value {
         self.major_mode.clone()

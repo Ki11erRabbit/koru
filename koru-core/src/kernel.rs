@@ -6,7 +6,7 @@ mod session;
 pub mod client;
 pub mod broker;
 pub(crate) mod buffer;
-mod scheme_api;
+pub mod scheme_api;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};

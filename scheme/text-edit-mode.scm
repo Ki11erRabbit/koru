@@ -3,22 +3,16 @@
 (import (koru-session))
 (import (styled-text))
 
-(define (append-line-numbers file i total-lines)
-  (if (< i total-lines)
-    (begin
-      (styled-file-prepend file i (styled-text-create (write-line-number i total-lines #\|)))
-      (append-line-numbers file (+ i 1) total-lines))
-    file))
-
-(define (modify-lines file total-lines)
+(define (prepend-line current-line total-lines)
   (if (major-mode-data text-edit-mode)
-    (append-line-numbers file 0 total-lines)
-    file))
+    (styled-text-create (write-line-number current-line total-lines #\|))
+    (modify-line-default current-line total-lines)))
 
 (define text-edit-mode (major-mode-create
                          "TextEdit"
-                         modify-lines
-                         #f))
+                         prepend-line
+                         modify-line-default
+                         #t))
 
 (define (file-open-hook buffer-name file-ext)
   (major-mode-set! buffer-name text-edit-mode))

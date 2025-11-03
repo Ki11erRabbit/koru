@@ -17,17 +17,24 @@ pub struct MajorMode {
     commands: Vec<Gc<Command>>,
     aliases: HashMap<String, usize>,
     data: Value,
-    modify_line: Option<Procedure>,
+    prepend_line: Option<Procedure>,
+    append_line: Option<Procedure>,
 }
 
 impl MajorMode {
-    pub fn new(name: String, data: Value, modify_line: Option<Procedure>) -> Self {
+    pub fn new(
+        name: String, 
+        data: Value, 
+        prepend_line: Option<Procedure>,
+        append_line: Option<Procedure>,
+    ) -> Self {
         MajorMode {
             name,
             commands: Vec::new(),
             aliases: HashMap::new(),
             data,
-            modify_line,
+            append_line,
+            prepend_line,
         }
     }
     
@@ -51,11 +58,19 @@ impl MajorMode {
     pub fn remove_alias(&mut self, name: String) {
         self.aliases.remove(&name);
     }
+    
+    pub fn prepend_line(&self) -> Option<Procedure> {
+        self.prepend_line.clone()
+    }
+    
+    pub fn append_line(&self) -> Option<Procedure> {
+        self.append_line.clone()
+    }
 }
 
 impl Default for MajorMode {
     fn default() -> Self {
-        MajorMode::new(String::from("Bogus"), Value::from(false), None)
+        MajorMode::new(String::from("Bogus"), Value::from(false), None, None)
     }
 }
 
@@ -71,20 +86,24 @@ impl SchemeCompatible for MajorMode {
 #[bridge(name = "major-mode-create", lib = "(major-mode)")]
 pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
     let name: String = name.clone().try_into()?;
-    let Some((modify_line, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+    let Some((prepend_line, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let modify_line: Procedure = modify_line.clone().try_into()?;
+    let Some((append_line, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let prepend_line: Procedure = prepend_line.clone().try_into()?;
+    let append_line: Procedure = append_line.clone().try_into()?;
     let data = if let Some((data, _)) = rest.split_first() {
         data.clone()
     } else {
         Value::undefined()
     };
 
-    let major_mode = MajorMode::new(name, data, Some(modify_line));
+    let major_mode = MajorMode::new(name, data, Some(prepend_line), Some(append_line));
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }
@@ -111,26 +130,49 @@ pub fn major_mode_register_command(args: &[Value]) -> Result<Vec<Value>, Conditi
     Ok(Vec::new())
 }
 
-#[bridge(name = "major-mode-modify-lines", lib = "(major-mode)")]
-pub async fn modify_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
+#[bridge(name = "major-mode-prepend-line", lib = "(major-mode)")]
+pub async fn prepend_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((mode, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let Some((styled_file, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+    let Some((current_line, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((total_lines, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
     let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
-    let styled_file_core: Gc<StyledFile> = styled_file.clone().try_into_rust_type()?;
 
-    let mod_line = mode.read().modify_line.clone();
+    let mod_line = mode.read().prepend_line.clone();
 
     if let Some(mod_line) = mod_line {
-        let len = styled_file_core.read().line_count();
-        
-        mod_line.call(&[styled_file.clone(), Value::from(Number::FixedInteger(len as i64))]).await?;
-        Ok(vec![styled_file.clone()])
+        let result = mod_line.call(&[current_line.clone(), total_lines.clone()]).await?;
+        Ok(result)
     } else {
-        Ok(vec![styled_file.clone()])
+        Ok(vec![])
+    }
+}
+
+#[bridge(name = "major-mode-append-line", lib = "(major-mode)")]
+pub async fn append_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((current_line, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((total_lines, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
+
+    let mod_line = mode.read().prepend_line.clone();
+
+    if let Some(mod_line) = mod_line {
+        let result = mod_line.call(&[current_line.clone(), total_lines.clone()]).await?;
+        Ok(result)
+    } else {
+        Ok(vec![])
     }
 }
 
@@ -159,15 +201,15 @@ pub fn write_line_number(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(vec![Value::from(string)])
 }
 
-#[bridge(name = "modify-lines-default", lib = "(major-mode)")]
+#[bridge(name = "modify-line-default", lib = "(major-mode)")]
 pub fn modify_line_default(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((file, rest)) = args.split_first() else {
+    let Some((_current_line, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
     let Some((_total_lines, _rest)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
 
-    Ok(vec![file.clone()])
+    Ok(vec![])
 }
 

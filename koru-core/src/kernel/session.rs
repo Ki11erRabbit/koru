@@ -165,27 +165,7 @@ impl Session {
             guard.get_buffers().get(buffer_name).unwrap().clone()
         };
 
-        let modify_line: Var = self.env.fetch_var(&Identifier::new("major-mode-modify-lines")).await.unwrap().unwrap();
-
-        let function: Procedure = match modify_line {
-            Var::Global(value) => value.value().read().clone().try_into().unwrap(),
-            Var::Local(_) => unimplemented!("fetching var from local"),
-        };
-
-        let major_mode = buffer.get_major_mode();
         let styled_file = buffer.get_styled_text().await;
-
-        let args = &[major_mode, Value::from(Record::from_rust_type(styled_file))];
-
-        let result = function.call(args).await?;
-
-        let tweaked_file: Gc<StyledFile> = result[0].clone().try_into_rust_type().unwrap();
-        let mut styled_file = StyledFile::new(Rope::new());
-
-        std::mem::swap(&mut styled_file, &mut tweaked_file.write());
-        
-        assert_ne!(styled_file.line_count(), 0);
-
         self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
         Ok(())
     }

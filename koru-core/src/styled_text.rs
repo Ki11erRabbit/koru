@@ -9,6 +9,7 @@ use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use crate::kernel::buffer::Cursor;
+use crate::kernel::scheme_api::major_mode::MajorMode;
 
 #[derive(Clone, Debug, Eq, PartialEq, Trace)]
 pub struct TextChunk {
@@ -301,7 +302,8 @@ impl StyledFile {
     }
     
     /// Cursors must be in order they are logically in the file
-    pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
+    pub async fn place_cursors(self, cursors: &[Cursor], major_mode: Gc<MajorMode>) -> Self {
+        let total_lines = self.lines.len();
         let mut cursor_index = 0;
         let mut lines = Vec::new();
         let mut found_mark = false;
@@ -309,6 +311,18 @@ impl StyledFile {
         for (line_index, line) in self.lines.into_iter().enumerate() {
             let mut current_line = Vec::new();
             let mut column_index = 0;
+            let proc = major_mode.read().prepend_line();
+            if let Some(proc) = proc {
+                let args = &[
+                    Value::from(Number::from(line_index)), 
+                    Value::from(Number::from(total_lines))
+                ];
+                let value = proc.call(args).await.unwrap();
+                if value.len() != 0 {
+                    let text: Gc<StyledText> = value[0].clone().try_into_rust_type().unwrap();
+                    current_line.push(text.read().clone());
+                }
+            }
             for segment in line {
                 match segment {
                     StyledText::None { text } => {
@@ -631,6 +645,18 @@ impl StyledFile {
                             start = end;
                         }
                     }
+                }
+            }
+            let append_line = major_mode.read().append_line();
+            if let Some(proc) = append_line {
+                let args = &[
+                    Value::from(Number::from(line_index)),
+                    Value::from(Number::from(total_lines))
+                ];
+                let value = proc.call(args).await.unwrap();
+                if value.len() != 0 {
+                    let text: Gc<StyledText> = value[0].clone().try_into_rust_type().unwrap();
+                    current_line.push(text.read().clone());
                 }
             }
             lines.push(current_line);
