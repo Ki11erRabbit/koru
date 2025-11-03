@@ -10,8 +10,9 @@ use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use crate::kernel::buffer::Cursor;
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Trace)]
 pub struct TextChunk {
+    #[trace(skip)]
     rope: Rope,
     start: usize,
     end: usize,
@@ -20,9 +21,25 @@ impl TextChunk {
     pub fn new(rope: Rope, start: usize, end: usize) -> Self {
         Self { rope, start, end }
     }
-    
+
     pub fn chars(&self) -> impl Iterator<Item = char> + '_ {
         self.rope.byte_slice(self.start..self.end).chars()
+    }
+
+    pub fn start(&self) -> usize {
+        self.start
+    }
+    pub fn end(&self) -> usize {
+        self.end
+    }
+}
+
+impl SchemeCompatible for TextChunk {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&TextChunk")
     }
 }
 
@@ -73,6 +90,7 @@ pub enum ColorType {
     Tags,
     Selection,
     Cursor,
+    SecondaryCursor,
     Pink,
     Red,
     Lime,
@@ -120,6 +138,7 @@ impl TryFrom<&str> for ColorType {
             "Tags" => ColorType::Tags,
             "Selection" => ColorType::Selection,
             "Cursor" => ColorType::Cursor,
+            "SecondaryCursor" => ColorType::SecondaryCursor,
             "Pink" => ColorType::Pink,
             "Red" => ColorType::Red,
             "Lime" => ColorType::Lime,
@@ -158,12 +177,16 @@ impl SchemeCompatible for ColorType {
 
 #[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub enum StyledText {
-    None(Arc<TextChunk>),
+
+    None {
+        text: TextChunk,
+    },
     Style {
         fg_color: ColorType,
         bg_color: ColorType,
-        attribute: Arc<TextAttribute>,
-        text: Arc<TextChunk>,
+        #[trace(skip)]
+        attribute: TextAttribute,
+        text: TextChunk,
     }
 }
 
@@ -216,34 +239,37 @@ pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
                 }
             }
         }
-        
+
         let text_len = text.len();
-        let text = Arc::new(TextChunk::new(Rope::from(text), 0, text_len));
+        let text = TextChunk::new(Rope::from(text), 0, text_len);
 
         let text = StyledText::Style {
             fg_color,
             bg_color,
-            attribute: Arc::new(attributes),
+            attribute: attributes,
             text,
         };
         Ok(vec![Value::from(Record::from_rust_type(text))])
 
     } else {
         let text_len = text.len();
-        let text = Arc::new(TextChunk::new(Rope::from(text), 0, text_len));
-        let text = StyledText::None(text);
+        let text = TextChunk::new(Rope::from(text), 0, text_len);
+        let text = StyledText::None { text };
         Ok(vec![Value::from(Record::from_rust_type(text))])
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub struct StyledFile {
+    #[trace(skip)]
+    rope: Rope,
     lines: Vec<Vec<StyledText>>,
 }
 
 impl StyledFile {
-    pub fn new() -> Self {
+    pub fn new(rope: Rope) -> Self {
         Self {
+            rope,
             lines: Vec::new(),
         }
     }
@@ -278,7 +304,6 @@ impl StyledFile {
     pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
         let mut cursor_index = 0;
         let mut lines = Vec::new();
-        let mut mark_active = false;
         let mut found_mark = false;
         let mut found_cursor = false;
         for (line_index, line) in self.lines.into_iter().enumerate() {
@@ -286,16 +311,17 @@ impl StyledFile {
             let mut column_index = 0;
             for segment in line {
                 match segment {
-                    StyledText::None(text) => {
-                        let mut buffer = String::new();
+                    StyledText::None { text } => {
+                        let mut start = text.start();
+                        let mut end = start;
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
                                 if column_index == cursors[cursor_index].column()
                                     && line_index == cursors[cursor_index].line() {
                                     found_cursor = true;
                                     if !found_mark {
-                                        current_line.push(StyledText::None(Arc::new(TextChunk::from(buffer))));
-                                        buffer = String::new();
+                                        current_line.push(StyledText::None { text: TextChunk::new(self.rope.clone(), start, end) });
+                                        start = end;
                                     }
 
                                 } else if cursors[cursor_index].is_mark_set()
@@ -303,17 +329,16 @@ impl StyledFile {
                                     && line_index == cursors[cursor_index].mark_line().unwrap() {
                                     found_mark = true;
                                     if !found_cursor {
-                                        current_line.push(StyledText::None(Arc::new(TextChunk::from(buffer))));
-                                        buffer = String::new();
+                                        current_line.push(StyledText::None { text: TextChunk::new(self.rope.clone(), start, end) });
+                                        start = end;
                                     } else {
-                                        buffer.push(ch);
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Selection,
                                             fg_color: ColorType::Text,
-                                            attribute: Arc::new(TextAttribute::empty()),
-                                            text: Arc::new(TextChunk::from(buffer)),
+                                            attribute: TextAttribute::empty(),
+                                            text: TextChunk::new(self.rope.clone(), start, end),
                                         });
-                                        buffer = String::new();
+                                        start = end;
                                         found_mark = false;
                                         found_cursor = false;
                                         cursor_index += 1;
@@ -328,42 +353,74 @@ impl StyledFile {
                                         && ch == '\n'
                                         && column_index == cursors[cursor_index].column()
                                         && line_index == cursors[cursor_index].line()) {
-
-                                    if ch == '\n'
-                                        && column_index == cursors[cursor_index].column()
-                                        && line_index == cursors[cursor_index].line() {
-                                        buffer.push(' ');
-                                    }
+                                    
 
                                     if cursors[cursor_index].is_mark_and_cursor_same() {
                                         found_mark = false;
                                     }
 
                                     if found_mark {
-                                        let Some(cursor_char) = buffer.pop() else {
-                                            unreachable!();
-                                        };
-                                        current_line.push(StyledText::Style {
-                                            bg_color: ColorType::Selection,
-                                            fg_color: ColorType::Text,
-                                            attribute: Arc::new(TextAttribute::empty()),
-                                            text: Arc::new(TextChunk::from(buffer)),
-                                        });
-                                        current_line.push(StyledText::Style {
-                                            bg_color: ColorType::Cursor,
-                                            fg_color: ColorType::Text,
-                                            attribute: Arc::new(TextAttribute::empty()),
-                                            text: Arc::new(TextChunk::from(String::from(cursor_char))),
-                                        });
+                                        if ch == '\n'
+                                            && column_index == cursors[cursor_index].column()
+                                            && line_index == cursors[cursor_index].line() {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color: ColorType::Text,
+                                                attribute: TextAttribute::empty(),
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+                                            
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: TextAttribute::empty(),
+                                                text: TextChunk::from(String::from(' ')),
+                                            });
+                                        } else {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color: ColorType::Text,
+                                                attribute: TextAttribute::empty(),
+                                                text: TextChunk::new(self.rope.clone(), start, end - ch.len_utf8()),
+                                            });
+                                            start = end - ch.len_utf8();
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: TextAttribute::empty(),
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+                                        }                                        
                                     } else {
-                                        current_line.push(StyledText::Style {
-                                            bg_color: ColorType::Cursor,
-                                            fg_color: ColorType::Text,
-                                            attribute: Arc::new(TextAttribute::empty()),
-                                            text: Arc::new(TextChunk::from(buffer)),
-                                        });
+                                        if ch == '\n'
+                                            && column_index == cursors[cursor_index].column()
+                                            && line_index == cursors[cursor_index].line() {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color: ColorType::Text,
+                                                attribute: TextAttribute::empty(),
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: TextAttribute::empty(),
+                                                text: TextChunk::from(String::from(' ')),
+                                            });
+                                        } else {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute: TextAttribute::empty(),
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+                                        }
                                     }
-                                    buffer = String::new();
                                     if !cursors[cursor_index].is_mark_set() {
                                         cursor_index += 1;
                                     }
@@ -373,32 +430,36 @@ impl StyledFile {
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Selection,
                                         fg_color: ColorType::Text,
-                                        attribute: Arc::new(TextAttribute::empty()),
-                                        text: Arc::new(TextChunk::from(buffer)),
+                                        attribute: TextAttribute::empty(),
+                                        text: TextChunk::new(self.rope.clone(), start, end),
                                     });
-                                    buffer = String::new();
+                                    start = end;
                                 }
                             }
-
-                            buffer.push(ch);
+                            end += ch.len_utf8();
                             column_index += 1;
                         }
                         if found_mark && !found_cursor {
                             current_line.push(StyledText::Style {
                                 bg_color: ColorType::Selection,
                                 fg_color: ColorType::Text,
-                                attribute: Arc::new(TextAttribute::empty()),
-                                text: Arc::new(TextChunk::from(buffer)),
+                                attribute: TextAttribute::empty(),
+                                text: TextChunk::new(self.rope.clone(), start, end),
                             });
+                            start = end;
                         } else if found_cursor && (!found_mark && cursor_index < cursors.len() && cursors[cursor_index].is_mark_set() && !cursors[cursor_index].is_mark_and_cursor_same()) {
                             current_line.push(StyledText::Style {
                                 bg_color: ColorType::Selection,
                                 fg_color: ColorType::Text,
-                                attribute: Arc::new(TextAttribute::empty()),
-                                text: Arc::new(TextChunk::from(buffer)),
+                                attribute: TextAttribute::empty(),
+                                text: TextChunk::new(self.rope.clone(), start, end),
                             });
+                            start = end;
                         } else {
-                            current_line.push(StyledText::None(Arc::new(TextChunk::from(buffer))));
+                            current_line.push(StyledText::None {
+                                text: TextChunk::new(self.rope.clone(), start, end),
+                            });
+                            start = end;
                         }
                     }
                     StyledText::Style {
@@ -407,7 +468,8 @@ impl StyledFile {
                         attribute,
                         text,
                     } => {
-                        let mut buffer = String::new();
+                        let mut start = text.start();
+                        let mut end = start;
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
                                 if column_index == cursors[cursor_index].column()
@@ -417,10 +479,10 @@ impl StyledFile {
                                         current_line.push(StyledText::Style {
                                             fg_color,
                                             bg_color,
-                                            attribute: attribute.clone(),
-                                            text: Arc::new(TextChunk::from(buffer)),
+                                            attribute,
+                                            text: TextChunk::new(self.rope.clone(), start, end) 
                                         });
-                                        buffer = String::new();
+                                        start = end;
                                     }
 
                                 } else if cursors[cursor_index].is_mark_set()
@@ -431,19 +493,18 @@ impl StyledFile {
                                         current_line.push(StyledText::Style {
                                             fg_color,
                                             bg_color,
-                                            attribute: attribute.clone(),
-                                            text: Arc::new(TextChunk::from(buffer)),
+                                            attribute,
+                                            text: TextChunk::new(self.rope.clone(), start, end)
                                         });
-                                        buffer = String::new();
+                                        start = end;
                                     } else {
-                                        buffer.push(ch);
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Selection,
                                             fg_color,
-                                            attribute: attribute.clone(),
-                                            text: Arc::new(TextChunk::from(buffer)),
+                                            attribute,
+                                            text: TextChunk::new(self.rope.clone(), start, end),
                                         });
-                                        buffer = String::new();
+                                        start = end;
                                         found_mark = false;
                                         found_cursor = false;
                                         cursor_index += 1;
@@ -459,41 +520,73 @@ impl StyledFile {
                                     && column_index == cursors[cursor_index].column()
                                     && line_index == cursors[cursor_index].line()) {
 
-                                    if ch == '\n'
-                                        && column_index == cursors[cursor_index].column()
-                                        && line_index == cursors[cursor_index].line() {
-                                        buffer.push(' ');
-                                    }
 
                                     if cursors[cursor_index].is_mark_and_cursor_same() {
                                         found_mark = false;
                                     }
 
                                     if found_mark {
-                                        let Some(cursor_char) = buffer.pop() else {
-                                            unreachable!();
-                                        };
-                                        current_line.push(StyledText::Style {
-                                            bg_color: ColorType::Selection,
-                                            fg_color,
-                                            attribute: attribute.clone(),
-                                            text: Arc::new(TextChunk::from(buffer)),
-                                        });
-                                        current_line.push(StyledText::Style {
-                                            bg_color: ColorType::Cursor,
-                                            fg_color,
-                                            attribute: attribute.clone(),
-                                            text: Arc::new(TextChunk::from(String::from(cursor_char))),
-                                        });
+                                        if ch == '\n'
+                                            && column_index == cursors[cursor_index].column()
+                                            && line_index == cursors[cursor_index].line() {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color,
+                                                attribute,
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color,
+                                                attribute,
+                                                text: TextChunk::from(String::from(' ')),
+                                            });
+                                        } else {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color,
+                                                attribute,
+                                                text: TextChunk::new(self.rope.clone(), start, end - ch.len_utf8()),
+                                            });
+                                            start = end - ch.len_utf8();
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color,
+                                                attribute,
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+                                        }
                                     } else {
-                                        current_line.push(StyledText::Style {
-                                            bg_color: ColorType::Cursor,
-                                            fg_color,
-                                            attribute: attribute.clone(),
-                                            text: Arc::new(TextChunk::from(buffer)),
-                                        });
+                                        if ch == '\n'
+                                            && column_index == cursors[cursor_index].column()
+                                            && line_index == cursors[cursor_index].line() {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Selection,
+                                                fg_color,
+                                                attribute,
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color: ColorType::Text,
+                                                attribute,
+                                                text: TextChunk::from(String::from(' ')),
+                                            });
+                                        } else {
+                                            current_line.push(StyledText::Style {
+                                                bg_color: ColorType::Cursor,
+                                                fg_color,
+                                                attribute,
+                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                            });
+                                            start = end;
+                                        }
                                     }
-                                    buffer = String::new();
                                     if !cursors[cursor_index].is_mark_set() {
                                         cursor_index += 1;
                                     }
@@ -503,48 +596,57 @@ impl StyledFile {
                                     current_line.push(StyledText::Style {
                                         bg_color: ColorType::Selection,
                                         fg_color,
-                                        attribute: attribute.clone(),
-                                        text: Arc::new(TextChunk::from(buffer)),
+                                        attribute,
+                                        text: TextChunk::new(self.rope.clone(), start, end),
                                     });
-                                    buffer = String::new();
+                                    start = end;
                                 }
                             }
-                            buffer.push(ch);
+                            end += ch.len_utf8();
                             column_index += 1;
                         }
                         if found_mark && !found_cursor {
                             current_line.push(StyledText::Style {
                                 bg_color: ColorType::Selection,
                                 fg_color,
-                                attribute: attribute.clone(),
-                                text: Arc::new(TextChunk::from(buffer)),
+                                attribute,
+                                text: TextChunk::new(self.rope.clone(), start, end),
                             });
+                            start = end;
                         } else if found_cursor && (!found_mark && cursor_index < cursors.len() && cursors[cursor_index].is_mark_set() && !cursors[cursor_index].is_mark_and_cursor_same()) {
                             current_line.push(StyledText::Style {
                                 bg_color: ColorType::Selection,
                                 fg_color,
-                                attribute: attribute.clone(),
-                                text: Arc::new(TextChunk::from(buffer)),
+                                attribute,
+                                text: TextChunk::new(self.rope.clone(), start, end),
                             });
+                            start = end;
                         } else {
                             current_line.push(StyledText::Style {
                                 fg_color,
                                 bg_color,
-                                attribute: attribute.clone(),
-                                text: Arc::new(TextChunk::from(buffer)),
+                                attribute,
+                                text: TextChunk::new(self.rope.clone(), start, end)
                             });
+                            start = end;
                         }
-
                     }
                 }
             }
             lines.push(current_line);
         }
         Self {
+            rope: self.rope,
             lines,
         }
     }
-    
+}
+
+impl Default for StyledFile {
+    fn default() -> Self {
+        let rope = Rope::new();
+        StyledFile::from(rope)
+    }
 }
 
 impl From<Rope> for StyledFile {
@@ -555,14 +657,24 @@ impl From<Rope> for StyledFile {
         for ch in text.chars() {
             end += ch.len_utf8();
             if ch == '\n' {
-                lines.push(vec![StyledText::None(Arc::new(TextChunk::new(text.clone(), start, end)))]);
+                lines.push(vec![StyledText::None {
+                    text: TextChunk::new(text.clone(), start, end)
+                }]);
                 start = end;
             }
         }
-        
+
         Self {
+            rope: text,
             lines
         }
+    }
+}
+
+impl From<String> for StyledFile {
+    fn from(text: String) -> Self {
+        let rope = Rope::from(text);
+        StyledFile::from(rope)
     }
 }
 

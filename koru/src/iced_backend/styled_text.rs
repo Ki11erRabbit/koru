@@ -13,7 +13,7 @@ where
     for line in text {
         for item in line {
             match item {
-                StyledText::None(text) => {
+                StyledText::None{ text} => {
                     let span = Span::new(text.to_string());
                     spans.push(span)
                 }

@@ -81,7 +81,7 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
-            text: StyledFile::new(),
+            text: StyledFile::default(),
             message_bar: String::from("Hello world!"),
             key_buffer: KeyBuffer::new(),
             keybindings: Keybinding::new(),

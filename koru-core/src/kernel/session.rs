@@ -2,6 +2,7 @@ use scheme_rs::cps::Compile;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
+use crop::Rope;
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::{Environment, Var};
 use scheme_rs::gc::{Gc};
@@ -179,7 +180,7 @@ impl Session {
         let result = function.call(args).await?;
 
         let tweaked_file: Gc<StyledFile> = result[0].clone().try_into_rust_type().unwrap();
-        let mut styled_file = StyledFile::new();
+        let mut styled_file = StyledFile::new(Rope::new());
 
         std::mem::swap(&mut styled_file, &mut tweaked_file.write());
         

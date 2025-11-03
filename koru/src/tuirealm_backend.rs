@@ -183,7 +183,7 @@ pub async fn real_main(
         terminal: TerminalBridge::new_crossterm().unwrap(),
         broker_client: client,
         session_address: None,
-        text: StyledFile::new(),
+        text: StyledFile::default(),
         message_bar: String::new(),
         key_buffer: KeyBuffer::new(),
         keybinding: Keybinding::new(),

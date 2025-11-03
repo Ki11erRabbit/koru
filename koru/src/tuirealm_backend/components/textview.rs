@@ -29,8 +29,8 @@ impl TextView {
             let mut new_line = Vec::new();
             for item in line {
                 match item {
-                    StyledText::None(string) => {
-                        new_line.push(TextSpan::new(string.to_string()));
+                    StyledText::None { text} => {
+                        new_line.push(TextSpan::new(text.to_string()));
                     }
                     StyledText::Style { text, .. } => {
                         new_line.push(TextSpan::new(text.to_string()).bg(Color::Gray).fg(Color::Black));
