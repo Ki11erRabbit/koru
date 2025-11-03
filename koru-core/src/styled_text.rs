@@ -1,5 +1,7 @@
+use std::fmt::Display;
 use std::sync::{Arc};
 use bitflags::bitflags;
+use crop::Rope;
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::num::Number;
@@ -7,6 +9,36 @@ use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use crate::kernel::buffer::Cursor;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct TextChunk {
+    rope: Rope,
+    start: usize,
+    end: usize,
+}
+impl TextChunk {
+    pub fn new(rope: Rope, start: usize, end: usize) -> Self {
+        Self { rope, start, end }
+    }
+    
+    pub fn chars(&self) -> impl Iterator<Item = char> + '_ {
+        self.rope.byte_slice(self.start..self.end).chars()
+    }
+}
+
+impl Display for TextChunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.rope.byte_slice(self.start..self.end).to_string())
+    }
+}
+
+impl From<String> for TextChunk {
+    fn from(text: String) -> Self {
+        let len = text.len();
+        TextChunk::new(Rope::from(text), 0, len)
+    }
+}
+
 
 bitflags! {
     #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -124,14 +156,14 @@ impl SchemeCompatible for ColorType {
 }
 
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Trace)]
+#[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub enum StyledText {
-    None(String),
+    None(Arc<TextChunk>),
     Style {
         fg_color: ColorType,
         bg_color: ColorType,
         attribute: Arc<TextAttribute>,
-        text: String,
+        text: Arc<TextChunk>,
     }
 }
 
@@ -184,6 +216,9 @@ pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
                 }
             }
         }
+        
+        let text_len = text.len();
+        let text = Arc::new(TextChunk::new(Rope::from(text), 0, text_len));
 
         let text = StyledText::Style {
             fg_color,
@@ -194,12 +229,14 @@ pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
         Ok(vec![Value::from(Record::from_rust_type(text))])
 
     } else {
+        let text_len = text.len();
+        let text = Arc::new(TextChunk::new(Rope::from(text), 0, text_len));
         let text = StyledText::None(text);
         Ok(vec![Value::from(Record::from_rust_type(text))])
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Trace)]
+#[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub struct StyledFile {
     lines: Vec<Vec<StyledText>>,
 }
@@ -257,16 +294,16 @@ impl StyledFile {
                                     && line_index == cursors[cursor_index].line() {
                                     found_cursor = true;
                                     if !found_mark {
-                                        current_line.push(StyledText::None(buffer));
+                                        current_line.push(StyledText::None(Arc::new(TextChunk::from(buffer))));
                                         buffer = String::new();
                                     }
-                                    
+
                                 } else if cursors[cursor_index].is_mark_set()
                                     && column_index == cursors[cursor_index].mark_column().unwrap()
                                     && line_index == cursors[cursor_index].mark_line().unwrap() {
                                     found_mark = true;
                                     if !found_cursor {
-                                        current_line.push(StyledText::None(buffer));
+                                        current_line.push(StyledText::None(Arc::new(TextChunk::from(buffer))));
                                         buffer = String::new();
                                     } else {
                                         buffer.push(ch);
@@ -274,7 +311,7 @@ impl StyledFile {
                                             bg_color: ColorType::Selection,
                                             fg_color: ColorType::Text,
                                             attribute: Arc::new(TextAttribute::empty()),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                         buffer = String::new();
                                         found_mark = false;
@@ -284,24 +321,24 @@ impl StyledFile {
                                         continue;
                                     }
                                 }
-                                if (found_cursor 
+                                if (found_cursor
                                     && column_index == cursors[cursor_index].column() + 1
-                                    && line_index == cursors[cursor_index].line()) 
+                                    && line_index == cursors[cursor_index].line())
                                     || (found_cursor
                                         && ch == '\n'
                                         && column_index == cursors[cursor_index].column()
                                         && line_index == cursors[cursor_index].line()) {
-                                    
-                                    if ch == '\n' 
+
+                                    if ch == '\n'
                                         && column_index == cursors[cursor_index].column()
                                         && line_index == cursors[cursor_index].line() {
                                         buffer.push(' ');
                                     }
-                                    
+
                                     if cursors[cursor_index].is_mark_and_cursor_same() {
                                         found_mark = false;
                                     }
-                                    
+
                                     if found_mark {
                                         let Some(cursor_char) = buffer.pop() else {
                                             unreachable!();
@@ -310,20 +347,20 @@ impl StyledFile {
                                             bg_color: ColorType::Selection,
                                             fg_color: ColorType::Text,
                                             attribute: Arc::new(TextAttribute::empty()),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color: ColorType::Text,
                                             attribute: Arc::new(TextAttribute::empty()),
-                                            text: String::from(cursor_char),
+                                            text: Arc::new(TextChunk::from(String::from(cursor_char))),
                                         });
                                     } else {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color: ColorType::Text,
                                             attribute: Arc::new(TextAttribute::empty()),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                     }
                                     buffer = String::new();
@@ -337,12 +374,12 @@ impl StyledFile {
                                         bg_color: ColorType::Selection,
                                         fg_color: ColorType::Text,
                                         attribute: Arc::new(TextAttribute::empty()),
-                                        text: buffer,
+                                        text: Arc::new(TextChunk::from(buffer)),
                                     });
-                                    buffer = String::new(); 
+                                    buffer = String::new();
                                 }
                             }
-                            
+
                             buffer.push(ch);
                             column_index += 1;
                         }
@@ -351,17 +388,17 @@ impl StyledFile {
                                 bg_color: ColorType::Selection,
                                 fg_color: ColorType::Text,
                                 attribute: Arc::new(TextAttribute::empty()),
-                                text: buffer,
+                                text: Arc::new(TextChunk::from(buffer)),
                             });
                         } else if found_cursor && (!found_mark && cursor_index < cursors.len() && cursors[cursor_index].is_mark_set() && !cursors[cursor_index].is_mark_and_cursor_same()) {
                             current_line.push(StyledText::Style {
                                 bg_color: ColorType::Selection,
                                 fg_color: ColorType::Text,
                                 attribute: Arc::new(TextAttribute::empty()),
-                                text: buffer,
+                                text: Arc::new(TextChunk::from(buffer)),
                             });
                         } else {
-                            current_line.push(StyledText::None(buffer));
+                            current_line.push(StyledText::None(Arc::new(TextChunk::from(buffer))));
                         }
                     }
                     StyledText::Style {
@@ -381,7 +418,7 @@ impl StyledFile {
                                             fg_color,
                                             bg_color,
                                             attribute: attribute.clone(),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                         buffer = String::new();
                                     }
@@ -395,7 +432,7 @@ impl StyledFile {
                                             fg_color,
                                             bg_color,
                                             attribute: attribute.clone(),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                         buffer = String::new();
                                     } else {
@@ -404,7 +441,7 @@ impl StyledFile {
                                             bg_color: ColorType::Selection,
                                             fg_color,
                                             attribute: attribute.clone(),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                         buffer = String::new();
                                         found_mark = false;
@@ -440,20 +477,20 @@ impl StyledFile {
                                             bg_color: ColorType::Selection,
                                             fg_color,
                                             attribute: attribute.clone(),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color,
                                             attribute: attribute.clone(),
-                                            text: String::from(cursor_char),
+                                            text: Arc::new(TextChunk::from(String::from(cursor_char))),
                                         });
                                     } else {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Cursor,
                                             fg_color,
                                             attribute: attribute.clone(),
-                                            text: buffer,
+                                            text: Arc::new(TextChunk::from(buffer)),
                                         });
                                     }
                                     buffer = String::new();
@@ -467,7 +504,7 @@ impl StyledFile {
                                         bg_color: ColorType::Selection,
                                         fg_color,
                                         attribute: attribute.clone(),
-                                        text: buffer,
+                                        text: Arc::new(TextChunk::from(buffer)),
                                     });
                                     buffer = String::new();
                                 }
@@ -480,24 +517,24 @@ impl StyledFile {
                                 bg_color: ColorType::Selection,
                                 fg_color,
                                 attribute: attribute.clone(),
-                                text: buffer,
+                                text: Arc::new(TextChunk::from(buffer)),
                             });
                         } else if found_cursor && (!found_mark && cursor_index < cursors.len() && cursors[cursor_index].is_mark_set() && !cursors[cursor_index].is_mark_and_cursor_same()) {
                             current_line.push(StyledText::Style {
                                 bg_color: ColorType::Selection,
                                 fg_color,
                                 attribute: attribute.clone(),
-                                text: buffer,
+                                text: Arc::new(TextChunk::from(buffer)),
                             });
                         } else {
                             current_line.push(StyledText::Style {
                                 fg_color,
                                 bg_color,
                                 attribute: attribute.clone(),
-                                text: buffer,
+                                text: Arc::new(TextChunk::from(buffer)),
                             });
                         }
-                        
+
                     }
                 }
             }
@@ -510,10 +547,21 @@ impl StyledFile {
     
 }
 
-impl From<String> for StyledFile {
-    fn from(text: String) -> Self {
+impl From<Rope> for StyledFile {
+    fn from(text: Rope) -> Self {
+        let mut start = 0;
+        let mut end = 0;
+        let mut lines = Vec::new();
+        for ch in text.chars() {
+            end += ch.len_utf8();
+            if ch == '\n' {
+                lines.push(vec![StyledText::None(Arc::new(TextChunk::new(text.clone(), start, end)))]);
+                start = end;
+            }
+        }
+        
         Self {
-            lines: text.lines().map(ToString::to_string).map(|mut x| {x.push('\n'); x}).map(StyledText::None).map(|x| vec![x]).collect(),
+            lines
         }
     }
 }

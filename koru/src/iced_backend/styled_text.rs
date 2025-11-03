@@ -14,7 +14,7 @@ where
         for item in line {
             match item {
                 StyledText::None(text) => {
-                    let span = Span::new(text);
+                    let span = Span::new(text.to_string());
                     spans.push(span)
                 }
                 StyledText::Style {
@@ -24,18 +24,18 @@ where
                 } => {
                     match bg_color {
                         ColorType::Cursor => {
-                            let span = Span::new(text)
+                            let span = Span::new(text.to_string())
                                 .background(Color::from_rgb8(100, 100, 100))
                                 .color(Color::from_rgb8(255, 255, 255));
                             spans.push(span);
                         }
                         ColorType::Selection => {
-                            let span = Span::new(text)
+                            let span = Span::new(text.to_string())
                                 .background(Color::from_rgb8(170, 170, 170))
                                 .color(Color::from_rgb8(255, 255, 255));
                             spans.push(span);
                         }
-                        _ => spans.push(Span::new(text)),
+                        _ => spans.push(Span::new(text.to_string())),
                     }
                     
                 }

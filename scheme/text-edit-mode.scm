@@ -11,12 +11,14 @@
     file))
 
 (define (modify-lines file total-lines)
-  (append-line-numbers file 0 total-lines))
+  (if (major-mode-data text-edit-mode)
+    (append-line-numbers file 0 total-lines)
+    file))
 
 (define text-edit-mode (major-mode-create
                          "TextEdit"
                          modify-lines
-                         #t))
+                         #f))
 
 (define (file-open-hook buffer-name file-ext)
   (major-mode-set! buffer-name text-edit-mode))

@@ -3,6 +3,7 @@ use std::error::Error;
 use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
+use crop::Rope;
 use tokio::io::AsyncReadExt;
 use tokio::sync::{RwLock, Mutex};
 use crate::kernel::buffer::text_buffer::TextBuffer;
@@ -87,7 +88,7 @@ impl BufferHandle {
         self.handle.lock().await.rename(name);
     }
     
-    pub async fn get_text(&self) -> String {
+    pub async fn get_text(&self) -> Rope {
         self.handle.lock().await.get_buffer()
     }
     

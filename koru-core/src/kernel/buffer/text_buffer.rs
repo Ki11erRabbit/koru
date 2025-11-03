@@ -38,8 +38,8 @@ impl TextBuffer {
         self.path = Some(path.as_ref().to_path_buf())
     }
     
-    pub fn get_buffer(&self) -> String {
-        self.buffer.to_string()
+    pub fn get_buffer(&self) -> Rope {
+        self.buffer.clone()
     }
 
     pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {

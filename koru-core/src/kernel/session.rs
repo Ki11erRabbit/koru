@@ -314,7 +314,7 @@ impl Session {
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
-                    const FILE_NAME: &str = "koru-core/src/kernel.rs";
+                    const FILE_NAME: &str = "koru-core/src/kernel/session.rs";
                     
                     let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
                     let focused_buffer = {

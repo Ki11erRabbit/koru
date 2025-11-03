@@ -30,10 +30,10 @@ impl TextView {
             for item in line {
                 match item {
                     StyledText::None(string) => {
-                        new_line.push(TextSpan::new(string));
+                        new_line.push(TextSpan::new(string.to_string()));
                     }
                     StyledText::Style { text, .. } => {
-                        new_line.push(TextSpan::new(text).bg(Color::Gray).fg(Color::Black));
+                        new_line.push(TextSpan::new(text.to_string()).bg(Color::Gray).fg(Color::Black));
                     }
                 }
             }

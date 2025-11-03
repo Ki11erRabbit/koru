@@ -36,7 +36,7 @@ pub enum MessageKind {
     Broker(BrokerMessage),
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum GeneralMessage {
     KeyEvent(KeyPress),
     MouseEvent,
@@ -46,6 +46,12 @@ pub enum GeneralMessage {
     UpdateMessageBar(String),
     FlushKeyBuffer,
     SetUiAttrs(Vec<AttrSet>),
+}
+
+impl Hash for GeneralMessage {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        
+    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
