@@ -308,11 +308,12 @@ impl StyledFile {
         let mut lines = Vec::new();
         let mut found_mark = false;
         let mut found_cursor = false;
+        let prepend_line = major_mode.read().prepend_line();
+        let append_line = major_mode.read().append_line();
         for (line_index, line) in self.lines.into_iter().enumerate() {
             let mut current_line = Vec::new();
             let mut column_index = 0;
-            let proc = major_mode.read().prepend_line();
-            if let Some(proc) = proc {
+            if let Some(ref proc) = prepend_line {
                 let args = &[
                     Value::from(Number::from(line_index)), 
                     Value::from(Number::from(total_lines))
@@ -647,8 +648,7 @@ impl StyledFile {
                     }
                 }
             }
-            let append_line = major_mode.read().append_line();
-            if let Some(proc) = append_line {
+            if let Some(ref proc) = append_line {
                 let args = &[
                     Value::from(Number::from(line_index)),
                     Value::from(Number::from(total_lines))
