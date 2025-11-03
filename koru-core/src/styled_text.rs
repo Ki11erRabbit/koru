@@ -315,7 +315,7 @@ impl StyledFile {
             let mut column_index = 0;
             if let Some(ref proc) = prepend_line {
                 let args = &[
-                    Value::from(Number::from(line_index)), 
+                    Value::from(Number::from(line_index)),
                     Value::from(Number::from(total_lines))
                 ];
                 let value = proc.call(args).await.unwrap();
@@ -354,6 +354,7 @@ impl StyledFile {
                                             text: TextChunk::new(self.rope.clone(), start, end),
                                         });
                                         start = end;
+                                        end += ch.len_utf8();
                                         found_mark = false;
                                         found_cursor = false;
                                         cursor_index += 1;
@@ -368,7 +369,7 @@ impl StyledFile {
                                         && ch == '\n'
                                         && column_index == cursors[cursor_index].column()
                                         && line_index == cursors[cursor_index].line()) {
-                                    
+
 
                                     if cursors[cursor_index].is_mark_and_cursor_same() {
                                         found_mark = false;
@@ -385,7 +386,7 @@ impl StyledFile {
                                                 text: TextChunk::new(self.rope.clone(), start, end),
                                             });
                                             start = end;
-                                            
+
                                             current_line.push(StyledText::Style {
                                                 bg_color: ColorType::Cursor,
                                                 fg_color: ColorType::Text,
@@ -407,7 +408,7 @@ impl StyledFile {
                                                 text: TextChunk::new(self.rope.clone(), start, end),
                                             });
                                             start = end;
-                                        }                                        
+                                        }
                                     } else {
                                         if ch == '\n'
                                             && column_index == cursors[cursor_index].column()
@@ -495,7 +496,7 @@ impl StyledFile {
                                             fg_color,
                                             bg_color,
                                             attribute,
-                                            text: TextChunk::new(self.rope.clone(), start, end) 
+                                            text: TextChunk::new(self.rope.clone(), start, end)
                                         });
                                         start = end;
                                     }
@@ -520,6 +521,7 @@ impl StyledFile {
                                             text: TextChunk::new(self.rope.clone(), start, end),
                                         });
                                         start = end;
+                                        end += ch.len_utf8();
                                         found_mark = false;
                                         found_cursor = false;
                                         cursor_index += 1;
