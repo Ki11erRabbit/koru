@@ -346,7 +346,7 @@ impl StyledFile {
                                     if !found_cursor {
                                         current_line.push(StyledText::None { text: TextChunk::new(self.rope.clone(), start, end) });
                                         start = end;
-                                    } else {
+                                    } else if column_index != cursors[cursor_index].column() + 1 {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Selection,
                                             fg_color: ColorType::Text,
@@ -513,7 +513,7 @@ impl StyledFile {
                                             text: TextChunk::new(self.rope.clone(), start, end)
                                         });
                                         start = end;
-                                    } else {
+                                    } else if column_index != cursors[cursor_index].column() + 1  {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Selection,
                                             fg_color,
