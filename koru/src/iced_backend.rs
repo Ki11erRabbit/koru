@@ -208,10 +208,8 @@ impl App {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
                 column!(
-                    Scrollable::new(styled_text::rich(&self.text.lines())
-                        .font(iced::font::Font::MONOSPACE))
-                        .height(Length::Fill)
-                        .width(Length::Fill),
+                    styled_text::rich(&self.text.lines())
+                        .font(iced::font::Font::MONOSPACE),
                     text(&self.message_bar)
                 ).into()
             }
