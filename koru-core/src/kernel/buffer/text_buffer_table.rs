@@ -95,13 +95,23 @@ impl BufferHandle {
     pub async fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
         self.handle.lock().await.move_cursors(cursors, direction)
     }
+
+    pub async fn move_cursor(&self, cursor: Cursor, direction: CursorDirection) -> Cursor {
+        self.handle.lock().await.move_cursor(cursor, direction)
+    }
     
     pub async fn place_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
         self.handle.lock().await.place_marks(cursors)
     }
+    pub async fn place_mark(&self, cursor: Cursor) -> Cursor {
+        self.handle.lock().await.place_mark(cursor)
+    }
     
     pub async fn remove_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
         self.handle.lock().await.remove_marks(cursors)
+    }
+    pub async fn remove_mark(&self, cursor: Cursor) -> Cursor {
+        self.handle.lock().await.remove_mark(cursor)
     }
 }
 

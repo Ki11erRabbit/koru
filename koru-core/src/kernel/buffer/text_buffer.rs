@@ -45,9 +45,8 @@ impl TextBuffer {
     pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
         let mut new_cursors = Vec::with_capacity(cursors.len());
         for cursor in cursors {
-            if let Some(cursor) = self.move_cursor(cursor, direction) {
-                new_cursors.push(cursor);
-            }
+            let cursor = self.move_cursor(cursor, direction);
+            new_cursors.push(cursor);
         }
         let mut index = 1;
         // Remove a cursor if it matches the main cursor or a cursor next to it is the same
@@ -70,7 +69,7 @@ impl TextBuffer {
         new_cursors
     }
 
-    pub fn move_cursor(&self, mut cursor: Cursor, direction: CursorDirection) -> Option<Cursor> {
+    pub fn move_cursor(&self, mut cursor: Cursor, direction: CursorDirection) -> Cursor {
         match direction {
             CursorDirection::Left { wrap } => {
                 let at_line_start = cursor.at_line_start();
@@ -78,9 +77,9 @@ impl TextBuffer {
                     cursor.move_up(&self.buffer);
                     let Some((_, mut length, end)) = self.buffer.previous_line_information(cursor.line()) else {
                         if cursor.is_main() {
-                            return Some(cursor);
+                            return cursor;
                         }
-                        return None;
+                        return cursor;
                     };
                     if length == 0 {
                         length += 1;
@@ -89,7 +88,7 @@ impl TextBuffer {
                 } else if !at_line_start {
                     cursor.move_left(self.buffer.line_length(cursor.line()));
                 }
-                Some(cursor)
+                cursor
             }
             CursorDirection::Right {
                 wrap,
@@ -99,23 +98,23 @@ impl TextBuffer {
                     cursor.move_down(&self.buffer);
                     let Some((start, _, _)) = self.buffer.previous_line_information(cursor.line()) else {
                         if cursor.is_main() {
-                            return Some(cursor);
+                            return cursor;
                         }
-                        return None;
+                        return cursor;
                     };
                     cursor.set_column(0);
                 } else if !at_line_end {
                     cursor.move_right(self.buffer.line_length(cursor.line()));
                 }
-                Some(cursor)
+                cursor
             }
             CursorDirection::Up => {
                 cursor.move_up(&self.buffer);
-                Some(cursor)
+                cursor
             }
             CursorDirection::Down => {
                 cursor.move_down(&self.buffer);
-                Some(cursor)
+                cursor
             }
         }
     }
@@ -128,7 +127,7 @@ impl TextBuffer {
         output
     }
 
-    fn place_mark(&self, mut cursor: Cursor) -> Cursor {
+    pub fn place_mark(&self, mut cursor: Cursor) -> Cursor {
         cursor.place_mark();
         cursor
     }
@@ -141,7 +140,7 @@ impl TextBuffer {
         output
     }
 
-    fn remove_mark(&self, mut cursor: Cursor) -> Cursor {
+    pub fn remove_mark(&self, mut cursor: Cursor) -> Cursor {
         cursor.remove_mark();
         cursor
     }

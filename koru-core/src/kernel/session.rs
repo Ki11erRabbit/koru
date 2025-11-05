@@ -2,12 +2,9 @@ use scheme_rs::cps::Compile;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
-use crop::Rope;
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::{Environment, Var};
-use scheme_rs::gc::{Gc};
 use scheme_rs::proc::Procedure;
-use scheme_rs::records::{Record};
 use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
 use scheme_rs::syntax::{Identifier, Span, Syntax};
@@ -18,7 +15,6 @@ use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
 use crate::kernel::scheme_api::session::SessionState;
 use crate::keybinding::Keybinding;
-use crate::styled_text::StyledFile;
 
 pub enum CommandState {
     None,
