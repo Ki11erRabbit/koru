@@ -4,6 +4,7 @@ use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::{Environment, Var};
+use scheme_rs::num::Number;
 use scheme_rs::proc::Procedure;
 use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
@@ -198,13 +199,13 @@ impl Session {
                     self.key_buffer.clear();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Up), ..})), .. }) => {
-                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-up")).await.unwrap().unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursor-up")).await.unwrap().unwrap();
 
                     let function: Procedure = match move_cursor {
                         Var::Global(value) => value.value().read().clone().try_into().unwrap(),
                         Var::Local(_) => unimplemented!("fetching var from local"),
                     };
-                    function.call(&[]).await.unwrap();
+                    function.call(&[Value::from(Number::FixedInteger(0))]).await.unwrap();
                     
                     let focused_buffer = {
                         let state = SessionState::get_state();
@@ -214,13 +215,13 @@ impl Session {
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Down), ..})), .. }) => {
-                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-down")).await.unwrap().unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursor-down")).await.unwrap().unwrap();
 
                     let function: Procedure = match move_cursor {
                         Var::Global(value) => value.value().read().clone().try_into().unwrap(),
                         Var::Local(_) => unimplemented!("fetching var from local"),
                     };
-                    function.call(&[]).await.unwrap();
+                    function.call(&[Value::from(Number::FixedInteger(0))]).await.unwrap();
                     let focused_buffer = {
                         let state = SessionState::get_state();
                         let guard = state.lock().await;
@@ -229,13 +230,13 @@ impl Session {
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Left), ..})), .. }) => {
-                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-left")).await.unwrap().unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursor-left")).await.unwrap().unwrap();
 
                     let function: Procedure = match move_cursor {
                         Var::Global(value) => value.value().read().clone().try_into().unwrap(),
                         Var::Local(_) => unimplemented!("fetching var from local"),
                     };
-                    function.call(&[Value::from(false)]).await.unwrap();
+                    function.call(&[Value::from(Number::FixedInteger(0)), Value::from(false)]).await.unwrap();
                     let focused_buffer = {
                         let state = SessionState::get_state();
                         let guard = state.lock().await;
@@ -244,13 +245,13 @@ impl Session {
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::ControlKey(ControlKey::Right), ..})), .. }) => {
-                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursors-right")).await.unwrap().unwrap();
+                    let move_cursor: Var = self.env.fetch_var(&Identifier::new("move-cursor-right")).await.unwrap().unwrap();
 
                     let function: Procedure = match move_cursor {
                         Var::Global(value) => value.value().read().clone().try_into().unwrap(),
                         Var::Local(_) => unimplemented!("fetching var from local"),
                     };
-                    function.call(&[Value::from(false)]).await.unwrap();
+                    function.call(&[Value::from(Number::FixedInteger(0)), Value::from(false)]).await.unwrap();
                     let focused_buffer = {
                         let state = SessionState::get_state();
                         let guard = state.lock().await;
@@ -260,13 +261,13 @@ impl Session {
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('m'), ..})), .. }) => {
                     println!("placing mark");
-                    let place_mark: Var = self.env.fetch_var(&Identifier::new("place-cursors-mark")).await.unwrap().unwrap();
+                    let place_mark: Var = self.env.fetch_var(&Identifier::new("place-cursor-mark")).await.unwrap().unwrap();
 
                     let function: Procedure = match place_mark {
                         Var::Global(value) => value.value().read().clone().try_into().unwrap(),
                         Var::Local(_) => unimplemented!("fetching var from local"),
                     };
-                    function.call(&[]).await.unwrap();
+                    function.call(&[Value::from(Number::FixedInteger(0))]).await.unwrap();
                     let focused_buffer = {
                         let state = SessionState::get_state();
                         let guard = state.lock().await;
@@ -276,13 +277,13 @@ impl Session {
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('r'), ..})), .. }) => {
                     println!("removing mark");
-                    let remove_mark: Var = self.env.fetch_var(&Identifier::new("remove-cursors-mark")).await.unwrap().unwrap();
+                    let remove_mark: Var = self.env.fetch_var(&Identifier::new("remove-cursor-mark")).await.unwrap().unwrap();
 
                     let function: Procedure = match remove_mark {
                         Var::Global(value) => value.value().read().clone().try_into().unwrap(),
                         Var::Local(_) => unimplemented!("fetching var from local"),
                     };
-                    function.call(&[]).await.unwrap();
+                    function.call(&[Value::from(Number::FixedInteger(0))]).await.unwrap();
                     let focused_buffer = {
                         let state = SessionState::get_state();
                         let guard = state.lock().await;
