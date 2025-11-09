@@ -1,4 +1,3 @@
-use scheme_rs::cps::Compile;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
@@ -13,6 +12,7 @@ use crate::kernel;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
+use crate::kernel::scheme_api;
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
 use crate::styled_text::StyledFile;
@@ -24,8 +24,6 @@ pub enum CommandState {
 
 
 pub struct Session {
-    runtime: Runtime,
-    env: Environment,
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
     command_state: CommandState,
@@ -35,27 +33,9 @@ impl Session {
     pub async fn new(
         broker_client: BrokerClient,
     ) -> Self {
-        let runtime = kernel::SCHEME_RUNTIME.lock().await.take().unwrap();
-
-        let prog = Library::new_program(&runtime, &Path::new("scheme/text-edit-mode.scm"));
-        let env = Environment::Top(prog);
-
-        let sexprs = Syntax::from_str(include_str!("../../../scheme/text-edit-mode.scm"), Some("text-edit-mode.scm")).unwrap();
-        let span = Span::default();
-        let base = DefinitionBody::parse_lib_body(
-            &runtime,
-            &sexprs,
-            &env,
-            &span,
-        ).await.unwrap();
-
-        let compiled = base.compile_top_level();
-        let proc = runtime.compile_expr(compiled).await;
-        proc.call(&[]).await.unwrap();
+        scheme_api::load_builtins().await;
 
         Self {
-            runtime,
-            env,
             broker_client,
             client_ids: vec![],
             command_state: CommandState::None,

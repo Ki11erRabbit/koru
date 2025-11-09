@@ -12,10 +12,12 @@ use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{LazyLock, OnceLock};
 use futures::future::BoxFuture;
+use scheme_rs::env::Environment;
 use scheme_rs::runtime::Runtime;
 use tokio::sync::Mutex;
 use crate::kernel::broker::Broker;
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse, ClientConnector};
+use crate::kernel::scheme_api::SCHEME_RUNTIME;
 
 struct ChannelPair {
     sender: Sender<ClientConnectingResponse>,
@@ -36,9 +38,6 @@ unsafe impl Send for ChannelPair {}
 unsafe impl Sync for ChannelPair {}
 
 
-pub static SCHEME_RUNTIME: LazyLock<Mutex<Option<Runtime>>> = LazyLock::new(|| {
-    Mutex::new(Some(Runtime::new()))
-});
 
 /// Starts the Kernel's Runtime
 ///
