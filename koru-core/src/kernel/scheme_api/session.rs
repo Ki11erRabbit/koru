@@ -1,5 +1,7 @@
 mod buffer;
 
+use std::ops::DerefMut;
+use std::ops::Deref;
 pub use buffer::*;
 
 use std::collections::HashMap;
@@ -63,7 +65,7 @@ impl Hooks {
 
 
 pub struct SessionState {
-    buffers: HashMap<String, Buffer>,
+    buffers: RwLock<HashMap<String, Buffer>>,
     hooks: Arc<Mutex<Hooks>>,
     current_buffer: Option<String>,
     key_buffer: RwLock<KeyBuffer>,
@@ -78,7 +80,7 @@ impl SessionState {
         let hooks = Arc::new(Mutex::new(hooks));
 
         Self {
-            buffers: HashMap::new(),
+            buffers: RwLock::new(HashMap::new()),
             hooks,
             current_buffer: None,
             key_buffer: RwLock::new(KeyBuffer::new()),
@@ -86,15 +88,15 @@ impl SessionState {
         }
     }
 
-    pub fn get_buffers(&self) -> &HashMap<String, Buffer> {
-        &self.buffers
+    pub async fn get_buffers(&self) -> impl Deref<Target = HashMap<String, Buffer>> {
+        self.buffers.read().await
     }
-    pub fn get_buffers_mut(&mut self) -> &mut HashMap<String, Buffer> {
-        &mut self.buffers
+    pub async fn get_buffers_mut(&mut self) -> impl DerefMut<Target = HashMap<String, Buffer>> {
+        self.buffers.write().await
     }
 
-    pub fn add_buffer(&mut self, name: &str, handle: BufferHandle) {
-        self.buffers.insert(name.to_string(), Buffer::new(handle));
+    pub async fn add_buffer(&mut self, name: &str, handle: BufferHandle) {
+        self.buffers.write().await.insert(name.to_string(), Buffer::new(handle));
     }
 
     pub fn get_hooks(&self) -> &Arc<Mutex<Hooks>> {
@@ -109,17 +111,9 @@ impl SessionState {
         self.current_buffer.as_ref()
     }
 
-    pub fn get_current_buffer(&self) -> Option<&Buffer> {
+    pub async fn get_current_buffer(&self) -> Option<Buffer> {
         if let Some(buffer) = self.current_buffer.as_ref() {
-            self.buffers.get(buffer)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_current_buffer_mut(&mut self) -> Option<&mut Buffer> {
-        if let Some(buffer) = self.current_buffer.as_mut() {
-            self.buffers.get_mut(buffer)
+            self.buffers.read().await.get(buffer).cloned()
         } else {
             None
         }
@@ -267,8 +261,9 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let _: Gc<MajorMode> = major_mode.try_into_rust_type()?;
 
     let state = SessionState::get_state();
-    let mut guard = state.write().await;
-    let Some(buffer) = guard.buffers.get_mut(&buffer_name) else {
+    let guard = state.read().await;
+    let mut buffer_guard = guard.buffers.write().await;
+    let Some(buffer) = buffer_guard.get_mut(&buffer_name) else {
         return Err(Condition::error(String::from("Buffer not found")));
     };
     
@@ -281,7 +276,7 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
 pub async fn get_current_major_mode() -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
     let guard = state.read().await;
-    let Some(buffer) = guard.get_current_buffer() else {
+    let Some(buffer) = guard.get_current_buffer().await else {
         return Err(Condition::error(String::from("Buffer not found")));
     };
 

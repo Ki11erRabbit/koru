@@ -105,7 +105,7 @@ impl Session {
         {
             let state = SessionState::get_state();
             let mut guard = state.write().await;
-            guard.add_buffer(name, handle);
+            guard.add_buffer(name, handle).await;
         }
         let path = PathBuf::from(name);
         let ext = path.extension().unwrap_or(&OsStr::new("")).to_str().unwrap();
@@ -155,7 +155,7 @@ impl Session {
         let buffer = {
             let state = SessionState::get_state();
             let guard = state.read().await;
-            guard.get_buffers().get(buffer_name).unwrap().clone()
+            guard.get_buffers().await.get(buffer_name).unwrap().clone()
         };
 
         let major_mode = buffer.get_major_mode();

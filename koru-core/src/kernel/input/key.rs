@@ -3,6 +3,7 @@ use std::sync::{Arc};
 use bitflags::bitflags;
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::{OpaqueGcPtr, Trace};
+use scheme_rs::lists;
 use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
@@ -338,7 +339,6 @@ impl KeyPress {
     }
 }
 
-
 impl SchemeCompatible for KeyPress {
     fn rtd() -> Arc<RecordTypeDescriptor>
     where
@@ -364,4 +364,21 @@ pub fn string_to_keypress(string: &Value) -> Result<Vec<Value>, Condition> {
     };
 
     Ok(vec![Value::from(Record::from_rust_type(keypress))])
+}
+
+#[bridge(name = "string->keysequence", lib = "(key-press)")]
+pub fn string_to_key_list(string: &Value) -> Result<Vec<Value>, Condition> {
+    let string: String = string.clone().try_into()?;
+    let vec = string.split_whitespace()
+        .map(|s| {
+            KeyPress::from_string(s).map(|kp| Value::from(Record::from_rust_type(kp)))
+        })
+        .collect::<Option<Vec<Value>>>();
+    let Some(vec) = vec else {
+        return Err(Condition::error(String::from("Invalid key sequence.")));
+    };
+    
+    let value = lists::slice_to_list(&vec);
+
+    Ok(vec![value])
 }

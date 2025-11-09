@@ -34,7 +34,8 @@ impl TextEditData {
     async fn get_buffer_handle(&self) -> Result<BufferHandle, Condition> {
         let state = SessionState::get_state();
         let guard = state.read().await;
-        let Some(buffer) = guard.get_buffers().get(&self.internal.lock().await.buffer_name) else {
+        let buffer_guard=  guard.get_buffers().await;
+        let Some(buffer) = buffer_guard.get(&self.internal.lock().await.buffer_name) else {
             return Err(Condition::error(String::from("Buffer not found")));
         };
         let handle = buffer.get_handle();
@@ -130,7 +131,7 @@ pub async fn text_edit_draw(major_mode: &Value) -> Result<Vec<Value>, Condition>
         let buffer_name = data.internal.lock().await.buffer_name.clone();
         let state = SessionState::get_state();
         let guard = state.read().await;
-        guard.get_buffers().get(&buffer_name).unwrap().clone()
+        guard.get_buffers().await.get(&buffer_name).unwrap().clone()
     };
 
     let styled_text = buffer.get_styled_text(major_mode.clone(), &data.internal.lock().await.cursors).await;
