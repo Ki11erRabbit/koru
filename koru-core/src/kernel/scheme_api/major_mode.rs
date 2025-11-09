@@ -1,3 +1,6 @@
+mod text_view;
+mod text_edit;
+
 use scheme_rs::gc::Gc;
 use std::collections::HashMap;
 use std::sync::{Arc};
@@ -17,24 +20,21 @@ pub struct MajorMode {
     commands: Vec<Gc<Command>>,
     aliases: HashMap<String, usize>,
     data: Value,
-    prepend_line: Option<Procedure>,
-    append_line: Option<Procedure>,
+    draw: Option<Procedure>,
 }
 
 impl MajorMode {
     pub fn new(
-        name: String, 
-        data: Value, 
-        prepend_line: Option<Procedure>,
-        append_line: Option<Procedure>,
+        name: String,
+        data: Value,
+        draw: Option<Procedure>,
     ) -> Self {
         MajorMode {
             name,
             commands: Vec::new(),
             aliases: HashMap::new(),
             data,
-            append_line,
-            prepend_line,
+            draw,
         }
     }
     
@@ -58,19 +58,15 @@ impl MajorMode {
     pub fn remove_alias(&mut self, name: String) {
         self.aliases.remove(&name);
     }
-    
-    pub fn prepend_line(&self) -> Option<Procedure> {
-        self.prepend_line.clone()
-    }
-    
-    pub fn append_line(&self) -> Option<Procedure> {
-        self.append_line.clone()
+
+    pub fn draw(&self) -> Option<Procedure> {
+        self.draw.clone()
     }
 }
 
 impl Default for MajorMode {
     fn default() -> Self {
-        MajorMode::new(String::from("Bogus"), Value::from(false), None, None)
+        MajorMode::new(String::from("Bogus"), Value::from(false), None)
     }
 }
 
@@ -89,21 +85,17 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(3, args.len()));
     };
     let name: String = name.clone().try_into()?;
-    let Some((prepend_line, rest)) = rest.split_first() else {
+    let Some((draw, rest)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let Some((append_line, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
-    };
-    let prepend_line: Procedure = prepend_line.clone().try_into()?;
-    let append_line: Procedure = append_line.clone().try_into()?;
+    let draw: Procedure = draw.clone().try_into()?;
     let data = if let Some((data, _)) = rest.split_first() {
         data.clone()
     } else {
         Value::undefined()
     };
 
-    let major_mode = MajorMode::new(name, data, Some(prepend_line), Some(append_line));
+    let major_mode = MajorMode::new(name, data, Some(draw));
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }
@@ -130,29 +122,20 @@ pub fn major_mode_register_command(args: &[Value]) -> Result<Vec<Value>, Conditi
     Ok(Vec::new())
 }
 
-#[bridge(name = "major-mode-prepend-line", lib = "(major-mode)")]
-pub async fn prepend_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((mode, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
-    };
-    let Some((current_line, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
-    };
-    let Some((total_lines, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
-    };
+#[bridge(name = "major-mode-draw", lib = "(major-mode)")]
+pub async fn prepend_line(mode: &Value) -> Result<Vec<Value>, Condition> {
     let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
 
-    let mod_line = mode.read().prepend_line.clone();
+    let mod_line = mode.read().draw.clone();
 
     if let Some(mod_line) = mod_line {
-        let result = mod_line.call(&[current_line.clone(), total_lines.clone()]).await?;
+        let result = mod_line.call(&[]).await?;
         Ok(result)
     } else {
         Ok(vec![])
     }
 }
-
+/*
 #[bridge(name = "major-mode-append-line", lib = "(major-mode)")]
 pub async fn append_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((mode, rest)) = args.split_first() else {
@@ -174,8 +157,8 @@ pub async fn append_line(args: &[Value]) -> Result<Vec<Value>, Condition> {
     } else {
         Ok(vec![])
     }
-}
-
+}*/
+/*
 #[bridge(name = "write-line-number", lib = "(major-mode)")]
 pub fn write_line_number(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((current_line, rest)) = args.split_first() else {
@@ -200,16 +183,5 @@ pub fn write_line_number(args: &[Value]) -> Result<Vec<Value>, Condition> {
     
     Ok(vec![Value::from(string)])
 }
-
-#[bridge(name = "modify-line-default", lib = "(major-mode)")]
-pub fn modify_line_default(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((_current_line, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
-    };
-    let Some((_total_lines, _rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
-    };
-
-    Ok(vec![])
-}
+*/
 

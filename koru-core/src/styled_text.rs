@@ -308,12 +308,12 @@ impl StyledFile {
         let mut lines = Vec::new();
         let mut found_mark = false;
         let mut found_cursor = false;
-        let prepend_line = major_mode.read().prepend_line();
-        let append_line = major_mode.read().append_line();
+        //let prepend_line = major_mode.read().prepend_line();
+        //let append_line = major_mode.read().append_line();
         for (line_index, line) in self.lines.into_iter().enumerate() {
             let mut current_line = Vec::new();
             let mut column_index = 0;
-            if let Some(ref proc) = prepend_line {
+            /*if let Some(ref proc) = prepend_line {
                 let args = &[
                     Value::from(Number::from(line_index)),
                     Value::from(Number::from(total_lines))
@@ -323,7 +323,7 @@ impl StyledFile {
                     let text: Gc<StyledText> = value[0].clone().try_into_rust_type().unwrap();
                     current_line.push(text.read().clone());
                 }
-            }
+            }*/
             for segment in line {
                 match segment {
                     StyledText::None { text } => {
@@ -650,7 +650,7 @@ impl StyledFile {
                     }
                 }
             }
-            if let Some(ref proc) = append_line {
+            /*if let Some(ref proc) = append_line {
                 let args = &[
                     Value::from(Number::from(line_index)),
                     Value::from(Number::from(total_lines))
@@ -660,7 +660,7 @@ impl StyledFile {
                     let text: Gc<StyledText> = value[0].clone().try_into_rust_type().unwrap();
                     current_line.push(text.read().clone());
                 }
-            }
+            }*/
             lines.push(current_line);
         }
         Self {

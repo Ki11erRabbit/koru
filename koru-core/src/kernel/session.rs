@@ -162,8 +162,8 @@ impl Session {
             guard.get_buffers().get(buffer_name).unwrap().clone()
         };
 
-        let styled_file = buffer.get_styled_text().await;
-        self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+        //let styled_file = buffer.get_styled_text().await;
+        //self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
         Ok(())
     }
 

@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use scheme_rs::gc::Trace;
+use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
 use crate::kernel::buffer::TextBufferImpl;
 
 #[derive(Copy, Clone)]
@@ -15,7 +18,7 @@ pub enum CursorDirection {
 }
 
 
-#[derive(Copy, Clone)]
+#[derive(Debug, Copy, Clone, Trace)]
 pub struct Cursor {
     /// This cursor may not be aligned to a line
     logical_cursor: GridCursor,
@@ -60,19 +63,19 @@ impl Cursor {
     pub fn column(&self) -> usize {
         self.real_cursor.column
     }
-    
+
     pub fn mark_line(&self) -> Option<usize> {
         self.mark.map(|c| c.line)
     }
-    
+
     pub fn mark_column(&self) -> Option<usize> {
         self.mark.map(|c| c.column)
     }
-    
+
     pub fn is_mark_set(&self) -> bool {
         self.mark.is_some()
     }
-    
+
     pub fn is_mark_and_cursor_same(&self) -> bool {
         if let Some(mark) = self.mark {
             mark == self.real_cursor
@@ -90,7 +93,7 @@ impl Cursor {
         self.logical_cursor.line = line;
         self.real_cursor.line = line;
     }
-    
+
     pub fn at_line_start(&self) -> bool {
         self.real_cursor.column == 0
     }
@@ -109,7 +112,7 @@ impl Cursor {
         if line_len < self.real_cursor.column {
             self.real_cursor.column = line_len;
         }
-        
+
     }
 
     pub fn move_down(&mut self, buffer: &dyn TextBufferImpl) {
@@ -138,7 +141,7 @@ impl Cursor {
     pub fn move_right(&mut self, line_len: usize) {
         self.logical_cursor.column = self.logical_cursor.column.saturating_add(1);
         self.real_cursor.column = self.logical_cursor.column;
-        
+
 
         // Make real cursor be as long as the line
         if self.real_cursor.column > line_len {
@@ -146,20 +149,29 @@ impl Cursor {
             self.logical_cursor.column = line_len;
         }
     }
-    
+
     pub fn place_mark(&mut self) {
         self.mark = Some(self.real_cursor);
     }
-    
+
     pub fn remove_mark(&mut self) {
         self.mark = None;
     }
-    
+
     pub fn flip_mark(&mut self) {
         if let Some(mark) = self.mark.as_mut() {
             std::mem::swap(&mut self.real_cursor, mark);
             self.logical_cursor = self.real_cursor;
         }
+    }
+}
+
+impl SchemeCompatible for Cursor {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&Cursor")
     }
 }
 
@@ -179,7 +191,7 @@ impl PartialEq for Cursor {
 
 
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Trace)]
 pub struct GridCursor {
     pub line: usize,
     pub column: usize,
@@ -191,6 +203,15 @@ impl GridCursor {
             line,
             column,
         }
+    }
+}
+
+impl SchemeCompatible for GridCursor {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&GridCursor")
     }
 }
 
