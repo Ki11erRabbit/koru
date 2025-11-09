@@ -50,13 +50,15 @@ impl TextEditData {
 
     pub async fn place_mark(&self, index: usize) -> Result<(), Condition> {
         let handle = self.get_buffer_handle().await?;
-        self.internal.lock().await.cursors[index] = handle.place_mark(self.internal.lock().await.cursors[index]).await;
+        let new_cursor = handle.place_mark(self.internal.lock().await.cursors[index]).await;
+        self.internal.lock().await.cursors[index] = new_cursor;
         Ok(())
     }
 
     pub async fn remove_mark(&self, index: usize) -> Result<(), Condition> {
         let handle = self.get_buffer_handle().await?;
-        self.internal.lock().await.cursors[index] = handle.remove_mark(self.internal.lock().await.cursors[index]).await;
+        let new_cursor = handle.remove_mark(self.internal.lock().await.cursors[index]).await;
+        self.internal.lock().await.cursors[index] = new_cursor;
         Ok(())
     }
 
@@ -252,7 +254,7 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Condition> 
     Ok(Vec::new())
 }
 
-#[bridge(name = "text-edit-place-cursor-mark", lib = "(text-edit)")]
+#[bridge(name = "text-edit-place-point-mark-at-cursor", lib = "(text-edit)")]
 pub async fn place_mark(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((major_mode, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
@@ -278,7 +280,7 @@ pub async fn place_mark(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(Vec::new())
 }
 
-#[bridge(name = "text-edit-remove-cursor-mark", lib = "(text-edit)")]
+#[bridge(name = "text-edit-remove-mark-from-cursor", lib = "(text-edit)")]
 pub async fn remove_mark(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((major_mode, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
@@ -401,4 +403,42 @@ pub fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
     data.add_cursor(row, col);
 
     Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-cursor-destroy", lib = "(text-edit)")]
+pub fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let Some((index, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let index: Arc<Number> = index.clone().try_into()?;
+    let index: usize = match index.as_ref() {
+        Number::FixedInteger(fixed) => *fixed as usize,
+        Number::BigInteger(big) => {
+            big.try_into().unwrap()
+        }
+        Number::Complex(..) => return Err(Condition::type_error("BigInteger", "Complex")),
+        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
+        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data = get_data(&major_mode)?;
+    let data = data.read().clone();
+    data.remove_cursor(index);
+
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-cursor-count", lib = "(text-edit)")]
+pub fn get_cursor_count(major_mode: &Value) -> Result<Vec<Value>, Condition> {
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data: Gc<TextEditData> = major_mode.read().data.clone().try_into_rust_type()?;
+    
+    let cursor_count = data.read().num_cursors();
+    
+    let out = Value::from(Number::from(cursor_count));
+    
+    Ok(vec![out])
 }

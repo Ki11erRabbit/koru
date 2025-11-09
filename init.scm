@@ -8,40 +8,50 @@
   (command-create
     "cursor-up"
     "Moves the primary cursor up"
-    (lambda (keys) (command-apply text-edit-cursor-up 0 keys))
-    "number"
+    (lambda (keys) (command-apply text-edit-mode-cursor-up 0))
     "key-sequence"))
 
 (define cursor-down
   (command-create
     "cursor-down"
     "Moves the primary cursor down"
-    (lambda (keys) (command-apply text-edit-cursor-down 0 keys))
-    "number"
+    (lambda (keys) (command-apply text-edit-mode-cursor-down 0))
     "key-sequence"))
 
 (define cursor-left
   (command-create
     "cursor-left"
     "Moves the primary cursor left"
-    (lambda (keys) (command-apply text-edit-cursor-left 0 #f keys))
-    "number"
-    "boolean"
+    (lambda (keys) (command-apply text-edit-mode-cursor-left 0 #f))
     "key-sequence"))
 
 (define cursor-right
   (command-create
     "cursor-right"
     "Moves the primary cursor right"
-    (lambda (keys) (command-apply text-edit-cursor-right 0 #f keys))
-    "number"
+    (lambda (keys) (command-apply text-edit-mode-cursor-right 0 #f))
     "key-sequence"))
 
-(add-hook "file-open" "text-edit-mode" text-edit-file-open-hook)
+(define place-point-mark
+  (command-create
+    "place-point-mark"
+    "Places a point mark at the primary cursor"
+    (lambda (keys) (command-apply text-edit-mode-place-point-mark 0))
+    "key-sequence"))
 
-(debug-print)
+(define remove-mark
+  (command-create
+    "remove-mark"
+    "Removes the mark at the primary cursor"
+    (lambda (keys) (command-apply text-edit-mode-remove-mark 0))
+    "key-sequence"))
+
+(add-hook "file-open" "text-edit-mode" text-edit-mode-file-open-hook)
+
 
 (add-key-mapping "UP" cursor-up)
 (add-key-mapping "DOWN" cursor-down)
 (add-key-mapping "LEFT" cursor-left)
 (add-key-mapping "RIGHT" cursor-right)
+(add-key-mapping "m" place-point-mark)
+(add-key-mapping "r" remove-mark)

@@ -313,6 +313,12 @@ impl KeyPress {
             "F33" => KeyValue::ControlKey(ControlKey::F33),
             "F34" => KeyValue::ControlKey(ControlKey::F34),
             "F35" => KeyValue::ControlKey(ControlKey::F35),
+            c if c.chars().count() == 1 => {
+                let Some(char) = c.chars().next() else {
+                    unreachable!("We have already asserted this");
+                };
+                KeyValue::CharacterKey(char)
+            }
             _ => return None,
         };
         Some(key)
