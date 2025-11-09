@@ -11,7 +11,7 @@ use scheme_rs::proc::Procedure;
 use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress};
 use crate::kernel::scheme_api::command::Command;
@@ -66,7 +66,7 @@ pub struct SessionState {
     buffers: HashMap<String, Buffer>,
     hooks: Arc<Mutex<Hooks>>,
     current_buffer: Option<String>,
-    key_buffer: KeyBuffer,
+    key_buffer: RwLock<KeyBuffer>,
     key_map: KeyMap,
 }
 
@@ -81,12 +81,15 @@ impl SessionState {
             buffers: HashMap::new(),
             hooks,
             current_buffer: None,
-            key_buffer: KeyBuffer::new(),
+            key_buffer: RwLock::new(KeyBuffer::new()),
             key_map: KeyMap::new_sparse(),
         }
     }
 
-    pub fn get_buffers(&mut self) -> &mut HashMap<String, Buffer> {
+    pub fn get_buffers(&self) -> &HashMap<String, Buffer> {
+        &self.buffers
+    }
+    pub fn get_buffers_mut(&mut self) -> &mut HashMap<String, Buffer> {
         &mut self.buffers
     }
 
@@ -130,32 +133,36 @@ impl SessionState {
         self.key_map.remove_binding(keys);
     }
 
-    pub async fn process_keypress(&mut self, keypress: KeyPress) {
-        self.key_buffer.push(keypress);
-        if let Some(command) = self.key_map.lookup(self.key_buffer.get()) {
-            let command = command.read().command().clone();
-            let args = self.key_buffer.get().iter().map(|press| {
+    pub async fn process_keypress(&self, keypress: KeyPress) {
+        self.key_buffer.write().await.push(keypress);
+        let mut clear_key_buffer = false;
+        if let Some(command) = self.key_map.lookup(self.key_buffer.read().await.get()).cloned() {
+            let proc = command.read().command().clone();
+            let args = self.key_buffer.read().await.get().iter().map(|press| {
                 Value::from(Record::from_rust_type(*press))
             }).collect::<Vec<Value>>();
 
             let list = lists::slice_to_list(&args);
-            
-            match command.call(&[list]).await {
+
+            match proc.call(&[list]).await {
                 Ok(_) => {},
                 Err(e) => {
                     println!("{}", e);
                 }
             }
-            self.key_buffer.clear();
+            clear_key_buffer = true;
+        }
+        if clear_key_buffer {
+            self.key_buffer.write().await.clear();
         }
     }
 
-    pub fn get_state() -> Arc<Mutex<SessionState>> {
+    pub fn get_state() -> Arc<RwLock<SessionState>> {
         STATE.clone()
     }
 }
 
-static STATE: LazyLock<Arc<Mutex<SessionState>>> = LazyLock::new(|| Arc::new(Mutex::new(SessionState::new())));
+static STATE: LazyLock<Arc<RwLock<SessionState>>> = LazyLock::new(|| Arc::new(RwLock::new(SessionState::new())));
 
 
 #[bridge(name = "create-hook", lib = "(koru-session)")]
@@ -167,7 +174,7 @@ pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     let state = SessionState::get_state();
 
-    let hooks = state.lock().await.hooks.clone();
+    let hooks = state.read().await.hooks.clone();
     hooks.lock().await.add_new_hook_kind(hook_name);
 
     Ok(Vec::new())
@@ -182,7 +189,7 @@ pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     let state = SessionState::get_state();
 
-    let hooks = state.lock().await.hooks.clone();
+    let hooks = state.read().await.hooks.clone();
     hooks.lock().await.remove_hook_kind(&hook_name);
 
     Ok(Vec::new())
@@ -205,7 +212,7 @@ pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     let state = SessionState::get_state();
 
-    let hooks = state.lock().await.hooks.clone();
+    let hooks = state.read().await.hooks.clone();
     hooks.lock().await.add_new_hook(&hook_name_kind, hook_name, hook);
     Ok(Vec::new())
 }
@@ -224,7 +231,7 @@ pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     let state = SessionState::get_state();
 
-    let hooks = state.lock().await.hooks.clone();
+    let hooks = state.read().await.hooks.clone();
     hooks.lock().await.remove_hook(&hook_name_kind, &hook_name);
     Ok(Vec::new())
 }
@@ -238,7 +245,7 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     let state = SessionState::get_state();
 
-    let hooks = state.lock().await.hooks.clone();
+    let hooks = state.read().await.hooks.clone();
     let hooks = hooks.lock().await;
     hooks.execute_hook(&hook_name, rest).await?;
     Ok(Vec::new())
@@ -256,7 +263,7 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let _: Gc<MajorMode> = major_mode.try_into_rust_type()?;
 
     let state = SessionState::get_state();
-    let mut guard = state.lock().await;
+    let mut guard = state.write().await;
     let Some(buffer) = guard.buffers.get_mut(&buffer_name) else {
         return Err(Condition::error(String::from("Buffer not found")));
     };
@@ -269,7 +276,7 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
 #[bridge(name = "current-major-mode", lib = "(koru-session)")]
 pub async fn get_current_major_mode() -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
-    let guard = state.lock().await;
+    let guard = state.read().await;
     let Some(buffer) = guard.get_current_buffer() else {
         return Err(Condition::error(String::from("Buffer not found")));
     };
@@ -285,16 +292,16 @@ pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((command, _)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
-    
+
     let key_string: String = key_string.clone().try_into()?;
     let command: Gc<Command> = command.try_into_rust_type()?;
-    
+
     let key_seq = key_string.split_whitespace()
         .map(|s| {
             KeyPress::from_string(s)
         })
         .collect::<Option<Vec<KeyPress>>>();
-    
+
     let key_seq = match key_seq {
         Some(key_seq) => key_seq,
         None => {
@@ -303,8 +310,8 @@ pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
     };
 
     let state = SessionState::get_state();
-    let mut guard = state.lock().await;
+    let mut guard = state.write().await;
     guard.key_map.add_binding(key_seq, command);
-    
+
     Ok(Vec::new())
 }

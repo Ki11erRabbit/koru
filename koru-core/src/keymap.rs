@@ -51,16 +51,27 @@ impl KeyMap {
                     };
                     keys = &keys[1..];
                 }
-                KeyMapNode::Leaf { command } => {
-                    return Some(command);
+                KeyMapNode::Leaf { .. } => {
+                    return None
                 }
             }
         }
-        if let Some(default) = &self.default {
-            Some(default)
-        } else {
-            return None;
+        match node {
+            KeyMapNode::Node {
+                children,
+                ..
+            } => {
+                if let Some(default) = &self.default {
+                    Some(default)
+                } else {
+                    None
+                }
+            }
+            KeyMapNode::Leaf { command } => {
+                Some(command)
+            }
         }
+        
     }
 
     pub fn add_binding(&mut self, mut keys: Vec<KeyPress>, command: Gc<Command>) {
@@ -74,7 +85,11 @@ impl KeyMap {
                     ..
                 } => {
                     if !children.contains_key(keys.last().unwrap()) {
-                        children.insert(keys.last().unwrap().clone(), KeyMapNode::Node { children: HashMap::new(), });
+                        if keys.len() == 1 {
+                            children.insert(keys.last().unwrap().clone(), KeyMapNode::Leaf { command: command.clone() });
+                        } else {
+                            children.insert(keys.last().unwrap().clone(), KeyMapNode::Node { children: HashMap::new(), });
+                        }
                     }
                     node = children.get_mut(keys.last().unwrap()).unwrap();
                     keys.pop();

@@ -140,4 +140,8 @@ pub fn write_line_number(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(vec![Value::from(string)])
 }
 */
-
+#[bridge(name = "debug-print", lib = "(major-mode)")]
+pub fn debug_print() -> Result<Vec<Value>, Condition> {
+    println!("debug_print");
+    Ok(vec![])
+}

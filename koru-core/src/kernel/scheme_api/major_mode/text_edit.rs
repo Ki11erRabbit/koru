@@ -33,7 +33,7 @@ impl TextEditData {
     
     async fn get_buffer_handle(&self) -> Result<BufferHandle, Condition> {
         let state = SessionState::get_state();
-        let mut guard = state.lock().await;
+        let guard = state.read().await;
         let Some(buffer) = guard.get_buffers().get(&self.internal.lock().await.buffer_name) else {
             return Err(Condition::error(String::from("Buffer not found")));
         };
@@ -42,7 +42,8 @@ impl TextEditData {
     }
     pub async fn move_cursor(&self, index: usize, direction: CursorDirection) -> Result<(), Condition> {
         let handle = self.get_buffer_handle().await?;
-        self.internal.lock().await.cursors[index] = handle.move_cursor(self.internal.lock().await.cursors[index], direction).await;
+        let new_cursor = handle.move_cursor(self.internal.lock().await.cursors[index], direction).await;
+        self.internal.lock().await.cursors[index] = new_cursor;
         Ok(())
     }
 
@@ -128,7 +129,7 @@ pub async fn text_edit_draw(major_mode: &Value) -> Result<Vec<Value>, Condition>
     let buffer = {
         let buffer_name = data.internal.lock().await.buffer_name.clone();
         let state = SessionState::get_state();
-        let mut guard = state.lock().await;
+        let guard = state.read().await;
         guard.get_buffers().get(&buffer_name).unwrap().clone()
     };
 

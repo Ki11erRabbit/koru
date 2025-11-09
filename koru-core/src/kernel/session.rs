@@ -106,7 +106,7 @@ impl Session {
 
         {
             let state = SessionState::get_state();
-            let mut guard = state.lock().await;
+            let mut guard = state.write().await;
             guard.add_buffer(name, handle);
         }
         let path = PathBuf::from(name);
@@ -134,7 +134,7 @@ impl Session {
 
         let hooks = {
             let state = SessionState::get_state();
-            state.lock().await.get_hooks().clone()
+            state.read().await.get_hooks().clone()
         };
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
 
@@ -156,7 +156,7 @@ impl Session {
 
         let buffer = {
             let state = SessionState::get_state();
-            let mut guard = state.lock().await;
+            let mut guard = state.read().await;
             guard.get_buffers().get(buffer_name).unwrap().clone()
         };
 
@@ -202,7 +202,7 @@ impl Session {
                     let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
                     let focused_buffer = {
                         let state = SessionState::get_state();
-                        let mut guard = state.lock().await;
+                        let mut guard = state.write().await;
                         guard.set_current_buffer(buffer_name.to_string());
                         guard.current_focused_buffer().unwrap().clone()
                     };
@@ -215,9 +215,10 @@ impl Session {
                     }
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(press)), .. }) => {
+                    println!("received key event");
                     let focused_buffer = {
                         let state = SessionState::get_state();
-                        let mut guard = state.lock().await;
+                        let guard = state.read().await;
                         guard.process_keypress(press).await;
                         guard.current_focused_buffer().unwrap().clone()
                     };
