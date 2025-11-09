@@ -112,11 +112,8 @@ async fn start_runtime(pair: ChannelPair) {
             }
         }
     });
-
-    tokio::spawn(async move {
-        scheme_api::load_builtins().await;
-        scheme_api::load_user_config().await;
-    });
+    
+    scheme_api::load_user_config().await;
 }
 
 

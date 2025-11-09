@@ -44,33 +44,25 @@ impl SchemeEnvs {
     }
 }
 
-pub static KORU_BUILTIN_PATH: &str = "scheme";
 pub static KORU_USER_PATH: &str = ".";
 
-pub async fn load_builtins() {
-    let path = Path::new(KORU_BUILTIN_PATH);
-    let runtime = SCHEME_RUNTIME.lock().await.take().unwrap();
-    let path = path.canonicalize().unwrap();
 
-    let mut futures = Vec::new();
-
-    load_directory(path, &runtime, &mut futures);
-
-    for f in futures {
-        f.await;
-    }
-
-    *SCHEME_RUNTIME.lock().await = Some(runtime);
-}
-
-fn load_directory<'load, P: AsRef<Path>>(path: P, runtime: &'load Runtime, futures: &mut Vec<BoxFuture<'load, ()>>) -> bool {
+fn load_directory<'load, P: AsRef<Path>>(
+    path: P, 
+    runtime: &'load Runtime, 
+    futures: &mut Vec<BoxFuture<'load, ()>>, 
+    no_recurse: bool
+) -> bool {
     let mut loaded_file = false;
     for entry in path.as_ref().read_dir().unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
         let file_type = entry.file_type().unwrap();
         if file_type.is_dir() {
-            loaded_file = loaded_file || load_directory(path, runtime, futures);
+            if no_recurse {
+                continue;
+            }
+            loaded_file = loaded_file || load_directory(path, runtime, futures, no_recurse);
         } else if file_type.is_file() {
             if let Some(extension) = path.extension() {
                 if extension != OsStr::new("scm") {
@@ -79,6 +71,8 @@ fn load_directory<'load, P: AsRef<Path>>(path: P, runtime: &'load Runtime, futur
             } else {
                 continue;
             }
+            
+            println!("Loading {:?}", path);
             
             let prog = Library::new_program(runtime, &path);
             let env = Environment::Top(prog);
@@ -114,15 +108,15 @@ fn load_directory<'load, P: AsRef<Path>>(path: P, runtime: &'load Runtime, futur
 
 pub async fn load_user_config() -> bool {
     let path = Path::new(KORU_USER_PATH);
-    if path.exists() {
+    let path = path.canonicalize().unwrap();
+    if !path.exists() {
         return false;
     }
     let runtime = SCHEME_RUNTIME.lock().await.take().unwrap();
-    let path = path.canonicalize().unwrap();
 
     let mut futures = Vec::new();
 
-    if !load_directory(path, &runtime, &mut futures) {
+    if !load_directory(path, &runtime, &mut futures, true) {
         drop(futures);
         *SCHEME_RUNTIME.lock().await = Some(runtime);
         return false;

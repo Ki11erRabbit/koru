@@ -1,50 +1,57 @@
-(import (rnrs))
-(import (major-mode))
-(import (koru-command))
-(import (koru-session))
-(import (styled-text))
-(import (text-edit))
+(library (scheme text-edit-mode)
+  (export text-edit-cursor-up
+    text-edit-cursor-down
+    text-edit-cursor-left
+    text-edit-cursor-right
+    text-edit-file-open-hook)
+  (import (rnrs)
+    (major-mode)
+    (koru-command)
+    (koru-session)
+    (styled-text)
+    (text-edit))
+    (create-hook "text-edit")
 
-(create-hook "text-edit")
+  (define text-edit-cursor-up
+    (command-create
+      "text-edit-cursor-up"
+      "Moves the cursor at the index up"
+      (lambda (index keys) (text-edit-move-cursor-up (current-major-mode) index))
+      "number"
+      "key-sequence"))
 
-(define cursor-up
-  (command-create
-    "cursor-up"
-    "Moves the primary cursor up"
-    (lambda (keys) (text-edit-move-cursor-up (current-major-mode) 0))))
+  (define text-edit-cursor-down
+    (command-create
+      "text-edit-cursor-down"
+      "Moves the cursor at the index down"
+      (lambda (index keys) (text-edit-move-cursor-down (current-major-mode) index))
+      "number"
+      "key-sequence"))
 
-(define cursor-down
-  (command-create
-    "cursor-down"
-    "Moves the primary cursor down"
-    (lambda (keys) (text-edit-move-cursor-down (current-major-mode) 0))))
+  (define text-edit-cursor-left
+    (command-create
+      "text-edit-cursor-left"
+      "Moves the cursor at the index left with the possiblity of wrapping at the start"
+      (lambda (index wrap keys) (text-edit-move-cursor-left (current-major-mode) index wrap))
+      "number"
+      "boolean"
+      "key-sequence"))
 
-(define cursor-left
-  (command-create
-    "cursor-left"
-    "Moves the primary cursor left"
-    (lambda (keys) (text-edit-move-cursor-left (current-major-mode) 0 #f))))
+  (define text-edit-cursor-right
+    (command-create
+      "text-edit-cursor-right"
+      "Moves the cursor at the index right with the possiblity of wrapping at the end"
+      (lambda (index wrap keys) (text-edit-move-cursor-right (current-major-mode) index wrap))
+      "number"
+      "key-sequence"))
 
-(define cursor-right
-  (command-create
-    "cursor-right"
-    "Moves the primary cursor right"
-    (lambda (keys) (text-edit-move-cursor-right (current-major-mode) 0 #f))))
+  (define (text-edit-create buffer-name)
+    (major-mode-create
+      "TextEdit"
+      text-edit-draw
+      (text-edit-data-create buffer-name)))
 
-(add-key-mapping "UP" cursor-up)
-(add-key-mapping "DOWN" cursor-down)
-(add-key-mapping "LEFT" cursor-left)
-(add-key-mapping "RIGHT" cursor-right)
+  (define (text-edit-file-open-hook buffer-name file-ext)
+    (major-mode-set! buffer-name (text-edit-create buffer-name))
+    (emit-hook "text-edit")))
 
-
-(define (text-edit-create buffer-name)
-  (major-mode-create
-    "TextEdit"
-    text-edit-draw
-    (text-edit-data-create buffer-name)))
-
-(define (text-edit-file-open-hook buffer-name file-ext)
-  (major-mode-set! buffer-name (text-edit-create buffer-name))
-  (emit-hook "text-edit"))
-
-(add-hook "file-open" "text-edit-mode" text-edit-file-open-hook)

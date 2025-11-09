@@ -12,6 +12,9 @@ pub enum ArgumentDef {
     Text,
     Number,
     Path,
+    KeyPress,
+    KeySequence,
+    Boolean,
     Variable(Box<ArgumentDef>),
 }
 
@@ -21,11 +24,17 @@ impl From<ArgumentDef> for &str {
             ArgumentDef::Text => "text",
             ArgumentDef::Number => "number",
             ArgumentDef::Path => "path",
+            ArgumentDef::KeyPress => "key-press",
+            ArgumentDef::KeySequence => "key-sequence",
+            ArgumentDef::Boolean => "boolean",
             ArgumentDef::Variable(x) => {
                 match x.as_ref() {
                     ArgumentDef::Text => "variable:text",
                     ArgumentDef::Number => "variable:number",
                     ArgumentDef::Path => "variable:path",
+                    ArgumentDef::KeyPress => "variable:key-press",
+                    ArgumentDef::KeySequence => "variable:key-sequence",
+                    ArgumentDef::Boolean => "variable:boolean",
                     _ => unreachable!("invalid variable arg")
                 }
             }
@@ -39,11 +48,17 @@ impl From<&ArgumentDef> for &str {
             ArgumentDef::Text => "text",
             ArgumentDef::Number => "number",
             ArgumentDef::Path => "path",
+            ArgumentDef::KeyPress => "key-press",
+            ArgumentDef::KeySequence => "key-sequence",
+            ArgumentDef::Boolean => "boolean",
             ArgumentDef::Variable(x) => {
                 match x.as_ref() {
                     ArgumentDef::Text => "variable:text",
                     ArgumentDef::Number => "variable:number",
                     ArgumentDef::Path => "variable:path",
+                    ArgumentDef::KeyPress => "variable:key-press",
+                    ArgumentDef::KeySequence => "variable:key-sequence",
+                    ArgumentDef::Boolean => "variable:boolean",
                     _ => unreachable!("invalid variable arg")
                 }
             }
@@ -58,9 +73,15 @@ impl TryFrom<&str> for ArgumentDef {
             "text" => Ok(ArgumentDef::Text),
             "number" => Ok(ArgumentDef::Number),
             "path" => Ok(ArgumentDef::Path),
+            "key-press" => Ok(ArgumentDef::KeyPress),
+            "key-sequence" => Ok(ArgumentDef::KeySequence),
+            "boolean" => Ok(ArgumentDef::Boolean),
             "variable:text" => Ok(ArgumentDef::Variable(Box::new(ArgumentDef::Text))),
             "variable:number" => Ok(ArgumentDef::Variable(Box::new(ArgumentDef::Number))),
             "variable:path" => Ok(ArgumentDef::Variable(Box::new(ArgumentDef::Path))),
+            "variable:key-press" => Ok(ArgumentDef::Variable(Box::new(ArgumentDef::KeyPress))),
+            "variable:key-sequence" => Ok(ArgumentDef::Variable(Box::new(ArgumentDef::KeySequence))),
+            "variable:boolean" => Ok(ArgumentDef::Variable(Box::new(ArgumentDef::Boolean))),
             _ => {
                 Err(format!("Unknown argument: {}", value))
             },
