@@ -12,7 +12,7 @@ use scheme_rs::value::Value;
 use crate::kernel;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::buffer::TextBufferTable;
-use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue, ModifierKey};
+use crate::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
 use crate::styled_text::StyledFile;
@@ -136,7 +136,7 @@ impl Session {
         };
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
 
-        hooks.lock().await.execute_hook("file-open", args).await.unwrap();
+        hooks.read().await.execute_hook("file-open", args).await.unwrap();
 
         /*let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
         for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {

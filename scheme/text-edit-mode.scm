@@ -43,7 +43,8 @@
     text-edit-draw
     (text-edit-data-create buffer-name)))
 
-(define (file-open-hook buffer-name file-ext)
-  (major-mode-set! buffer-name (text-edit-create buffer-name)))
+(define (text-edit-file-open-hook buffer-name file-ext)
+  (major-mode-set! buffer-name (text-edit-create buffer-name))
+  (emit-hook "text-edit"))
 
-(add-hook "file-open" "text-edit-mode" file-open-hook)
+(add-hook "file-open" "text-edit-mode" text-edit-file-open-hook)

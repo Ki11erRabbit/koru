@@ -66,7 +66,7 @@ impl Hooks {
 
 pub struct SessionState {
     buffers: RwLock<HashMap<String, Buffer>>,
-    hooks: Arc<Mutex<Hooks>>,
+    hooks: Arc<RwLock<Hooks>>,
     current_buffer: Option<String>,
     key_buffer: RwLock<KeyBuffer>,
     key_map: KeyMap,
@@ -77,7 +77,7 @@ impl SessionState {
         let mut hooks = Hooks::new();
         hooks.add_new_hook_kind(String::from("file-open"));
 
-        let hooks = Arc::new(Mutex::new(hooks));
+        let hooks = Arc::new(RwLock::new(hooks));
 
         Self {
             buffers: RwLock::new(HashMap::new()),
@@ -99,7 +99,7 @@ impl SessionState {
         self.buffers.write().await.insert(name.to_string(), Buffer::new(handle));
     }
 
-    pub fn get_hooks(&self) -> &Arc<Mutex<Hooks>> {
+    pub fn get_hooks(&self) -> &Arc<RwLock<Hooks>> {
         &self.hooks
     }
 
@@ -173,7 +173,7 @@ pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
 
     let hooks = state.read().await.hooks.clone();
-    hooks.lock().await.add_new_hook_kind(hook_name);
+    hooks.write().await.add_new_hook_kind(hook_name);
 
     Ok(Vec::new())
 }
@@ -188,7 +188,7 @@ pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
 
     let hooks = state.read().await.hooks.clone();
-    hooks.lock().await.remove_hook_kind(&hook_name);
+    hooks.write().await.remove_hook_kind(&hook_name);
 
     Ok(Vec::new())
 }
@@ -211,7 +211,7 @@ pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
 
     let hooks = state.read().await.hooks.clone();
-    hooks.lock().await.add_new_hook(&hook_name_kind, hook_name, hook);
+    hooks.write().await.add_new_hook(&hook_name_kind, hook_name, hook);
     Ok(Vec::new())
 }
 
@@ -230,7 +230,7 @@ pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
 
     let hooks = state.read().await.hooks.clone();
-    hooks.lock().await.remove_hook(&hook_name_kind, &hook_name);
+    hooks.write().await.remove_hook(&hook_name_kind, &hook_name);
     Ok(Vec::new())
 }
 
@@ -244,7 +244,7 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
 
     let hooks = state.read().await.hooks.clone();
-    let hooks = hooks.lock().await;
+    let hooks = hooks.read().await;
     hooks.execute_hook(&hook_name, rest).await?;
     Ok(Vec::new())
 }
