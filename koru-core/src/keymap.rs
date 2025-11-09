@@ -27,7 +27,7 @@ impl KeyMap {
             default: None,
         }
     }
-    
+
     pub fn new(default: Gc<Command>) -> Self {
         Self {
             keys_to_command: KeyMapNode::Node {
@@ -58,7 +58,6 @@ impl KeyMap {
         }
         match node {
             KeyMapNode::Node {
-                children,
                 ..
             } => {
                 if let Some(default) = &self.default {
@@ -71,7 +70,7 @@ impl KeyMap {
                 Some(command)
             }
         }
-        
+
     }
 
     pub fn add_binding(&mut self, mut keys: Vec<KeyPress>, command: Gc<Command>) {

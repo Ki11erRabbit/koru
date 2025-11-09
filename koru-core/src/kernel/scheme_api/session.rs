@@ -156,6 +156,10 @@ impl SessionState {
             self.key_buffer.write().await.clear();
         }
     }
+    
+    pub async fn flush_key_buffer(&self) {
+        self.key_buffer.write().await.clear();
+    }
 
     pub fn get_state() -> Arc<RwLock<SessionState>> {
         STATE.clone()

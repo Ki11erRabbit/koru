@@ -3,19 +3,19 @@ use std::error::Error;
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use scheme_rs::ast::DefinitionBody;
-use scheme_rs::env::{Environment, Var};
-use scheme_rs::num::Number;
-use scheme_rs::proc::Procedure;
+use scheme_rs::env::{Environment};
+use scheme_rs::gc::Gc;
 use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
-use scheme_rs::syntax::{Identifier, Span, Syntax};
+use scheme_rs::syntax::{Span, Syntax};
 use scheme_rs::value::Value;
 use crate::kernel;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::buffer::TextBufferTable;
-use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue};
+use crate::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue, ModifierKey};
+use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
-use crate::keymap::KeyMap;
+use crate::styled_text::StyledFile;
 
 pub enum CommandState {
     None,
@@ -29,7 +29,6 @@ pub struct Session {
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
     command_state: CommandState,
-    key_buffer: KeyBuffer,
 }
 
 impl Session {
@@ -60,7 +59,6 @@ impl Session {
             broker_client,
             client_ids: vec![],
             command_state: CommandState::None,
-            key_buffer: KeyBuffer::new(),
         }
     }
 
@@ -156,12 +154,19 @@ impl Session {
 
         let buffer = {
             let state = SessionState::get_state();
-            let mut guard = state.read().await;
+            let guard = state.read().await;
             guard.get_buffers().get(buffer_name).unwrap().clone()
         };
-
-        //let styled_file = buffer.get_styled_text().await;
-        //self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+        
+        let major_mode = buffer.get_major_mode();
+        let major_mode: Gc<MajorMode> = major_mode.try_into_rust_type().unwrap();
+        let draw = major_mode.read().draw();
+        if let Some(draw) = draw {
+            let out = draw.call(&[buffer.get_major_mode()]).await.unwrap();
+            let styled_file: Gc<StyledFile> = out[0].clone().try_into_rust_type().unwrap();
+            let styled_file = styled_file.read().clone();
+            self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
+        }
         Ok(())
     }
 
@@ -193,8 +198,11 @@ impl Session {
         loop {
             let message = self.broker_client.recv_async().await;
             match message {
-                Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
-                    self.key_buffer.clear();
+                Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) |
+                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('g'), modifiers: ModifierKey::Control})), .. }) => {
+                    let state = SessionState::get_state();
+                    let guard = state.read().await;
+                    guard.flush_key_buffer().await;
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel/session.rs";
@@ -215,7 +223,6 @@ impl Session {
                     }
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(press)), .. }) => {
-                    println!("received key event");
                     let focused_buffer = {
                         let state = SessionState::get_state();
                         let guard = state.read().await;
