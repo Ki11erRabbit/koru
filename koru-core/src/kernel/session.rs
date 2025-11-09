@@ -157,7 +157,7 @@ impl Session {
             let guard = state.read().await;
             guard.get_buffers().get(buffer_name).unwrap().clone()
         };
-        
+
         let major_mode = buffer.get_major_mode();
         let major_mode: Gc<MajorMode> = major_mode.try_into_rust_type().unwrap();
         let draw = major_mode.read().draw();
