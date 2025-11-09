@@ -13,7 +13,7 @@ use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue, ModifierKey};
-use koru_core::keybinding::Keybinding;
+use koru_core::keymap::KeyMap;
 use koru_core::styled_text::{StyledFile};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -66,7 +66,6 @@ struct App {
     text: StyledFile,
     message_bar: String,
     key_buffer: KeyBuffer,
-    keybindings: Keybinding<UiMessage>,
 }
 
 impl App {
@@ -84,7 +83,6 @@ impl App {
             text: StyledFile::default(),
             message_bar: String::from("Hello world!"),
             key_buffer: KeyBuffer::new(),
-            keybindings: Keybinding::new(),
         }
     }
 

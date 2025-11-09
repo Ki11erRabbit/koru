@@ -6,12 +6,17 @@ use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::Gc;
+use scheme_rs::lists;
 use scheme_rs::proc::Procedure;
+use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use tokio::sync::Mutex;
-use crate::kernel::buffer::{BufferHandle, CursorDirection, GridCursor};
+use crate::kernel::buffer::{BufferHandle};
+use crate::kernel::input::{KeyBuffer, KeyPress};
+use crate::kernel::scheme_api::command::Command;
 use crate::kernel::scheme_api::major_mode::MajorMode;
+use crate::keymap::KeyMap;
 
 pub struct Hooks {
     hooks: HashMap<String, HashMap<String, Procedure>>,
@@ -61,6 +66,8 @@ pub struct SessionState {
     buffers: HashMap<String, Buffer>,
     hooks: Arc<Mutex<Hooks>>,
     current_buffer: Option<String>,
+    key_buffer: KeyBuffer,
+    key_map: KeyMap,
 }
 
 impl SessionState {
@@ -74,6 +81,8 @@ impl SessionState {
             buffers: HashMap::new(),
             hooks,
             current_buffer: None,
+            key_buffer: KeyBuffer::new(),
+            key_map: KeyMap::new_sparse(),
         }
     }
 
@@ -113,6 +122,33 @@ impl SessionState {
         }
     }
 
+    pub fn add_keybinding(&mut self, keys: Vec<KeyPress>, command: Gc<Command>) {
+        self.key_map.add_binding(keys, command);
+    }
+
+    pub fn remove_keybinding(&mut self, keys: &[KeyPress]) {
+        self.key_map.remove_binding(keys);
+    }
+
+    pub async fn process_keypress(&mut self, keypress: KeyPress) {
+        self.key_buffer.push(keypress);
+        if let Some(command) = self.key_map.lookup(self.key_buffer.get()) {
+            let command = command.read().command().clone();
+            let args = self.key_buffer.get().iter().map(|press| {
+                Value::from(Record::from_rust_type(*press))
+            }).collect::<Vec<Value>>();
+
+            let list = lists::slice_to_list(&args);
+            
+            match command.call(&[list]).await {
+                Ok(_) => {},
+                Err(e) => {
+                    println!("{}", e);
+                }
+            }
+            self.key_buffer.clear();
+        }
+    }
 
     pub fn get_state() -> Arc<Mutex<SessionState>> {
         STATE.clone()
@@ -226,6 +262,49 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     };
     
     buffer.set_major_mode(major_mode.clone());
+    
+    Ok(Vec::new())
+}
+
+#[bridge(name = "current-major-mode", lib = "(koru-session)")]
+pub async fn get_current_major_mode() -> Result<Vec<Value>, Condition> {
+    let state = SessionState::get_state();
+    let guard = state.lock().await;
+    let Some(buffer) = guard.get_current_buffer() else {
+        return Err(Condition::error(String::from("Buffer not found")));
+    };
+
+    Ok(vec![buffer.get_major_mode()])
+}
+
+#[bridge(name = "add-key-mapping", lib = "(koru-session)")]
+pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((key_string, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let Some((command, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    
+    let key_string: String = key_string.clone().try_into()?;
+    let command: Gc<Command> = command.try_into_rust_type()?;
+    
+    let key_seq = key_string.split_whitespace()
+        .map(|s| {
+            KeyPress::from_string(s)
+        })
+        .collect::<Option<Vec<KeyPress>>>();
+    
+    let key_seq = match key_seq {
+        Some(key_seq) => key_seq,
+        None => {
+            return Err(Condition::error(String::from("Invalid key in sequence")))
+        }
+    };
+
+    let state = SessionState::get_state();
+    let mut guard = state.lock().await;
+    guard.key_map.add_binding(key_seq, command);
     
     Ok(Vec::new())
 }

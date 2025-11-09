@@ -11,7 +11,7 @@ use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalBridge};
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{KeyBuffer, KeyPress};
-use koru_core::keybinding::Keybinding;
+use koru_core::keymap::KeyMap;
 use koru_core::styled_text::{StyledFile};
 use crate::tuirealm_backend::events::BrokerPort;
 
@@ -39,7 +39,6 @@ struct App {
     text: StyledFile,
     message_bar: String,
     key_buffer: KeyBuffer,
-    keybinding: Keybinding<UiMessage>,
 }
 
 impl App {
@@ -186,7 +185,6 @@ pub async fn real_main(
         text: StyledFile::default(),
         message_bar: String::new(),
         key_buffer: KeyBuffer::new(),
-        keybinding: Keybinding::new(),
     };
 
     let _ = app.terminal.enter_alternate_screen()?;

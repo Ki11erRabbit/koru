@@ -1,6 +1,6 @@
 pub mod kernel;
 pub mod styled_text;
-pub mod keybinding;
+pub mod keymap;
 mod attr_set;
 
 pub use attr_set::AttrSet;

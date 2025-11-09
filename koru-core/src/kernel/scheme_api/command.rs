@@ -107,6 +107,10 @@ impl Command {
     pub fn name(&self) -> &str {
         self.name.as_str()
     }
+    
+    pub fn command(&self) -> &Procedure {
+        &self.function
+    }
 }
 
 impl PartialEq for Command {

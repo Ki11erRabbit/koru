@@ -189,7 +189,7 @@ impl std::fmt::Display for ControlKey {
 }
 
 
-#[derive(Eq, PartialEq, Clone, Hash, Debug, Trace)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Trace)]
 pub struct KeyPress {
     pub key: KeyValue,
     pub modifiers: ModifierKey,

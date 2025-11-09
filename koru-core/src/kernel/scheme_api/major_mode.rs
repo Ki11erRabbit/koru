@@ -2,23 +2,17 @@ mod text_view;
 mod text_edit;
 
 use scheme_rs::gc::Gc;
-use std::collections::HashMap;
 use std::sync::{Arc};
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::Trace;
-use scheme_rs::num::Number;
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
-use crate::kernel::scheme_api::command::{Command};
-use crate::styled_text::StyledFile;
 
 #[derive(Clone, Debug, Trace)]
 pub struct MajorMode {
     name: String,
-    commands: Vec<Gc<Command>>,
-    aliases: HashMap<String, usize>,
     data: Value,
     draw: Option<Procedure>,
 }
@@ -31,34 +25,11 @@ impl MajorMode {
     ) -> Self {
         MajorMode {
             name,
-            commands: Vec::new(),
-            aliases: HashMap::new(),
             data,
             draw,
         }
     }
     
-    pub fn register_command(&mut self, name: String, command: Gc<Command>) {
-        let index = self.commands.len();
-        self.commands.push(command);
-        self.aliases.insert(name, index);
-    }
-    
-    pub fn register_alias(&mut self, name: String, alias: String) {
-        let index = if let Some(index) = self.aliases.get(&name) {
-            Some(*index)
-        } else {
-            None
-        };
-        if let Some(index) = index {
-            self.aliases.insert(alias, index);
-        }
-    }
-    
-    pub fn remove_alias(&mut self, name: String) {
-        self.aliases.remove(&name);
-    }
-
     pub fn draw(&self) -> Option<Procedure> {
         self.draw.clone()
     }
@@ -106,21 +77,6 @@ pub fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
     Ok(vec![mode.read().clone().data])
 }
 
-#[bridge(name = "major-mode-register-command", lib = "(major-mode)")]
-pub fn major_mode_register_command(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((mode, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
-    };
-    let Some((command, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
-    };
-    let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
-    let command: Gc<Command> = command.clone().try_into_rust_type()?;
-
-    mode.write().register_command(command.read().name().to_string(), command.clone());
-
-    Ok(Vec::new())
-}
 
 #[bridge(name = "major-mode-draw", lib = "(major-mode)")]
 pub async fn prepend_line(mode: &Value) -> Result<Vec<Value>, Condition> {
