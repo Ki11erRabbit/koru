@@ -1,14 +1,9 @@
 use std::error::Error;
 use std::ffi::OsStr;
-use std::path::{Path, PathBuf};
-use scheme_rs::ast::DefinitionBody;
-use scheme_rs::env::{Environment};
+use std::path::{PathBuf};
 use scheme_rs::gc::Gc;
-use scheme_rs::registry::Library;
 use scheme_rs::runtime::Runtime;
-use scheme_rs::syntax::{Span, Syntax};
 use scheme_rs::value::Value;
-use crate::kernel;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
@@ -33,7 +28,6 @@ impl Session {
     pub async fn new(
         broker_client: BrokerClient,
     ) -> Self {
-        scheme_api::load_builtins().await;
 
         Self {
             broker_client,
