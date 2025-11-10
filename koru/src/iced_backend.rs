@@ -1,19 +1,18 @@
 mod styled_text;
 
 use std::error::Error;
+use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
 use futures::SinkExt;
 use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
-use iced::widget::{column, text, Scrollable};
-use iced_core::Length;
+use iced::widget::{column, text};
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue, ModifierKey};
-use koru_core::keymap::KeyMap;
 use koru_core::styled_text::{StyledFile};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -66,6 +65,7 @@ struct App {
     text: StyledFile,
     message_bar: String,
     key_buffer: KeyBuffer,
+    line_height: Arc<Mutex<usize>>,
 }
 
 impl App {
@@ -83,6 +83,15 @@ impl App {
             text: StyledFile::default(),
             message_bar: String::from("Hello world!"),
             key_buffer: KeyBuffer::new(),
+            line_height: Arc::new(Mutex::new(0)),
+        }
+    }
+    
+    pub fn line_height_callback<'a>(&self) -> impl Fn(usize) + 'a {
+        let line_height = self.line_height.clone();
+        move |new: usize| {
+            println!("new height: {new}");
+            *line_height.lock().expect("lock poisoned") = new;
         }
     }
 
@@ -206,7 +215,7 @@ impl App {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
                 column!(
-                    styled_text::rich(&self.text.lines(), 0, |_| {})
+                    styled_text::rich(&self.text.lines(), 0, self.line_height_callback())
                         .font(iced::font::Font::MONOSPACE),
                     text(&self.message_bar)
                 ).into()

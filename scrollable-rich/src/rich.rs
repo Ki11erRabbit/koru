@@ -34,23 +34,35 @@ where
     Renderer: iced_core::text::Renderer,
     Renderer::Font: 'a,
 {
-    pub fn visible_line_count(&self, viewport_height: f32) -> usize {
-        let line_height_px = self.calculate_line_height();
-        (viewport_height / line_height_px).ceil() as usize
+    pub fn visible_line_count(&self, viewport_height: f32, renderer: &Renderer) -> usize {
+        let line_height_px = self.calculate_line_height(renderer);
+        let count = (viewport_height / line_height_px).ceil() as usize; // Use floor, not ceil
+        count.min(self.line_starts.len().saturating_sub(self.line_offset))
     }
 
-    pub fn visible_line_range(&self, viewport_height: f32) -> std::ops::Range<usize> {
-        let visible_count = self.visible_line_count(viewport_height);
+    /// Get the range of lines that will actually be rendered
+    pub fn visible_line_range(&self, viewport_height: f32, renderer: &Renderer) -> std::ops::Range<usize> {
+        println!("viewport_height: {}", viewport_height);
+        let total_lines = self.line_starts.len();
+
+        if self.line_offset >= total_lines {
+            return 0..0; // Empty range if offset is beyond content
+        }
+
+        let line_height_px = self.calculate_line_height(renderer);
+        let lines_that_fit = (viewport_height / line_height_px).ceil() as usize;
+
         let start = self.line_offset;
-        let end = (start + visible_count).min(self.line_starts.len());
+        let end = (start + lines_that_fit).min(total_lines);
+
         start..end
     }
 
-    fn calculate_line_height(&self) -> f32 {
+    fn calculate_line_height(&self, renderer: &Renderer) -> f32 {
         match self.line_height {
             LineHeight::Absolute(px) => px.0,
             LineHeight::Relative(factor) => {
-                let font_size = self.size.unwrap_or(Pixels(14.0)).0;
+                let font_size = self.size.unwrap_or(renderer.default_size()).0;
                 font_size * factor
             }
         }
@@ -373,7 +385,7 @@ where
             }
         }
         
-        let line_height = self.visible_line_range(viewport.height).count();
+        let line_height = self.visible_line_range(viewport.height, renderer).count();
 
         (self.line_height_callback)(line_height);
 
