@@ -4,7 +4,7 @@ use koru_core::styled_text::{ColorType, StyledText};
 use scrollable_rich::rich::Rich;
 use crate::iced_backend::UiMessage;
 
-pub fn rich<'a, Theme, Renderer>(text: &'a Vec<Vec<StyledText>>, line_offset: usize) -> Rich<'a, UiMessage, Theme, Renderer> 
+pub fn rich<'a, Theme, Renderer>(text: &'a Vec<Vec<StyledText>>, line_offset: usize, line_count_callback: impl Fn(usize) + 'a) -> Rich<'a, UiMessage, Theme, Renderer> 
 where 
     Theme: iced::widget::text::Catalog,
     Renderer: iced::advanced::text::Renderer + 'a,
@@ -46,5 +46,5 @@ where
             }
         }
     }
-    Rich::with_spans(spans, line_starts.into_boxed_slice(), line_offset)
+    Rich::with_spans(spans, line_starts.into_boxed_slice(), line_offset, line_count_callback)
 }

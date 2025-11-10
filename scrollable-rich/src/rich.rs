@@ -1,7 +1,5 @@
 use iced_core::{alignment, event, layout, mouse, renderer, Clipboard, Color, Element, Event, Layout, Length, Pixels, Point, Rectangle, Shell, Size, Vector, Widget};
-use iced_core::event::Status;
 use iced_core::layout::{Limits, Node};
-use iced_core::mouse::{Cursor, Interaction};
 use iced_core::text::{LineHeight, Paragraph, Shaping, Span, Wrapping};
 use iced_core::widget::text::{Catalog, Style, StyleFn};
 use iced_core::widget::{text, tree, Tree};
@@ -17,6 +15,7 @@ where
     spans: Box<dyn AsRef<[Span<'a, Link, Renderer::Font>]> + 'a>,
     line_starts: Box<[usize]>,
     line_offset: usize,
+    line_height_callback: Box<dyn Fn(usize) + 'a>,
     size: Option<Pixels>,
     line_height: LineHeight,
     width: Length,
@@ -26,6 +25,36 @@ where
     align_y: alignment::Vertical,
     wrapping: Wrapping,
     class: Theme::Class<'a>,
+}
+
+impl<'a, Link, Theme, Renderer> Rich<'_, Link, Theme, Renderer>
+where
+    Link: Clone + 'static,
+    Theme: Catalog,
+    Renderer: iced_core::text::Renderer,
+    Renderer::Font: 'a,
+{
+    pub fn visible_line_count(&self, viewport_height: f32) -> usize {
+        let line_height_px = self.calculate_line_height();
+        (viewport_height / line_height_px).ceil() as usize
+    }
+
+    pub fn visible_line_range(&self, viewport_height: f32) -> std::ops::Range<usize> {
+        let visible_count = self.visible_line_count(viewport_height);
+        let start = self.line_offset;
+        let end = (start + visible_count).min(self.line_starts.len());
+        start..end
+    }
+
+    fn calculate_line_height(&self) -> f32 {
+        match self.line_height {
+            LineHeight::Absolute(px) => px.0,
+            LineHeight::Relative(factor) => {
+                let font_size = self.size.unwrap_or(Pixels(14.0)).0;
+                font_size * factor
+            }
+        }
+    }
 }
 
 impl<'a, Link, Theme, Renderer> Rich<'a, Link, Theme, Renderer> 
@@ -40,6 +69,7 @@ where
             spans: Box::new([]),
             line_starts: Box::new([]),
             line_offset: 0,
+            line_height_callback: Box::new(|_| {}),
             size: None,
             line_height: LineHeight::default(),
             width: Length::Shrink,
@@ -56,11 +86,13 @@ where
         spans: impl AsRef<[Span<'a, Link, Renderer::Font>]> + 'a,
         line_starts: Box<[usize]>,
         line_offset: usize,
+        line_height_callback: impl Fn(usize) + 'a,
     ) -> Self {
         Self {
             spans: Box::new(spans),
             line_starts,
             line_offset,
+            line_height_callback: Box::new(line_height_callback),
             size: None,
             line_height: LineHeight::default(),
             width: Length::Shrink,
@@ -243,7 +275,7 @@ where
         let hovered_span = cursor
             .position_in(layout.bounds())
             .and_then(|position| state.paragraph.hit_span(position));
-        
+
         let index = self.line_starts.get(self.line_offset).unwrap_or(&0);
 
         for (index, span) in self.spans.as_ref().as_ref()[*index..].iter().enumerate() {
@@ -340,6 +372,10 @@ where
                 }
             }
         }
+        
+        let line_height = self.visible_line_range(viewport.height).count();
+
+        (self.line_height_callback)(line_height);
 
         text::draw(
             renderer,
@@ -476,9 +512,9 @@ where
 
         let size = size.unwrap_or_else(|| renderer.default_size());
         let font = font.unwrap_or_else(|| renderer.default_font());
-        
+
         let offset = line_starts.get(line_offset).unwrap_or(&0);
-        
+
         let spans = &spans[*offset..];
 
         let text_with_spans = || iced_core::Text {

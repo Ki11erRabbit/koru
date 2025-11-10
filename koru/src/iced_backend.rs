@@ -206,7 +206,7 @@ impl App {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
                 column!(
-                    styled_text::rich(&self.text.lines(), 0)
+                    styled_text::rich(&self.text.lines(), 0, |_| {})
                         .font(iced::font::Font::MONOSPACE),
                     text(&self.message_bar)
                 ).into()
