@@ -153,16 +153,7 @@ pub async fn move_cursor_up(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = match cursor_index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            let index: usize = big.try_into().unwrap();
-            index
-        }
-        Number::Complex(..) => return Err(Condition::type_error("Integer", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let cursor_index = cursor_index.as_ref().try_into()?;
     let data = data.read().clone();
     data.move_cursor(cursor_index, CursorDirection::Up).await?;
     Ok(Vec::new())
@@ -179,16 +170,7 @@ pub async fn move_cursor_down(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = match cursor_index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            let index: usize = big.try_into().unwrap();
-            index
-        }
-        Number::Complex(..) => return Err(Condition::type_error("Integer", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let cursor_index = cursor_index.as_ref().try_into()?;
     let data = data.read().clone();
     data.move_cursor(cursor_index, CursorDirection::Down).await?;
     Ok(Vec::new())
@@ -209,16 +191,7 @@ pub async fn move_cursor_left(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = match cursor_index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            let index: usize = big.try_into().unwrap();
-            index
-        }
-        Number::Complex(..) => return Err(Condition::type_error("Integer", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let cursor_index = cursor_index.as_ref().try_into()?;
     let data = data.read().clone();
     data.move_cursor(cursor_index, CursorDirection::Left { wrap }).await?;
     Ok(Vec::new())
@@ -239,16 +212,7 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Condition> 
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = match cursor_index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            let index: usize = big.try_into().unwrap();
-            index
-        }
-        Number::Complex(..) => return Err(Condition::type_error("Integer", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let cursor_index = cursor_index.as_ref().try_into()?;
     let data = data.read().clone();
     data.move_cursor(cursor_index, CursorDirection::Right { wrap }).await?;
     Ok(Vec::new())
@@ -263,16 +227,7 @@ pub async fn place_mark(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = match cursor_index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            let index: usize = big.try_into().unwrap();
-            index
-        }
-        Number::Complex(..) => return Err(Condition::type_error("Integer", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let cursor_index = cursor_index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let data = data.read().clone();
@@ -289,16 +244,7 @@ pub async fn remove_mark(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = match cursor_index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            let index: usize = big.try_into().unwrap();
-            index
-        }
-        Number::Complex(..) => return Err(Condition::type_error("Integer", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let cursor_index = cursor_index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let data = data.read().clone();
@@ -316,16 +262,7 @@ pub fn get_cursor_position(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = match cursor_index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            let index: usize = big.try_into().unwrap();
-            index
-        }
-        Number::Complex(..) => return Err(Condition::type_error("Integer", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let cursor_index = cursor_index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let data = data.read().clone();
@@ -350,24 +287,8 @@ pub fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
             let right = pair.read().1.clone();
             let row: Arc<Number> = left.try_into()?;
             let col: Arc<Number> = right.try_into()?;
-            let row: usize = match row.as_ref() {
-                Number::FixedInteger(fixed) => *fixed as usize,
-                Number::BigInteger(big) => {
-                    big.try_into().unwrap()
-                }
-                Number::Complex(..) => return Err(Condition::type_error("BigInteger", "Complex")),
-                Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-                Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-            };
-            let col: usize = match col.as_ref() {
-                Number::FixedInteger(fixed) => *fixed as usize,
-                Number::BigInteger(big) => {
-                    big.try_into().unwrap()
-                }
-                Number::Complex(..) => return Err(Condition::type_error("BigInteger", "Complex")),
-                Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-                Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-            };
+            let col: usize = col.as_ref().try_into()?;
+            let row: usize = row.as_ref().try_into()?;
             (row, col)
         }
         UnpackedValue::Number(row) => {
@@ -375,24 +296,8 @@ pub fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
                 return Err(Condition::wrong_num_of_args(3, args.len()));
             };
             let col: Arc<Number> = col.clone().try_into()?;
-            let row: usize = match row.as_ref() {
-                Number::FixedInteger(fixed) => *fixed as usize,
-                Number::BigInteger(big) => {
-                    big.try_into().unwrap()
-                }
-                Number::Complex(..) => return Err(Condition::type_error("BigInteger", "Complex")),
-                Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-                Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-            };
-            let col: usize = match col.as_ref() {
-                Number::FixedInteger(fixed) => *fixed as usize,
-                Number::BigInteger(big) => {
-                    big.try_into().unwrap()
-                }
-                Number::Complex(..) => return Err(Condition::type_error("BigInteger", "Complex")),
-                Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-                Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-            };
+            let row: usize = row.as_ref().try_into()?;
+            let col: usize = col.as_ref().try_into()?;
             (row, col)
         }
         ty => return Err(Condition::type_error("Pair or Integer", ty.type_name()))
@@ -414,15 +319,7 @@ pub fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
     let index: Arc<Number> = index.clone().try_into()?;
-    let index: usize = match index.as_ref() {
-        Number::FixedInteger(fixed) => *fixed as usize,
-        Number::BigInteger(big) => {
-            big.try_into().unwrap()
-        }
-        Number::Complex(..) => return Err(Condition::type_error("BigInteger", "Complex")),
-        Number::Rational(..) => return Err(Condition::type_error("BigInteger", "Rational")),
-        Number::Real(..) => return Err(Condition::type_error("BigInteger", "Real")),
-    };
+    let index: usize = index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let data = get_data(&major_mode)?;
     let data = data.read().clone();
