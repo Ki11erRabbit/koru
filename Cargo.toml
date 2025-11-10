@@ -9,5 +9,5 @@ members = ["koru","koru-core"]
 koru-core = { path = "./koru-core" }
 futures = "0.3.31"
 tokio = { version = "1.47.1", features = ["full"] }
-scheme-rs = { git = "https://github.com/maplant/scheme-rs", rev = "19aac3f", features = ["async", "tokio"]}
+scheme-rs = { git = "https://github.com/maplant/scheme-rs", rev = "5afe75d", features = ["async", "tokio"]}
 inventory = "0.3"
