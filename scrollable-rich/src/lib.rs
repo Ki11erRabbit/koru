@@ -1,1 +1,1 @@
-mod scrollable_rich;
+pub mod rich;

@@ -6,6 +6,7 @@ members = ["koru","koru-core", "scrollable-rich"]
 [workspace.dependencies]
 #guile-rs-sys = { path = "./guile-rs-sys" }
 #guile-rs = { path = "./guile-rs" }
+scrollable-rich = { path = "./scrollable-rich" }
 koru-core = { path = "./koru-core" }
 futures = "0.3.31"
 tokio = { version = "1.47.1", features = ["full"] }

@@ -15,7 +15,7 @@ where
     Renderer: iced_core::text::Renderer,
 {
     spans: Box<dyn AsRef<[Span<'a, Link, Renderer::Font>]> + 'a>,
-    line_endings: Box<[usize]>,
+    line_starts: Box<[usize]>,
     line_offset: usize,
     size: Option<Pixels>,
     line_height: LineHeight,
@@ -38,7 +38,7 @@ where
     pub fn new() -> Self {
         Self {
             spans: Box::new([]),
-            line_endings: Box::new([]),
+            line_starts: Box::new([]),
             line_offset: 0,
             size: None,
             line_height: LineHeight::default(),
@@ -54,12 +54,12 @@ where
 
     pub fn with_spans(
         spans: impl AsRef<[Span<'a, Link, Renderer::Font>]> + 'a,
-        line_endings: Box<[usize]>,
+        line_starts: Box<[usize]>,
         line_offset: usize,
     ) -> Self {
         Self {
             spans: Box::new(spans),
-            line_endings,
+            line_starts,
             line_offset,
             size: None,
             line_height: LineHeight::default(),
@@ -184,7 +184,7 @@ where
 
 struct State<Link, P: Paragraph> {
     spans: Vec<Span<'static, Link, P::Font>>,
-    line_endings: Vec<usize>,
+    line_starts: Vec<usize>,
     line_offset: usize,
     span_pressed: Option<usize>,
     paragraph: P,
@@ -213,7 +213,7 @@ where
             self.width,
             self.height,
             self.spans.as_ref().as_ref(),
-            self.line_endings.as_ref(),
+            self.line_starts.as_ref(),
             self.line_offset,
             self.line_height,
             self.size,
@@ -244,9 +244,9 @@ where
             .position_in(layout.bounds())
             .and_then(|position| state.paragraph.hit_span(position));
         
-        let index = self.line_endings[self.line_offset];
+        let index = self.line_starts.get(self.line_offset).unwrap_or(&0);
 
-        for (index, span) in self.spans.as_ref().as_ref()[index..].iter().enumerate() {
+        for (index, span) in self.spans.as_ref().as_ref()[*index..].iter().enumerate() {
             let is_hovered_link =
                 span.link.is_some() && Some(index) == hovered_span;
 
@@ -358,7 +358,7 @@ where
     fn state(&self) -> iced_core::widget::tree::State {
         tree::State::new(State::<Link, _> {
             spans: Vec::new(),
-            line_endings: Vec::new(),
+            line_starts: Vec::new(),
             line_offset: 0,
             span_pressed: None,
             paragraph: Renderer::Paragraph::default(),
@@ -458,7 +458,7 @@ fn layout<Link, Renderer>(
     width: Length,
     height: Length,
     spans: &[Span<'_, Link, Renderer::Font>],
-    line_endings: &[usize],
+    line_starts: &[usize],
     line_offset: usize,
     line_height: LineHeight,
     size: Option<Pixels>,
@@ -477,9 +477,9 @@ where
         let size = size.unwrap_or_else(|| renderer.default_size());
         let font = font.unwrap_or_else(|| renderer.default_font());
         
-        let offset = line_endings[line_offset];
+        let offset = line_starts.get(line_offset).unwrap_or(&0);
         
-        let spans = &spans[offset..];
+        let spans = &spans[*offset..];
 
         let text_with_spans = || iced_core::Text {
             content: spans,

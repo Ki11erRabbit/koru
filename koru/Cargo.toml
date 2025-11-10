@@ -8,6 +8,7 @@ koru-core = { workspace = true }
 iced = { version = "0.13.1", features = ["tokio", "advanced"]}
 iced_core = "0.13.2"
 iced_futures = "0.13.1"
+scrollable-rich = { workspace = true }
 futures = { workspace = true }
 tuirealm = "3.1.0"
 crossterm = "0.29.0"
