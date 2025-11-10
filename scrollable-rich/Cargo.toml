@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { version = "0.13.1", features = ["tokio", "advanced"]}
-iced_core = "0.13.2"
+#iced = { version = "0.13.1", features = ["tokio", "advanced"]}
+iced_core = {  version = "0.13.2", features = ["advanced"] }
 iced_renderer = "0.13.0"
+
+[features]
+default = [ "advanced" ]
+advanced = [ "iced_core/advanced" ]
