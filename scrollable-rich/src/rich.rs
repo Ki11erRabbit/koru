@@ -42,7 +42,6 @@ where
 
     /// Get the range of lines that will actually be rendered
     pub fn visible_line_range(&self, viewport_height: f32, renderer: &Renderer) -> std::ops::Range<usize> {
-        println!("viewport_height: {}", viewport_height);
         let total_lines = self.line_starts.len();
 
         if self.line_offset >= total_lines {
@@ -123,7 +122,7 @@ where
         self
     }
 
-    /// Sets the defualt [`LineHeight`] of the [`Rich`] text.
+    /// Sets the default [`LineHeight`] of the [`Rich`] text.
     pub fn line_height(mut self, line_height: impl Into<LineHeight>) -> Self {
         self.line_height = line_height.into();
         self
@@ -386,9 +385,8 @@ where
         }
         
         let line_height = self.visible_line_range(viewport.height, renderer).count();
-
         (self.line_height_callback)(line_height);
-
+        
         text::draw(
             renderer,
             defaults,

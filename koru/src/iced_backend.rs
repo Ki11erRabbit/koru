@@ -90,7 +90,6 @@ impl App {
     pub fn line_height_callback<'a>(&self) -> impl Fn(usize) + 'a {
         let line_height = self.line_height.clone();
         move |new: usize| {
-            println!("new height: {new}");
             *line_height.lock().expect("lock poisoned") = new;
         }
     }
