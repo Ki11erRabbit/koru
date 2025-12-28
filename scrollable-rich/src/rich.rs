@@ -5,6 +5,13 @@ use iced_core::widget::text::{Catalog, Style, StyleFn};
 use iced_core::widget::{text, tree, Tree};
 use iced_core::widget::tree::Tag;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct VisibleTextMetrics {
+    pub line_count: usize,
+    /// None if not monospaced or can't determine
+    pub max_columns: Option<usize>,
+}
+
 #[allow(missing_debug_implementations)]
 pub struct Rich<'a, Link, Theme = iced_core::Theme, Renderer = iced_renderer::Renderer>
 where
@@ -15,7 +22,7 @@ where
     spans: Box<dyn AsRef<[Span<'a, Link, Renderer::Font>]> + 'a>,
     line_starts: Box<[usize]>,
     line_offset: usize,
-    line_height_callback: Box<dyn Fn(usize) + 'a>,
+    metrics_callback: Box<dyn Fn(VisibleTextMetrics) + 'a>,
     size: Option<Pixels>,
     line_height: LineHeight,
     width: Length,
@@ -36,7 +43,7 @@ where
 {
     pub fn visible_line_count(&self, viewport_height: f32, renderer: &Renderer) -> usize {
         let line_height_px = self.calculate_line_height(renderer);
-        let count = (viewport_height / line_height_px).ceil() as usize; // Use floor, not ceil
+        let count = (viewport_height / line_height_px).ceil() as usize;
         count.min(self.line_starts.len().saturating_sub(self.line_offset))
     }
 
@@ -66,9 +73,74 @@ where
             }
         }
     }
+
+    /// Calculate the maximum number of columns that can fit in the viewport width
+    /// Returns None if the font is not monospaced or character width cannot be determined
+    fn calculate_max_columns(&self, viewport_width: f32, renderer: &Renderer) -> Option<usize> {
+        // Get the font size
+        let font_size = self.size.unwrap_or(renderer.default_size());
+        let default_font = renderer.default_font();
+        let font = self.font.as_ref().unwrap_or(&default_font);
+
+        // Try to measure a monospace character width
+        // We'll use 'M' as it's typically the widest character in monospace fonts
+        let char_width = self.measure_char_width('M', font_size, font, renderer)?;
+
+        if char_width > 0.0 {
+            Some((viewport_width / char_width).floor() as usize)
+        } else {
+            None
+        }
+    }
+
+    /// Measure the width of a single character
+    /// Returns None if measurement fails or font is not monospaced
+    fn measure_char_width(
+        &self,
+        ch: char,
+        size: Pixels,
+        font: &Renderer::Font,
+        renderer: &Renderer,
+    ) -> Option<f32> {
+        // Create a simple paragraph with a single character to measure
+        let ch = ch.to_string();
+        let test_text = iced_core::Text {
+            content: ch.as_str(),
+            bounds: Size::new(f32::INFINITY, f32::INFINITY),
+            size,
+            line_height: self.line_height,
+            font: font.clone(),
+            horizontal_alignment: alignment::Horizontal::Left,
+            vertical_alignment: alignment::Vertical::Top,
+            shaping: Shaping::Advanced,
+            wrapping: Wrapping::None,
+        };
+
+        let paragraph = Renderer::Paragraph::with_text(test_text);
+        let bounds = paragraph.min_bounds();
+
+        // Verify it's monospaced by checking multiple characters
+        // (Optional: you could add more sophisticated monospace detection)
+        if bounds.width > 0.0 {
+            Some(bounds.width)
+        } else {
+            None
+        }
+    }
+
+    /// Calculate visible text metrics including line count and column count
+    fn calculate_metrics(&self, viewport: &Rectangle, renderer: &Renderer) -> VisibleTextMetrics {
+        let line_count = self.visible_line_range(viewport.height, renderer).count();
+        let max_columns = self.calculate_max_columns(viewport.width, renderer);
+
+        VisibleTextMetrics {
+            line_count,
+            max_columns,
+        }
+    }
 }
 
-impl<'a, Link, Theme, Renderer> Rich<'a, Link, Theme, Renderer> 
+impl<'a, Link, Theme, Renderer> Rich<'a, Link, Theme, Renderer>
 where
     Link: Clone + 'static,
     Theme: Catalog,
@@ -80,7 +152,7 @@ where
             spans: Box::new([]),
             line_starts: Box::new([]),
             line_offset: 0,
-            line_height_callback: Box::new(|_| {}),
+            metrics_callback: Box::new(|_| {}),
             size: None,
             line_height: LineHeight::default(),
             width: Length::Shrink,
@@ -97,13 +169,13 @@ where
         spans: impl AsRef<[Span<'a, Link, Renderer::Font>]> + 'a,
         line_starts: Box<[usize]>,
         line_offset: usize,
-        line_height_callback: impl Fn(usize) + 'a,
+        metrics_callback: impl Fn(VisibleTextMetrics) + 'a,
     ) -> Self {
         Self {
             spans: Box::new(spans),
             line_starts,
             line_offset,
-            line_height_callback: Box::new(line_height_callback),
+            metrics_callback: Box::new(metrics_callback),
             size: None,
             line_height: LineHeight::default(),
             width: Length::Shrink,
@@ -383,10 +455,11 @@ where
                 }
             }
         }
-        
-        let line_height = self.visible_line_range(viewport.height, renderer).count();
-        (self.line_height_callback)(line_height);
-        
+
+        // Calculate and report metrics
+        let metrics = self.calculate_metrics(viewport, renderer);
+        (self.metrics_callback)(metrics);
+
         text::draw(
             renderer,
             defaults,
@@ -569,21 +642,6 @@ where
         state.paragraph.min_bounds()
     })
 }
-
-/*impl<'a, Link, Theme, Renderer> FromIterator<Span<'a, Link, Renderer::Font>>
-for Rich<'a, Link, Theme, Renderer>
-where
-    Link: Clone + 'a,
-    Theme: Catalog,
-    Renderer: iced_core::text::Renderer,
-    Renderer::Font: 'a,
-{
-    fn from_iter<T: IntoIterator<Item = Span<'a, Link, Renderer::Font>>>(
-        spans: T,
-    ) -> Self {
-        Self::with_spans(spans.into_iter().collect::<Vec<_>>())
-    }
-}*/
 
 impl<'a, Link, Theme, Renderer> From<Rich<'a, Link, Theme, Renderer>>
 for Element<'a, Link, Theme, Renderer>

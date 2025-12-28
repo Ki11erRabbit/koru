@@ -1,7 +1,6 @@
 mod styled_text;
 
 use std::error::Error;
-use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
 use futures::SinkExt;
@@ -14,6 +13,7 @@ use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Mes
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue, ModifierKey};
 use koru_core::styled_text::{StyledFile};
+use crate::ui_state::buffer_state::BufferState;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {
@@ -65,7 +65,7 @@ struct App {
     text: StyledFile,
     message_bar: String,
     key_buffer: KeyBuffer,
-    line_height: Arc<Mutex<usize>>,
+    buffer_state: BufferState,
 }
 
 impl App {
@@ -83,16 +83,10 @@ impl App {
             text: StyledFile::default(),
             message_bar: String::from("Hello world!"),
             key_buffer: KeyBuffer::new(),
-            line_height: Arc::new(Mutex::new(0)),
+            buffer_state: BufferState::default(),
         }
     }
     
-    pub fn line_height_callback<'a>(&self) -> impl Fn(usize) + 'a {
-        let line_height = self.line_height.clone();
-        move |new: usize| {
-            *line_height.lock().expect("lock poisoned") = new;
-        }
-    }
 
     fn update(&mut self, message: UiMessage) -> Task<UiMessage>{
 
@@ -214,7 +208,7 @@ impl App {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
                 column!(
-                    styled_text::rich(&self.text.lines(), 0, self.line_height_callback())
+                    styled_text::rich(&self.text.lines(), 0, self.buffer_state.text_metrics_callback())
                         .font(iced::font::Font::MONOSPACE),
                     text(&self.message_bar)
                 ).into()
