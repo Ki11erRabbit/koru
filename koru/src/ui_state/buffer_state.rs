@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use koru_core::styled_text::StyledFile;
 use scrollable_rich::rich::VisibleTextMetrics;
 
 /// Stores the ui's state for individual buffers.
@@ -12,6 +13,8 @@ pub struct BufferState {
     pub column_offset: usize,
     /// The text metrics associated with the open buffer
     pub text_metrics: Arc<Mutex<VisibleTextMetrics>>,
+    /// The styled text of the buffer
+    pub text: StyledFile,
 }
 
 impl BufferState {

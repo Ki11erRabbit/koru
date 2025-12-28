@@ -1,6 +1,6 @@
 use iced_core::{alignment, event, layout, mouse, renderer, Clipboard, Color, Element, Event, Layout, Length, Pixels, Point, Rectangle, Shell, Size, Vector, Widget};
 use iced_core::layout::{Limits, Node};
-use iced_core::text::{LineHeight, Paragraph, Shaping, Span, Wrapping};
+use iced_core::text::{Fragment, LineHeight, Paragraph, Shaping, Span, Wrapping};
 use iced_core::widget::text::{Catalog, Style, StyleFn};
 use iced_core::widget::{text, tree, Tree};
 use iced_core::widget::tree::Tag;
@@ -8,7 +8,7 @@ use iced_core::widget::tree::Tag;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct VisibleTextMetrics {
     pub line_count: usize,
-    /// None if not monospaced or can't determine
+    /// None if not monospaced or can't be determined
     pub max_columns: Option<usize>,
 }
 
@@ -22,6 +22,7 @@ where
     spans: Box<dyn AsRef<[Span<'a, Link, Renderer::Font>]> + 'a>,
     line_starts: Box<[usize]>,
     line_offset: usize,
+    column_offset: usize,
     metrics_callback: Box<dyn Fn(VisibleTextMetrics) + 'a>,
     size: Option<Pixels>,
     line_height: LineHeight,
@@ -152,6 +153,7 @@ where
             spans: Box::new([]),
             line_starts: Box::new([]),
             line_offset: 0,
+            column_offset: 0,
             metrics_callback: Box::new(|_| {}),
             size: None,
             line_height: LineHeight::default(),
@@ -169,12 +171,14 @@ where
         spans: impl AsRef<[Span<'a, Link, Renderer::Font>]> + 'a,
         line_starts: Box<[usize]>,
         line_offset: usize,
+        column_offset: usize,
         metrics_callback: impl Fn(VisibleTextMetrics) + 'a,
     ) -> Self {
         Self {
             spans: Box::new(spans),
             line_starts,
             line_offset,
+            column_offset,
             metrics_callback: Box::new(metrics_callback),
             size: None,
             line_height: LineHeight::default(),
@@ -301,6 +305,7 @@ struct State<Link, P: Paragraph> {
     spans: Vec<Span<'static, Link, P::Font>>,
     line_starts: Vec<usize>,
     line_offset: usize,
+    column_offset: usize,
     span_pressed: Option<usize>,
     paragraph: P,
 }
@@ -330,6 +335,7 @@ where
             self.spans.as_ref().as_ref(),
             self.line_starts.as_ref(),
             self.line_offset,
+            self.column_offset,
             self.line_height,
             self.size,
             self.font,
@@ -359,9 +365,9 @@ where
             .position_in(layout.bounds())
             .and_then(|position| state.paragraph.hit_span(position));
 
-        let index = self.line_starts.get(self.line_offset).unwrap_or(&0);
-
-        for (index, span) in self.spans.as_ref().as_ref()[*index..].iter().enumerate() {
+        // FIXED: Use state.spans which are the actual spans in the paragraph
+        // (these have been processed with line_offset and column_offset applied)
+        for (index, span) in state.spans.iter().enumerate() {
             let is_hovered_link =
                 span.link.is_some() && Some(index) == hovered_span;
 
@@ -479,6 +485,7 @@ where
             spans: Vec::new(),
             line_starts: Vec::new(),
             line_offset: 0,
+            column_offset: 0,
             span_pressed: None,
             paragraph: Renderer::Paragraph::default(),
         })
@@ -521,10 +528,9 @@ where
                     {
                         match state.paragraph.hit_span(position) {
                             Some(span) if span == span_pressed => {
-                                if let Some(link) = self
+                                // FIXED: Use state.spans which correspond to the paragraph
+                                if let Some(link) = state
                                     .spans
-                                    .as_ref()
-                                    .as_ref()
                                     .get(span)
                                     .and_then(|span| span.link.clone())
                                 {
@@ -555,10 +561,11 @@ where
                 .state
                 .downcast_ref::<State<Link, Renderer::Paragraph>>();
 
+            // FIXED: Use state.spans which correspond to the paragraph
             if let Some(span) = state
                 .paragraph
                 .hit_span(position)
-                .and_then(|span| self.spans.as_ref().as_ref().get(span))
+                .and_then(|span| state.spans.get(span))
             {
                 if span.link.is_some() {
                     return mouse::Interaction::Pointer;
@@ -579,6 +586,7 @@ fn layout<Link, Renderer>(
     spans: &[Span<'_, Link, Renderer::Font>],
     line_starts: &[usize],
     line_offset: usize,
+    column_offset: usize,
     line_height: LineHeight,
     size: Option<Pixels>,
     font: Option<Renderer::Font>,
@@ -600,8 +608,17 @@ where
 
         let spans = &spans[*offset..];
 
+        // Apply column offset if wrapping is disabled
+        let processed_spans: Vec<Span<'_, Link, Renderer::Font>>;
+        let final_spans = if wrapping == Wrapping::None && column_offset > 0 {
+            processed_spans = apply_column_offset_to_spans(spans, column_offset);
+            &processed_spans[..]
+        } else {
+            spans
+        };
+
         let text_with_spans = || iced_core::Text {
-            content: spans,
+            content: final_spans,
             bounds,
             size,
             line_height,
@@ -612,10 +629,17 @@ where
             wrapping,
         };
 
-        if state.spans != spans {
+        // Check if we need to update the paragraph
+        let needs_update = state.spans != final_spans
+            || state.line_offset != line_offset
+            || state.column_offset != column_offset;
+
+        if needs_update {
             state.paragraph =
                 Renderer::Paragraph::with_spans(text_with_spans());
-            state.spans = spans.iter().cloned().map(Span::to_static).collect();
+            state.spans = final_spans.iter().cloned().map(Span::to_static).collect();
+            state.line_offset = line_offset;
+            state.column_offset = column_offset;
         } else {
             match state.paragraph.compare(iced_core::Text {
                 content: (),
@@ -641,6 +665,110 @@ where
 
         state.paragraph.min_bounds()
     })
+}
+
+/// Helper function to apply column offset to a slice of spans
+fn apply_column_offset_to_spans<'a, Link, Font>(
+    spans: &[Span<'a, Link, Font>],
+    column_offset: usize,
+) -> Vec<Span<'a, Link, Font>>
+where
+    Link: Clone,
+    Font: Clone,
+{
+    if column_offset == 0 {
+        return spans.to_vec();
+    }
+
+    let mut result = Vec::new();
+    let mut chars_processed = 0;
+
+    for span in spans {
+        let text = &span.text;
+
+        // Handle newlines specially - they reset column counting per line
+        if text.contains('\n') {
+            // Split by newline and process each segment
+            let lines: Vec<&str> = text.split('\n').collect();
+
+            for (i, line) in lines.iter().enumerate() {
+                let line_char_count = line.chars().count();
+
+                if chars_processed < column_offset {
+                    let chars_to_skip = column_offset.saturating_sub(chars_processed);
+
+                    if chars_to_skip < line_char_count {
+                        // Take part of this line
+                        let trimmed: String = line.chars().skip(chars_to_skip).collect();
+                        if !trimmed.is_empty() {
+                            let mut new_span = span.clone();
+                            let final_text = if i < lines.len() - 1 {
+                                format!("{}\n", trimmed)
+                            } else {
+                                trimmed
+                            };
+                            new_span.text = Fragment::from(final_text);
+                            result.push(new_span);
+                        } else if i < lines.len() - 1 {
+                            // Just add newline
+                            let mut new_span = span.clone();
+                            new_span.text = Fragment::from("\n");
+                            result.push(new_span);
+                        }
+                        chars_processed = column_offset; // We've now applied the offset
+                    } else if i < lines.len() - 1 {
+                        // Skip this line but keep the newline
+                        let mut new_span = span.clone();
+                        new_span.text = Fragment::from("\n");
+                        result.push(new_span);
+                        chars_processed = 0; // Reset for next line
+                    }
+                } else {
+                    // We've already applied offset, include full line
+                    let mut new_span = span.clone();
+                    let final_text = if i < lines.len() - 1 {
+                        format!("{}\n", line)
+                    } else {
+                        line.to_string()
+                    };
+                    new_span.text = Fragment::from(final_text);
+                    result.push(new_span);
+                }
+
+                if i < lines.len() - 1 {
+                    chars_processed = 0; // Reset column count after newline
+                }
+            }
+        } else {
+            // No newlines, simpler logic
+            let char_count = text.chars().count();
+
+            if chars_processed + char_count <= column_offset {
+                // Skip this entire span
+                chars_processed += char_count;
+                continue;
+            }
+
+            if chars_processed < column_offset {
+                // Partially skip this span
+                let chars_to_skip = column_offset - chars_processed;
+                let trimmed: String = text.chars().skip(chars_to_skip).collect();
+
+                if !trimmed.is_empty() {
+                    let mut new_span = span.clone();
+                    new_span.text = Fragment::from(trimmed);
+                    result.push(new_span);
+                }
+                chars_processed += char_count;
+            } else {
+                // Include this span entirely
+                result.push(span.clone());
+                chars_processed += char_count;
+            }
+        }
+    }
+
+    result
 }
 
 impl<'a, Link, Theme, Renderer> From<Rich<'a, Link, Theme, Renderer>>

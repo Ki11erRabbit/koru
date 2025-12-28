@@ -62,7 +62,6 @@ enum AppInitializationState {
 struct App {
     initialization_state: AppInitializationState,
     session_address: Option<usize>,
-    text: StyledFile,
     message_bar: String,
     key_buffer: KeyBuffer,
     buffer_state: BufferState,
@@ -80,7 +79,6 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
-            text: StyledFile::default(),
             message_bar: String::from("Hello world!"),
             key_buffer: KeyBuffer::new(),
             buffer_state: BufferState::default(),
@@ -189,7 +187,7 @@ impl App {
                 Task::none()
             }
             MessageKind::General(GeneralMessage::Draw(styled_file)) => {
-                self.text = styled_file;
+                self.buffer_state.text = styled_file;
                 Task::none()
             }
             MessageKind::General(GeneralMessage::UpdateMessageBar(message_bar)) => {
@@ -208,7 +206,7 @@ impl App {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
                 column!(
-                    styled_text::rich(&self.text.lines(), 0, self.buffer_state.text_metrics_callback())
+                    styled_text::rich(&self.buffer_state.text.lines(), 0, 0, self.buffer_state.text_metrics_callback())
                         .font(iced::font::Font::MONOSPACE),
                     text(&self.message_bar)
                 ).into()
