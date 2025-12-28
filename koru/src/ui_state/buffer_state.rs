@@ -15,6 +15,8 @@ pub struct BufferState {
     pub text_metrics: Arc<Mutex<VisibleTextMetrics>>,
     /// The styled text of the buffer
     pub text: StyledFile,
+    pub col: usize,
+    pub row: usize,
 }
 
 impl BufferState {
