@@ -17,16 +17,14 @@ pub enum EditValue {
 }
 
 pub struct EditOperation {
-    pub line: usize,
-    pub column: usize,
+    pub byte_offset: usize,
     pub value: EditValue,
 }
 
 impl EditOperation {
-    pub fn new(line: usize, column: usize, value: EditValue) -> Self {
+    pub fn new(byte_offset: usize, value: EditValue) -> Self {
         EditOperation {
-            line,
-            column,
+            byte_offset,
             value,
         }
     }
@@ -50,8 +48,7 @@ enum UndoValue {
 }
 
 struct UndoNode {
-    line: usize,
-    column: usize,
+    byte_offset: usize,
     value: UndoValue,
     children: Vec<Arc<Mutex<UndoNode>>>,
 }
@@ -59,18 +56,16 @@ struct UndoNode {
 impl UndoNode {
     pub fn root() -> Arc<Mutex<UndoNode>> {
         let node = UndoNode {
-            line: 0,
-            column: 0,
+            byte_offset: 0,
             value: UndoValue::Root,
             children: Vec::new(),
         };
         Arc::new(Mutex::new(node))
     }
 
-    pub fn new(line: usize, column: usize, value: UndoValue) -> Arc<Mutex<UndoNode>> {
+    pub fn new(byte_offset: usize, value: UndoValue) -> Arc<Mutex<UndoNode>> {
         let node = Self {
-            line,
-            column,
+            byte_offset,
             value,
             children: Vec::new(),
         };
@@ -138,20 +133,20 @@ impl UndoTree {
                     let value = EditValue::Delete {
                         count: value.chars().count(),
                     };
-                    EditOperation::new(guard.line, guard.column, value)
+                    EditOperation::new(guard.byte_offset, value)
                 }
                 UndoValue::DeleteString { value, .. } => {
                     let value = EditValue::Insert {
                         text: value.clone(),
                     };
-                    EditOperation::new(guard.line, guard.column, value)
+                    EditOperation::new(guard.byte_offset, value)
                 }
                 UndoValue::ReplaceString { old_value, new_value, .. } => {
                     let value = EditValue::Replace {
                         count: new_value.chars().count(),
                         text: old_value.clone(),
                     };
-                    EditOperation::new(guard.line, guard.column, value)
+                    EditOperation::new(guard.byte_offset, value)
                 }
             }
         };
@@ -174,20 +169,20 @@ impl UndoTree {
                     let value = EditValue::Insert {
                         text: value.clone(),
                     };
-                    EditOperation::new(guard.line, guard.column, value)
+                    EditOperation::new(guard.byte_offset, value)
                 }
                 UndoValue::DeleteString { value, .. } => {
                     let value = EditValue::Delete {
                         count: value.chars().count(),
                     };
-                    EditOperation::new(guard.line, guard.column, value)
+                    EditOperation::new(guard.byte_offset, value)
                 }
                 UndoValue::ReplaceString { old_value, new_value, .. } => {
                     let value = EditValue::Replace {
                         count: old_value.chars().count(),
                         text: new_value.clone(),
                     };
-                    EditOperation::new(guard.line, guard.column, value)
+                    EditOperation::new(guard.byte_offset, value)
                 }
             }
         };
@@ -229,7 +224,7 @@ impl UndoTree {
         self.redo_internal()
     }
 
-    pub fn insert(&mut self, line: usize, column: usize, value: String) {
+    pub fn insert(&mut self, byte_offset: usize, value: String) {
         let timestamp = SystemTime::now();
 
         let Some(current_node) = self.current_node.clone() else {
@@ -237,7 +232,7 @@ impl UndoTree {
                 value,
                 timestamp,
             };
-            let node = UndoNode::new(line, column, value);
+            let node = UndoNode::new(byte_offset, value);
             self.current_node = Some(node.clone());
             let index = self.root.blocking_lock().add_child(node);
             self.descent.push(index);
@@ -245,8 +240,7 @@ impl UndoTree {
         };
 
         let mut guard = current_node.blocking_lock();
-        let guard_line = guard.line;
-        let guard_column = guard.column;
+        let guard_byte_offset = guard.byte_offset;
         match &mut guard.value {
             UndoValue::Root => unreachable!("we should never match a root node"),
             UndoValue::InsertString { value: ins_value, timestamp: ins_timestamp} => {
@@ -256,16 +250,16 @@ impl UndoTree {
                         value,
                         timestamp,
                     };
-                    let new_node = UndoNode::new(line, column, value);
+                    let new_node = UndoNode::new(byte_offset, value);
                     let index = guard.add_child(new_node.clone());
                     self.descent.push(index);
                     self.current_node = Some(new_node.clone());
                     return;
                 }
-                if line == guard_line && column == guard_column {
+                if byte_offset == guard_byte_offset {
                     *ins_value = value + &ins_value;
                     *ins_timestamp = timestamp;
-                } else if line == guard_line && column == guard_column + ins_value.chars().count() {
+                } else if byte_offset == guard_byte_offset + ins_value.len() {
                     *ins_timestamp = timestamp;
                     ins_value.push_str(&value);
                 } else {
@@ -273,7 +267,7 @@ impl UndoTree {
                         value,
                         timestamp,
                     };
-                    let new_node = UndoNode::new(line, column, value);
+                    let new_node = UndoNode::new(byte_offset, value);
                     let index = guard.add_child(new_node.clone());
                     self.descent.push(index);
                     self.current_node = Some(new_node.clone());
@@ -284,7 +278,7 @@ impl UndoTree {
                     value,
                     timestamp,
                 };
-                let new_node = UndoNode::new(line, column, value);
+                let new_node = UndoNode::new(byte_offset, value);
                 let index = guard.add_child(new_node.clone());
                 self.descent.push(index);
                 self.current_node = Some(new_node.clone());
@@ -292,7 +286,7 @@ impl UndoTree {
         }
     }
 
-    pub fn delete(&mut self, line: usize, column: usize, value: String) {
+    pub fn delete(&mut self, byte_offset: usize, value: String) {
         let timestamp = SystemTime::now();
 
         let Some(current_node) = self.current_node.clone() else {
@@ -300,7 +294,7 @@ impl UndoTree {
                 value,
                 timestamp,
             };
-            let node = UndoNode::new(line, column, value);
+            let node = UndoNode::new(byte_offset, value);
             self.current_node = Some(node.clone());
             let index = self.root.blocking_lock().add_child(node);
             self.descent.push(index);
@@ -308,8 +302,7 @@ impl UndoTree {
         };
 
         let mut guard = current_node.blocking_lock();
-        let guard_line = guard.line;
-        let guard_column = guard.column;
+        let guard_byte_offset = guard.byte_offset;
         match &mut guard.value {
             UndoValue::Root => unreachable!("we should never match a root node"),
             UndoValue::DeleteString { value: del_value, timestamp: del_timestamp} => {
@@ -319,16 +312,16 @@ impl UndoTree {
                         value,
                         timestamp,
                     };
-                    let new_node = UndoNode::new(line, column, value);
+                    let new_node = UndoNode::new(byte_offset, value);
                     let index = guard.add_child(new_node.clone());
                     self.descent.push(index);
                     self.current_node = Some(new_node.clone());
                     return;
                 }
-                if line == guard_line && column == guard_column {
+                if byte_offset == guard_byte_offset {
                     *del_value = value + &del_value;
                     *del_timestamp = timestamp;
-                } else if line == guard_line && column == guard_column + del_value.chars().count() {
+                } else if byte_offset == guard_byte_offset + del_value.len() {
                     *del_timestamp = timestamp;
                     del_value.push_str(&value);
                 } else {
@@ -336,7 +329,7 @@ impl UndoTree {
                         value,
                         timestamp,
                     };
-                    let new_node = UndoNode::new(line, column, value);
+                    let new_node = UndoNode::new(byte_offset, value);
                     let index = guard.add_child(new_node.clone());
                     self.descent.push(index);
                     self.current_node = Some(new_node.clone());
@@ -347,7 +340,7 @@ impl UndoTree {
                     value,
                     timestamp,
                 };
-                let new_node = UndoNode::new(line, column, value);
+                let new_node = UndoNode::new(byte_offset, value);
                 let index = guard.add_child(new_node.clone());
                 self.descent.push(index);
                 self.current_node = Some(new_node.clone());
@@ -355,13 +348,13 @@ impl UndoTree {
         }
     }
 
-    pub fn replace(&mut self, line: usize, column: usize, old_value: String, new_value: String) {
+    pub fn replace(&mut self, byte_offset: usize, old_value: String, new_value: String) {
         let Some(current_node) = self.current_node.clone() else {
             let value = UndoValue::ReplaceString {
                 old_value,
                 new_value,
             };
-            let node = UndoNode::new(line, column, value);
+            let node = UndoNode::new(byte_offset, value);
             self.current_node = Some(node.clone());
             let index = self.root.blocking_lock().add_child(node);
             self.descent.push(index);
@@ -373,7 +366,7 @@ impl UndoTree {
             old_value,
             new_value,
         };
-        let new_node = UndoNode::new(line, column, value);
+        let new_node = UndoNode::new(byte_offset, value);
         let index = guard.add_child(new_node.clone());
         self.descent.push(index);
         self.current_node = Some(new_node.clone());
