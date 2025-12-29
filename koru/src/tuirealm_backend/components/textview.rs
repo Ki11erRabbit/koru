@@ -11,14 +11,12 @@ use crate::tuirealm_backend::UiMessage;
 
 pub struct TextView {
     props: Props,
-    top_line: usize,
 }
 
 impl TextView {
     pub fn new() -> Self {
         TextView {
             props: Props::default(),
-            top_line: 0,
         }
     }
 
@@ -42,15 +40,14 @@ impl TextView {
 
         AttrValue::Table(lines)
     }
-
-    pub fn set_starting_line(&mut self, starting_line: usize) {
-        self.top_line = starting_line;
-    }
 }
 
 impl MockComponent for TextView {
     fn view(&mut self, frame: &mut Frame, area: Rect) {
         let Some(AttrValue::Table(text)) = self.query(Attribute::Text) else {
+            return;
+        };
+        let Some(AttrValue::Number(top_line)) = self.query(Attribute::Custom("LineOffset")) else {
             return;
         };
 
@@ -70,7 +67,7 @@ impl MockComponent for TextView {
 
         let text = Text::from(lines);
         let paragraph = Paragraph::new(text)
-            .scroll((self.top_line as u16, 0));
+            .scroll((top_line as u16, 0));
         
         frame.render_widget(paragraph, area)
 
@@ -85,40 +82,17 @@ impl MockComponent for TextView {
     }
 
     fn state(&self) -> State {
-        State::One(StateValue::Usize(self.top_line))
+        State::None
     }
 
-    fn perform(&mut self, cmd: Cmd) -> CmdResult {
-        match cmd {
-            Cmd::Scroll(Direction::Up) => {
-                self.top_line = self.top_line.saturating_sub(1);
-                CmdResult::None
-            }
-            Cmd::Scroll(Direction::Down) => {
-                self.top_line = self.top_line.saturating_add(1);
-                CmdResult::None
-            }
-            _ => CmdResult::None,
-        }
+    fn perform(&mut self, _cmd: Cmd) -> CmdResult {
+        CmdResult::None
     }
 }
 
 impl Component<UiMessage, UiMessage> for TextView {
     fn on(&mut self, ev: Event<UiMessage>) -> Option<UiMessage> {
         match ev {
-            Event::Keyboard(key_event) => {
-                match key_event.code {
-                    Key::Up => {
-                        self.top_line = self.top_line.saturating_sub(1);
-                        Some(UiMessage::Redraw)
-                    }
-                    Key::Down =>  {
-                        self.top_line = self.top_line.saturating_add(1);
-                        Some(UiMessage::Redraw)
-                    }
-                    _ => None
-                }
-            }
             _ => None
         }
     }

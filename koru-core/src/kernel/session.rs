@@ -248,14 +248,16 @@ impl Session {
                     let main_cursor = {
                         let state = SessionState::get_state();
                         let guard = state.read().await;
-                        let buffer_name = guard.current_focused_buffer().unwrap().clone();
+                        let Some(buffer_name) = guard.current_focused_buffer() else {
+                            continue
+                        };
                         let state = SessionState::get_state();
                         let guard = state.read().await;
                         let buffers = guard.get_buffers().await;
-                        let buffer = buffers.get(&buffer_name).unwrap();
+                        let buffer = buffers.get(buffer_name).unwrap();
                         buffer.get_main_cursor().await
                     };
-                    
+
                     self.notify_clients(MessageKind::General(GeneralMessage::MainCursorPosition(main_cursor.line(), main_cursor.column()))).await;
                 }
                 Some(message) => {

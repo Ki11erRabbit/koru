@@ -1,4 +1,5 @@
 mod styled_text;
+mod buffer_state;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
@@ -12,8 +13,7 @@ use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue, ModifierKey};
-use koru_core::styled_text::{StyledFile};
-use crate::ui_state::buffer_state::BufferState;
+use buffer_state::BufferState;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {

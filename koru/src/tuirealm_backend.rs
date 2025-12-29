@@ -1,6 +1,7 @@
 mod events;
 mod input;
 mod components;
+mod buffer_state;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
@@ -11,9 +12,9 @@ use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalBridge};
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
 use koru_core::kernel::input::{KeyBuffer, KeyPress};
-use koru_core::keymap::KeyMap;
-use koru_core::styled_text::{StyledFile};
+use crate::tuirealm_backend::components::TextView;
 use crate::tuirealm_backend::events::BrokerPort;
+use buffer_state::BufferState;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {
@@ -36,21 +37,24 @@ struct App {
     terminal: TerminalBridge<CrosstermTerminalAdapter>,
     pub broker_client: BrokerClient,
     session_address: Option<usize>,
-    text: StyledFile,
     message_bar: String,
     key_buffer: KeyBuffer,
+    buffer_state: BufferState,
 }
 
 impl App {
     pub fn view(&mut self, app: &mut Application<Id, UiMessage, UiMessage>) {
-        
-        app.attr(&Id::Buffer, Attribute::Text, components::TextView::lines(&self.text)).expect("Invalid attribute");
+
+        app.attr(&Id::Buffer, Attribute::Text, TextView::lines(&self.buffer_state.text)).expect("Invalid attribute");
+        app.attr(&Id::Buffer, Attribute::Custom("LineOffset"), AttrValue::Number(self.buffer_state.line_offset as isize)).expect("Invalid attribute");
         app.attr(&Id::MessageBar, Attribute::Text, AttrValue::String(self.message_bar.clone())).expect("Invalid attribute");
         
         self.terminal.draw(|frame| {
             
             let mut text_area = frame.area();
             text_area.height -= 1;
+            self.buffer_state.line_count = text_area.height as usize;
+            self.buffer_state.column_count = text_area.width as usize;
             
             let mut message_area = frame.area();
             message_area.height = 1;
@@ -71,11 +75,21 @@ impl App {
             }
             MessageKind::Broker(BrokerMessage::ConnectedToSession(session_id)) => {
                 self.session_address = Some(session_id);
+                let mut client = self.broker_client.clone();
+                let session_address = self.session_address.unwrap();
+                koru_core::spawn_task(async move {
+                    match client.send_async(
+                        MessageKind::General(GeneralMessage::RequestMainCursor),
+                        session_address).await {
+                        Ok(..) => {}
+                        Err(e) => println!("Error sending request main cursor: {}", e),
+                    }
+                });
                 Ok(())
             }
             MessageKind::General(GeneralMessage::Draw(file)) => {
                 self.redraw = true;
-                self.text = file;
+                self.buffer_state.text = file;
                 Ok(())
             }
             MessageKind::General(GeneralMessage::UpdateMessageBar(bar)) => {
@@ -85,6 +99,13 @@ impl App {
             }
             MessageKind::General(GeneralMessage::FlushKeyBuffer) => {
                 self.key_buffer.clear();
+                Ok(())
+            }
+            MessageKind::General(GeneralMessage::MainCursorPosition(line, col)) => {
+                self.buffer_state.line = line;
+                self.buffer_state.col = col;
+                self.buffer_state.scroll_view();
+                self.redraw = true;
                 Ok(())
             }
             _ => Ok(())
@@ -110,6 +131,12 @@ impl Update<UiMessage> for App {
                         Ok(..) => {}
                         Err(e) => println!("Error sending key: {}", e),
                     }
+                    match client.send_async(
+                        MessageKind::General(GeneralMessage::RequestMainCursor),
+                        session_address).await {
+                        Ok(..) => {}
+                        Err(e) => println!("Error sending request main cursor: {}", e),
+                    }
                 });
                 None
             }
@@ -126,7 +153,7 @@ fn init_app(broker_client: &mut BrokerClient) -> Application<Id, UiMessage, UiMe
     let mut app = Application::init(
         EventListenerCfg::default()
             .crossterm_input_listener(Duration::from_millis(10), 3)
-            .add_port(Box::new(BrokerPort::new(broker_client)), Duration::from_millis(100), 1)
+            .add_port(Box::new(BrokerPort::new(broker_client)), Duration::from_millis(5), 1)
     );
     app
 }
@@ -163,9 +190,7 @@ pub async fn real_main(
     application.mount(
         Id::Buffer,
         Box::from(components::TextView::new()),
-        vec![
-            Sub::new(SubEventClause::Any, SubClause::Always),
-        ]
+        vec![]
     ).expect("Failed to mount textview");
 
     application.mount(
@@ -182,16 +207,16 @@ pub async fn real_main(
         terminal: TerminalBridge::new_crossterm().unwrap(),
         broker_client: client,
         session_address: None,
-        text: StyledFile::default(),
         message_bar: String::new(),
         key_buffer: KeyBuffer::new(),
+        buffer_state: BufferState::default(),
     };
 
     let _ = app.terminal.enter_alternate_screen()?;
     let _ = app.terminal.enable_raw_mode()?;
     
     while !app.quit {
-        match application.tick(PollStrategy::Once) {
+        match application.tick(PollStrategy::TryFor(Duration::from_millis(16))) {
             Err(err) => {
                 app.terminal.disable_raw_mode()?;
                 app.terminal.leave_alternate_screen()?;
