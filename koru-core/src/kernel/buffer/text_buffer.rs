@@ -1,11 +1,13 @@
 use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder};
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
+use crate::kernel::buffer::UndoTree;
 
 pub struct TextBuffer {
     buffer: Rope,
     name: String,
     path: Option<PathBuf>,
+    undo_tree: UndoTree,
 }
 
 impl TextBuffer {
@@ -19,6 +21,7 @@ impl TextBuffer {
             buffer: builder.build(),
             name: name.into(),
             path: None,
+            undo_tree: UndoTree::new(),
         }
     }
 
@@ -27,6 +30,7 @@ impl TextBuffer {
             buffer: Rope::new(),
             name: name.into(),
             path: None,
+            undo_tree: UndoTree::new(),
         }
     }
     
@@ -143,6 +147,112 @@ impl TextBuffer {
     pub fn remove_mark(&self, mut cursor: Cursor) -> Cursor {
         cursor.remove_mark();
         cursor
+    }
+
+    pub fn calculate_byte_offset(&self, line: usize, column: usize) -> usize {
+        let mut byte_offset = 0;
+        for line in 0..line {
+            byte_offset += self.buffer.line_length(line);
+        }
+        byte_offset += '\n'.len_utf8() * line;
+
+        let line = self.buffer.line(line);
+        byte_offset += line.chars()
+            .take(column)
+            .map(|ch| ch.len_utf8())
+            .sum::<usize>();
+
+        byte_offset
+    }
+
+    pub async fn insert(&mut self, cursor: Cursor, text: String)  {
+        let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+
+        self.buffer.insert(byte_offset, &text);
+        self.undo_tree.insert(byte_offset, text).await;
+    }
+
+    pub async fn delete_back(&mut self, cursor: Cursor) {
+        let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+        let line = self.buffer.line(cursor.line());
+        let character_offset = byte_offset - line.chars()
+            .skip(cursor.column() - 1)
+            .take(1)
+            .map(|ch| ch.len_utf8())
+            .sum::<usize>();
+
+        let text = self.buffer.byte_slice(character_offset..byte_offset);
+        let text = text.to_string();
+        self.buffer.delete(character_offset..byte_offset);
+        self.undo_tree.delete(byte_offset, text).await;
+    }
+
+    pub async fn delete_forward(&mut self, cursor: Cursor) {
+        let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+        let line = self.buffer.line(cursor.line());
+        let character_offset = byte_offset + line.chars()
+            .skip(cursor.column())
+            .take(1)
+            .map(|ch| ch.len_utf8())
+            .sum::<usize>();
+
+        let range = byte_offset..character_offset;
+
+        let text = self.buffer.byte_slice(range.clone());
+        let text = text.to_string();
+        self.buffer.delete(range);
+        self.undo_tree.delete(byte_offset, text).await;
+    }
+
+    pub async fn delete_region(&mut self, cursor: Cursor) {
+        if !cursor.is_mark_set() {
+            return
+        }
+        let mark_offset = self.calculate_byte_offset(cursor.mark_line().unwrap(), cursor.mark_column().unwrap());
+        let cursor_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+
+        let (start, range) = if mark_offset < cursor_offset {
+            (mark_offset, mark_offset..cursor_offset)
+        } else {
+            (cursor_offset, cursor_offset..mark_offset)
+        };
+        let old_text = self.buffer.byte_slice(range.clone());
+        let old_text = old_text.to_string();
+        self.buffer.delete(range);
+        self.undo_tree.delete(start, old_text).await;
+    }
+
+    pub async fn replace(&mut self, cursor: Cursor, text: String)  {
+        if cursor.is_mark_set() {
+            let mark_offset = self.calculate_byte_offset(cursor.mark_line().unwrap(), cursor.mark_column().unwrap());
+            let cursor_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+
+            let (start, range) = if mark_offset < cursor_offset {
+                (mark_offset, mark_offset..cursor_offset)
+            } else {
+                (cursor_offset, cursor_offset..mark_offset)
+            };
+            let old_text = self.buffer.byte_slice(range);
+            let old_text = old_text.to_string();
+            self.buffer.delete(mark_offset..cursor_offset);
+            self.buffer.insert(start, &text);
+            self.undo_tree.replace(start, old_text, text).await;
+        } else {
+            let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+            let line = self.buffer.line(cursor.line());
+            let character_offset = byte_offset + line.chars()
+                .skip(cursor.column())
+                .take(1)
+                .map(|ch| ch.len_utf8())
+                .sum::<usize>();
+
+            let range = byte_offset..character_offset;
+
+            let old_text = self.buffer.byte_slice(range.clone());
+            let old_text = old_text.to_string();
+            self.buffer.delete(range);
+            self.undo_tree.replace(byte_offset, old_text, text).await;
+        }
     }
 }
 

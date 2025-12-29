@@ -95,22 +95,22 @@ impl UndoTree {
         }
     }
 
-    pub fn get_redo_branch_len(&self) -> Option<usize> {
+    pub async fn get_redo_branch_len(&self) -> Option<usize> {
         let Some(current) = self.current_node.clone() else {
             return None;
         };
 
-        let guard = current.blocking_lock();
+        let guard = current.lock().await;
         Some(guard.children.len())
     }
 
-    fn change_current_node(&mut self) {
+    async fn change_current_node(&mut self) {
         let mut node = self.root.clone();
         let mut moved_from_root = false;
         for path in &self.descent {
             moved_from_root = true;
             let child = {
-                let guard = node.blocking_lock();
+                let guard = node.lock().await;
                 guard.children[*path].clone()
             };
             node = child;
@@ -120,13 +120,13 @@ impl UndoTree {
         }
     }
 
-    pub fn undo(&mut self) -> Option<EditOperation> {
+    pub async fn undo(&mut self) -> Option<EditOperation> {
         let Some(current) = self.current_node.clone() else {
             return None;
         };
 
         let edit_value = {
-            let guard = current.blocking_lock();
+            let guard = current.lock().await;
             match &guard.value {
                 UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
                 UndoValue::InsertString { value, .. } => {
@@ -152,17 +152,17 @@ impl UndoTree {
         };
 
         self.descent.pop();
-        self.change_current_node();
+        self.change_current_node().await;
         Some(edit_value)
     }
 
-    fn redo_internal(&mut self) -> Option<EditOperation> {
+    async fn redo_internal(&mut self) -> Option<EditOperation> {
         let Some(current) = self.current_node.clone() else {
             return None;
         };
 
         let edit_value = {
-            let guard = current.blocking_lock();
+            let guard = current.lock().await;
             match &guard.value {
                 UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
                 UndoValue::InsertString { value, .. } => {
@@ -189,42 +189,42 @@ impl UndoTree {
         Some(edit_value)
     }
 
-    pub fn redo_branch(&mut self, branch: usize) -> Option<EditOperation> {
+    pub async fn redo_branch(&mut self, branch: usize) -> Option<EditOperation> {
         {
             let Some(current) = self.current_node.clone() else {
                 return None;
             };
             {
-                let guard = current.blocking_lock();
+                let guard = current.lock().await;
                 if branch >= guard.children.len() {
                     return None;
                 }
             }
             self.descent.push(branch);
-            self.change_current_node();
+            self.change_current_node().await;
         }
 
-        self.redo_internal()
+        self.redo_internal().await
     }
 
-    pub fn redo(&mut self) -> Option<EditOperation> {
+    pub async fn redo(&mut self) -> Option<EditOperation> {
         {
             let Some(current) = self.current_node.clone() else {
                 return None;
             };
-            let guard = current.blocking_lock();
+            let guard = current.lock().await;
             if guard.children.is_empty() {
                 return None;
             }
             let last_branch = guard.children.len() - 1;
             self.descent.push(last_branch);
-            self.change_current_node();
+            self.change_current_node().await;
         }
 
-        self.redo_internal()
+        self.redo_internal().await
     }
 
-    pub fn insert(&mut self, byte_offset: usize, value: String) {
+    pub async fn insert(&mut self, byte_offset: usize, value: String) {
         let timestamp = SystemTime::now();
 
         let Some(current_node) = self.current_node.clone() else {
@@ -234,12 +234,12 @@ impl UndoTree {
             };
             let node = UndoNode::new(byte_offset, value);
             self.current_node = Some(node.clone());
-            let index = self.root.blocking_lock().add_child(node);
+            let index = self.root.lock().await.add_child(node);
             self.descent.push(index);
             return;
         };
 
-        let mut guard = current_node.blocking_lock();
+        let mut guard = current_node.lock().await;
         let guard_byte_offset = guard.byte_offset;
         match &mut guard.value {
             UndoValue::Root => unreachable!("we should never match a root node"),
@@ -286,7 +286,7 @@ impl UndoTree {
         }
     }
 
-    pub fn delete(&mut self, byte_offset: usize, value: String) {
+    pub async fn delete(&mut self, byte_offset: usize, value: String) {
         let timestamp = SystemTime::now();
 
         let Some(current_node) = self.current_node.clone() else {
@@ -296,12 +296,12 @@ impl UndoTree {
             };
             let node = UndoNode::new(byte_offset, value);
             self.current_node = Some(node.clone());
-            let index = self.root.blocking_lock().add_child(node);
+            let index = self.root.lock().await.add_child(node);
             self.descent.push(index);
             return;
         };
 
-        let mut guard = current_node.blocking_lock();
+        let mut guard = current_node.lock().await;
         let guard_byte_offset = guard.byte_offset;
         match &mut guard.value {
             UndoValue::Root => unreachable!("we should never match a root node"),
@@ -348,7 +348,7 @@ impl UndoTree {
         }
     }
 
-    pub fn replace(&mut self, byte_offset: usize, old_value: String, new_value: String) {
+    pub async fn replace(&mut self, byte_offset: usize, old_value: String, new_value: String) {
         let Some(current_node) = self.current_node.clone() else {
             let value = UndoValue::ReplaceString {
                 old_value,
@@ -356,12 +356,12 @@ impl UndoTree {
             };
             let node = UndoNode::new(byte_offset, value);
             self.current_node = Some(node.clone());
-            let index = self.root.blocking_lock().add_child(node);
+            let index = self.root.lock().await.add_child(node);
             self.descent.push(index);
             return;
         };
 
-        let mut guard = current_node.blocking_lock();
+        let mut guard = current_node.lock().await;
         let value = UndoValue::ReplaceString {
             old_value,
             new_value,

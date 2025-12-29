@@ -9,6 +9,9 @@
     text-edit-mode-cursor-destroy
     text-edit-mode-cursor-position
     text-edit-mode-cursor-count
+    text-edit-mode-insert-at-cursor
+    text-edit-mode-delete-before-cursor
+    text-edit-mode-delete-after-cursor
     text-edit-mode-file-open-hook)
   (import (rnrs)
     (major-mode)
@@ -88,6 +91,28 @@
       "text-edit-mode-cursor-main"
       "Makes the cursor at the indicated index the new main cursor"
       (lambda (index) (text-edit-cursor-change-main (current-major-mode) index))
+      "number"))
+
+  (define text-edit-mode-insert-at-cursor
+    (command-create
+      "text-edit-mode-insert-at-cursor"
+      "Inserts the text at the indicated cursor index"
+      (lambda (index text) (text-edit-insert-at-cursor (current-major-mode) index text))
+      "number"
+      "text"))
+
+  (define text-edit-mode-delete-before-cursor
+    (command-create
+      "text-edit-mode-delete-before-cursor"
+      "Deletes a character before the cursor"
+      (lambda (index) (text-edit-delete-before-cursor (current-major-mode) index))
+      "number"))
+
+  (define text-edit-mode-delete-after-cursor
+    (command-create
+      "text-edit-mode-delete-after-cursor"
+      "Deletes a character after the cursor"
+      (lambda (index) (text-edit-delete-after-cursor (current-major-mode) index))
       "number"))
 
   (define (text-edit-mode-create buffer-name)

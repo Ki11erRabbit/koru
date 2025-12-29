@@ -113,6 +113,26 @@ impl BufferHandle {
     pub async fn remove_mark(&self, cursor: Cursor) -> Cursor {
         self.handle.lock().await.remove_mark(cursor)
     }
+    
+    pub async fn insert(&self, cursor: Cursor, text: String) {
+        self.handle.lock().await.insert(cursor, text).await;
+    }
+    
+    pub async fn delete_back(&self, cursor: Cursor) {
+        self.handle.lock().await.delete_back(cursor).await;
+    }
+    
+    pub async fn delete_forward(&self, cursor: Cursor) {
+        self.handle.lock().await.delete_forward(cursor).await;
+    }
+    
+    pub async fn delete_region(&self, cursor: Cursor) {
+        self.handle.lock().await.delete_region(cursor).await;
+    }
+    
+    pub async fn replace(&self, cursor: Cursor, text: String) {
+        self.handle.lock().await.replace(cursor, text).await;
+    }
 }
 
 

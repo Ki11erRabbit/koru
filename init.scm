@@ -46,6 +46,20 @@
     (lambda (keys) (command-apply text-edit-mode-remove-mark 0))
     "key-sequence"))
 
+(define insert-text
+  (command-create
+    "insert-text"
+    "Inserts text at the primary cursor"
+    (lambda (keys) (command-apply text-edit-mode-insert-at-cursor 0 "t"))
+    "key-sequence"))
+
+(define delete-back
+  (command-create
+    "delete-back"
+    "Deletes text before the primary cursor"
+    (lambda (keys) (command-apply text-edit-mode-delete-before-cursor 0))
+    "key-sequence"))
+
 (add-hook "file-open" "text-edit-mode" text-edit-mode-file-open-hook)
 
 
@@ -55,3 +69,5 @@
 (add-key-mapping "RIGHT" cursor-right)
 (add-key-mapping "m" place-point-mark)
 (add-key-mapping "r" remove-mark)
+(add-key-mapping "t" insert-text)
+(add-key-mapping "BS" delete-back)
