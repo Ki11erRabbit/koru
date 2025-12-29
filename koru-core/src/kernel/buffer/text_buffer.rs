@@ -212,9 +212,9 @@ impl TextBuffer {
         let cursor_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
 
         let (start, range) = if mark_offset < cursor_offset {
-            (mark_offset, mark_offset..cursor_offset)
+            (mark_offset, mark_offset..=cursor_offset)
         } else {
-            (cursor_offset, cursor_offset..mark_offset)
+            (cursor_offset, cursor_offset..=(mark_offset - 1))
         };
         let old_text = self.buffer.byte_slice(range.clone());
         let old_text = old_text.to_string();
@@ -228,9 +228,9 @@ impl TextBuffer {
             let cursor_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
 
             let (start, range) = if mark_offset < cursor_offset {
-                (mark_offset, mark_offset..cursor_offset)
+                (mark_offset, mark_offset..=cursor_offset)
             } else {
-                (cursor_offset, cursor_offset..mark_offset)
+                (cursor_offset, cursor_offset..=(mark_offset - 1))
             };
             let old_text = self.buffer.byte_slice(range);
             let old_text = old_text.to_string();

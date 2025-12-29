@@ -60,6 +60,13 @@
     (lambda (keys) (command-apply text-edit-mode-delete-before-cursor 0))
     "key-sequence"))
 
+(define delete-region
+  (command-create
+    "delete-region"
+    "Deletes text in text region of primary cursor"
+    (lambda (keys) (command-apply text-edit-mode-delete-cursor-region 0))
+    "key-sequence"))
+
 (add-hook "file-open" "text-edit-mode" text-edit-mode-file-open-hook)
 
 
@@ -71,3 +78,4 @@
 (add-key-mapping "r" remove-mark)
 (add-key-mapping "t" insert-text)
 (add-key-mapping "BS" delete-back)
+(add-key-mapping "x" delete-region)

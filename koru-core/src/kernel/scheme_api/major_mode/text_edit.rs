@@ -420,7 +420,7 @@ pub async fn insert_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
             Ok(Vec::new())
         }
         _ => {
-            return Err(Condition::type_error("String or char", text.type_name()))
+            Err(Condition::type_error("String or char", text.type_name()))
         }
     }
 }
@@ -463,4 +463,67 @@ pub async fn delete_text_forward(args: &[Value]) -> Result<Vec<Value>, Condition
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.delete_forward(cursor).await;
     Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-delete-region-cursor", lib = "(text-edit)")]
+pub async fn delete_text_region(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let data = get_data(&major_mode)?;
+    let data = data.read().clone();
+    let cursor = data.get_cursor(cursor_index).await;
+    let handle: BufferHandle = data.get_buffer_handle().await?;
+    handle.delete_region(cursor).await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-replace-text", lib = "(text-edit)")]
+pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()))
+    };
+    let Some((cursor_index, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((text, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    match text.clone().try_into() {
+        Ok(text) => {
+            let text: String = text;
+            let data = get_data(&major_mode)?;
+            let data = data.read().clone();
+            let cursor = data.get_cursor(cursor_index).await;
+            let handle: BufferHandle = data.get_buffer_handle().await?;
+            handle.replace(cursor, text).await;
+            return Ok(Vec::new());
+        }
+        _ => {}
+    }
+    match text.clone().try_into() {
+        Ok(letter) => {
+            let letter: char = letter;
+            let data = get_data(&major_mode)?;
+            let data = data.read().clone();
+            let cursor = data.get_cursor(cursor_index).await;
+            let handle: BufferHandle = data.get_buffer_handle().await?;
+            handle.replace(cursor, letter.to_string()).await;
+            Ok(Vec::new())
+        }
+        _ => {
+            Err(Condition::type_error("String or char", text.type_name()))
+        }
+    }
 }

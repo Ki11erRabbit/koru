@@ -12,6 +12,8 @@
     text-edit-mode-insert-at-cursor
     text-edit-mode-delete-before-cursor
     text-edit-mode-delete-after-cursor
+    text-edit-mode-delete-cursor-region
+    text-edit-mode-replace-at-cursor
     text-edit-mode-file-open-hook)
   (import (rnrs)
     (major-mode)
@@ -114,6 +116,21 @@
       "Deletes a character after the cursor"
       (lambda (index) (text-edit-delete-after-cursor (current-major-mode) index))
       "number"))
+
+  (define text-edit-mode-delete-cursor-region
+    (command-create
+      "text-edit-mode-delete-cursor-region"
+      "Deletes text within marked area under cursor"
+      (lambda (index) (text-edit-delete-region-cursor (current-major-mode) index))
+      "number"))
+
+  (define text-edit-mode-replace-at-cursor
+    (command-create
+      "text-edit-mode-replace-at-cursor"
+      "Inserts the text over the region or character at the indicated cursor index"
+      (lambda (index text) (text-edit-replace-text (current-major-mode) index text))
+      "number"
+      "text"))
 
   (define (text-edit-mode-create buffer-name)
     (major-mode-create
