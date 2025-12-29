@@ -164,6 +164,14 @@ impl Cursor {
             self.logical_cursor = self.real_cursor;
         }
     }
+
+    pub fn unset_main(&mut self) {
+        self.main_cursor = false;
+    }
+
+    pub fn set_main(&mut self) {
+        self.main_cursor = true;
+    }
 }
 
 impl SchemeCompatible for Cursor {

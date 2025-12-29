@@ -99,6 +99,24 @@ impl TextEditData {
 
         self.internal.blocking_lock().cursors.insert(index, Cursor::new(GridCursor::new(line, column)))
     }
+
+    pub async fn change_main_cursor(&self, index: usize) {
+        let mut guard = self.internal.lock().await;
+        for cursor in guard.cursors.iter_mut() {
+            cursor.unset_main()
+        }
+        guard.cursors[index].set_main()
+    }
+
+    pub async fn get_main_cursor(&self) -> Cursor{
+        let mut guard = self.internal.lock().await;
+        for cursor in guard.cursors.iter_mut() {
+            if cursor.is_main() {
+                return *cursor;
+            }
+        }
+        unreachable!("There should always be a main cursor")
+    }
 }
 
 impl SchemeCompatible for TextEditData {
@@ -132,11 +150,14 @@ pub async fn text_edit_draw(major_mode: &Value) -> Result<Vec<Value>, Condition>
     let buffer = {
         let buffer_name = data.internal.lock().await.buffer_name.clone();
         let state = SessionState::get_state();
-        let guard = state.read().await;
-        guard.get_buffers().await.get(&buffer_name).unwrap().clone()
+        let mut guard = state.write().await;
+        let mut buffers = guard.get_buffers_mut().await;
+        let buffer = buffers.get_mut(&buffer_name).unwrap();
+        buffer.render_styled_text().await;
+        buffer.clone()
     };
 
-    let styled_text = buffer.get_styled_text(major_mode.clone(), &data.internal.lock().await.cursors).await;
+    let styled_text = buffer.get_styled_text(&data.internal.lock().await.cursors);
 
     let value = Value::from(Record::from_rust_type(styled_text));
     Ok(vec![value])
@@ -338,4 +359,21 @@ pub fn get_cursor_count(major_mode: &Value) -> Result<Vec<Value>, Condition> {
     let out = Value::from(Number::from(cursor_count));
     
     Ok(vec![out])
+}
+
+#[bridge(name = "text-edit-cursor-change-main", lib = "(text-edit)")]
+pub async fn change_main_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let Some((index, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let index: Arc<Number> = index.clone().try_into()?;
+    let index: usize = index.as_ref().try_into()?;
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data = get_data(&major_mode)?;
+    let data = data.read().clone();
+    data.change_main_cursor(index).await;
+    Ok(Vec::new())
 }

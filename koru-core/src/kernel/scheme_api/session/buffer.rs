@@ -14,6 +14,7 @@ use crate::styled_text::StyledFile;
 pub struct Buffer {
     major_mode: Value,
     handle: BufferHandle,
+    styled_text: StyledFile,
 }
 
 impl Buffer {
@@ -21,6 +22,7 @@ impl Buffer {
         Buffer {
             major_mode: Value::undefined(),
             handle,
+            styled_text: StyledFile::default()
         }
     }
 
@@ -32,12 +34,24 @@ impl Buffer {
         self.handle.clone()
     }
 
-    pub async fn get_styled_text(&self, major_mode: Gc<MajorMode>, cursors: &[Cursor]) -> StyledFile {
+    pub async fn render_styled_text(&mut self) {
         let text = self.handle.get_text().await;
-        let file = StyledFile::from(text);
-        file.place_cursors(cursors, major_mode).await
+        self.styled_text = StyledFile::from(text);
+    }
+
+    pub fn get_styled_text(&self, cursors: &[Cursor]) -> StyledFile {
+        let file = self.styled_text.clone();
+        file.place_cursors(cursors)
     }
     pub fn get_major_mode(&self) -> Value {
         self.major_mode.clone()
+    }
+
+    pub async fn get_main_cursor(&self) -> Cursor {
+        let major_mode: Gc<MajorMode> = self.major_mode.clone().try_into_rust_type().unwrap();
+        let data = crate::kernel::scheme_api::major_mode::text_edit::get_data(&major_mode).unwrap();
+        let data = data.read().clone();
+
+        data.get_main_cursor().await
     }
 }

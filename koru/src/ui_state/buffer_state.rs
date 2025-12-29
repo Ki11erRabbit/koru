@@ -15,8 +15,10 @@ pub struct BufferState {
     pub text_metrics: Arc<Mutex<VisibleTextMetrics>>,
     /// The styled text of the buffer
     pub text: StyledFile,
+    /// The column of the main cursor
     pub col: usize,
-    pub row: usize,
+    /// The line of the main cursor
+    pub line: usize,
 }
 
 impl BufferState {
@@ -25,6 +27,16 @@ impl BufferState {
         let text_metrics = self.text_metrics.clone();
         move |new: VisibleTextMetrics| {
             *text_metrics.lock().expect("lock poisoned") = new;
+        }
+    }
+
+    pub fn scroll_view(&mut self) {
+        let text_metrics = self.text_metrics.lock().expect("lock poisoned").clone();
+        while self.line < self.line_offset {
+            self.line_offset -= 1;
+        }
+        while self.line > self.line_offset + text_metrics.line_count - 1{
+            self.line_offset += 1;
         }
     }
 }

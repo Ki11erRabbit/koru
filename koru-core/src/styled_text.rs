@@ -302,7 +302,7 @@ impl StyledFile {
     }
     
     /// Cursors must be in order they are logically in the file
-    pub async fn place_cursors(self, cursors: &[Cursor], major_mode: Gc<MajorMode>) -> Self {
+    pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
         let total_lines = self.lines.len();
         let mut cursor_index = 0;
         let mut lines = Vec::new();

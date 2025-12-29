@@ -244,6 +244,20 @@ impl Session {
                         }
                     }
                 }
+                Some(Message { kind: MessageKind::General(GeneralMessage::RequestMainCursor), ..}) => {
+                    let main_cursor = {
+                        let state = SessionState::get_state();
+                        let guard = state.read().await;
+                        let buffer_name = guard.current_focused_buffer().unwrap().clone();
+                        let state = SessionState::get_state();
+                        let guard = state.read().await;
+                        let buffers = guard.get_buffers().await;
+                        let buffer = buffers.get(&buffer_name).unwrap();
+                        buffer.get_main_cursor().await
+                    };
+                    
+                    self.notify_clients(MessageKind::General(GeneralMessage::MainCursorPosition(main_cursor.line(), main_cursor.column()))).await;
+                }
                 Some(message) => {
                     self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(format!("{:?}", message)))).await;
                     //println!("Received message: {:?}", message);

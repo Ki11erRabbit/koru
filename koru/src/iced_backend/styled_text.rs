@@ -51,5 +51,5 @@ where
             }
         }
     }
-    Rich::with_spans(spans, line_starts.into_boxed_slice(), line_offset, column_offset, line_count_callback).wrapping(Wrapping::None)
+    Rich::with_spans(spans, line_starts.into_boxed_slice(), line_offset, column_offset, line_count_callback)
 }

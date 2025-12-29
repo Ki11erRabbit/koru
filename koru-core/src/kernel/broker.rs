@@ -46,6 +46,9 @@ pub enum GeneralMessage {
     UpdateMessageBar(String),
     FlushKeyBuffer,
     SetUiAttrs(Vec<AttrSet>),
+    RequestMainCursor,
+    MainCursorPosition(usize, usize),
+    
 }
 
 impl Hash for GeneralMessage {

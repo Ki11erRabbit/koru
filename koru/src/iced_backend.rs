@@ -164,6 +164,9 @@ impl App {
                             match client.send_async(MessageKind::General(GeneralMessage::KeyEvent(key_press)), destination).await {
                                 _ => {}
                             }
+                            match client.send_async(MessageKind::General(GeneralMessage::RequestMainCursor), destination).await {
+                                _ => {}
+                            }
                             UiMessage::Nop
                         })
                     }
@@ -188,7 +191,19 @@ impl App {
             }
             MessageKind::General(GeneralMessage::Draw(styled_file)) => {
                 self.buffer_state.text = styled_file;
-                Task::none()
+                match &self.initialization_state {
+                    AppInitializationState::Initialized(client) => {
+                        let destination = self.session_address.unwrap();
+                        let mut client = client.clone();
+                        Task::future(async move {
+                            match client.send_async(MessageKind::General(GeneralMessage::RequestMainCursor), destination).await {
+                                _ => {}
+                            }
+                            UiMessage::Nop
+                        })
+                    }
+                    _ => unreachable!("We shouldn't in any other state at this point."),
+                }
             }
             MessageKind::General(GeneralMessage::UpdateMessageBar(message_bar)) => {
                 self.message_bar = message_bar;
@@ -196,6 +211,12 @@ impl App {
             }
             MessageKind::General(GeneralMessage::FlushKeyBuffer) => {
                 self.key_buffer.clear();
+                Task::none()
+            }
+            MessageKind::General(GeneralMessage::MainCursorPosition(line, col)) => {
+                self.buffer_state.col = col;
+                self.buffer_state.line = line;
+                self.buffer_state.scroll_view();
                 Task::none()
             }
             _ => Task::none()

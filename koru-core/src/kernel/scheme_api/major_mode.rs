@@ -1,5 +1,5 @@
 mod text_view;
-mod text_edit;
+pub(crate) mod text_edit;
 
 use scheme_rs::gc::Gc;
 use std::sync::{Arc};

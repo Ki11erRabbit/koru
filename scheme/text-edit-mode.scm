@@ -83,6 +83,13 @@
     (define (text-edit-mode-cursor-count)
       (text-edit-cursor-count (current-major-mode)))
 
+  (define text-edit-mode-cursor-main
+    (command-create
+      "text-edit-mode-cursor-main"
+      "Makes the cursor at the indicated index the new main cursor"
+      (lambda (index) (text-edit-cursor-change-main (current-major-mode) index))
+      "number"))
+
   (define (text-edit-mode-create buffer-name)
     (major-mode-create
       "TextEdit"
