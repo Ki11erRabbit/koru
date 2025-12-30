@@ -10,5 +10,6 @@ scrollable-rich = { path = "./scrollable-rich" }
 koru-core = { path = "./koru-core" }
 futures = "0.3.31"
 tokio = { version = "1.47.1", features = ["full"] }
-scheme-rs = { git = "https://github.com/maplant/scheme-rs", rev = "5afe75d", features = ["async", "tokio"]}
-inventory = "0.3"
+scheme-rs = { git = "https://github.com/maplant/scheme-rs", rev = "135f22e", features = ["async", "tokio"]}
+hashbrown = "0.16.1" # included for scheme-rs
+inventory = "0.3.21" # include for scheme-rs
