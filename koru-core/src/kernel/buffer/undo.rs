@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::Mutex;
 
+static EDIT_DELAY: Duration = Duration::from_millis(1000);
 
 pub enum EditValue {
     Delete {
@@ -250,7 +251,7 @@ impl UndoTree {
             UndoValue::Root => unreachable!("we should never match a root node"),
             UndoValue::InsertString { value: ins_value, timestamp: ins_timestamp} => {
                 let duration = timestamp.duration_since(*ins_timestamp).unwrap();
-                if duration > Duration::from_millis(100) {
+                if duration > EDIT_DELAY {
                     let value = UndoValue::InsertString {
                         value,
                         timestamp,
@@ -308,11 +309,10 @@ impl UndoTree {
 
         let mut guard = current_node.lock().await;
         let guard_byte_offset = guard.byte_offset;
-        match &mut guard.value {
-            UndoValue::Root => unreachable!("we should never match a root node"),
+        let new_offset = match &mut guard.value {
             UndoValue::DeleteString { value: del_value, timestamp: del_timestamp} => {
                 let duration = timestamp.duration_since(*del_timestamp).unwrap();
-                if duration > Duration::from_millis(100) {
+                if duration > EDIT_DELAY {
                     let value = UndoValue::DeleteString {
                         value,
                         timestamp,
@@ -324,11 +324,13 @@ impl UndoTree {
                     return;
                 }
                 if byte_offset == guard_byte_offset {
+                    del_value.push_str(&value);
+                    *del_timestamp = timestamp;
+                    guard_byte_offset
+                } else if byte_offset == guard_byte_offset - value.len() {
                     *del_value = value + &del_value;
                     *del_timestamp = timestamp;
-                } else if byte_offset == guard_byte_offset + del_value.len() {
-                    *del_timestamp = timestamp;
-                    del_value.push_str(&value);
+                    byte_offset
                 } else {
                     let value = UndoValue::DeleteString {
                         value,
@@ -338,6 +340,7 @@ impl UndoTree {
                     let index = guard.add_child(new_node.clone());
                     self.descent.push(index);
                     self.current_node = Some(new_node.clone());
+                    return;
                 }
             }
             _ => {
@@ -349,8 +352,10 @@ impl UndoTree {
                 let index = guard.add_child(new_node.clone());
                 self.descent.push(index);
                 self.current_node = Some(new_node.clone());
+                return;
             }
-        }
+        };
+        guard.byte_offset = new_offset;
     }
 
     pub async fn replace(&mut self, byte_offset: usize, old_value: String, new_value: String) {

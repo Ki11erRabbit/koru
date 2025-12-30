@@ -57,7 +57,17 @@
   (command-create
     "delete-back"
     "Deletes text before the primary cursor"
-    (lambda (keys) (command-apply text-edit-mode-delete-before-cursor 0))
+    (lambda (keys) (begin
+                     (command-apply text-edit-mode-delete-before-cursor 0)
+                     (command-apply text-edit-mode-cursor-left 0 #f)
+                     ))
+    "key-sequence"))
+
+(define delete-forward
+  (command-create
+    "delete-forward"
+    "Deletes text at the primary cursor"
+    (lambda (keys) (command-apply text-edit-mode-delete-after-cursor 0))
     "key-sequence"))
 
 (define delete-region
@@ -92,6 +102,7 @@
 (add-key-mapping "r" remove-mark)
 (add-key-mapping "t" insert-text)
 (add-key-mapping "BS" delete-back)
+(add-key-mapping "DEL" delete-forward)
 (add-key-mapping "x" delete-region)
 (add-key-mapping "u" undo)
 (add-key-mapping "q" redo)

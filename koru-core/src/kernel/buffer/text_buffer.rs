@@ -184,7 +184,7 @@ impl TextBuffer {
         let text = self.buffer.byte_slice(character_offset..byte_offset);
         let text = text.to_string();
         self.buffer.delete(character_offset..byte_offset);
-        self.undo_tree.delete(byte_offset - 1, text).await;
+        self.undo_tree.delete(character_offset, text).await;
     }
 
     pub async fn delete_forward(&mut self, cursor: Cursor) {
