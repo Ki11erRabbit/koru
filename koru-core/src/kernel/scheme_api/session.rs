@@ -1,4 +1,5 @@
 mod buffer;
+mod keymap;
 
 use std::ops::DerefMut;
 use std::ops::Deref;
@@ -18,6 +19,7 @@ use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress};
 use crate::kernel::scheme_api::command::Command;
 use crate::kernel::scheme_api::major_mode::MajorMode;
+use crate::kernel::scheme_api::session::keymap::SchemeKeyMap;
 use crate::keymap::KeyMap;
 
 pub struct Hooks {
@@ -69,7 +71,8 @@ pub struct SessionState {
     hooks: Arc<RwLock<Hooks>>,
     current_buffer: Option<String>,
     key_buffer: RwLock<KeyBuffer>,
-    key_map: KeyMap,
+    main_key_map: KeyMap,
+    key_maps: HashMap<String, KeyMap>,
 }
 
 impl SessionState {
@@ -84,7 +87,8 @@ impl SessionState {
             hooks,
             current_buffer: None,
             key_buffer: RwLock::new(KeyBuffer::new()),
-            key_map: KeyMap::new_sparse(),
+            main_key_map: KeyMap::new_sparse(),
+            key_maps: HashMap::new(),
         }
     }
 
@@ -120,17 +124,26 @@ impl SessionState {
     }
 
     pub fn add_keybinding(&mut self, keys: Vec<KeyPress>, command: Gc<Command>) {
-        self.key_map.add_binding(keys, command);
+        self.main_key_map.add_binding(keys, command);
     }
 
     pub fn remove_keybinding(&mut self, keys: &[KeyPress]) {
-        self.key_map.remove_binding(keys);
+        self.main_key_map.remove_binding(keys);
     }
 
-    pub async fn process_keypress(&self, keypress: KeyPress) {
-        self.key_buffer.write().await.push(keypress);
-        let mut clear_key_buffer = false;
-        if let Some(command) = self.key_map.lookup(self.key_buffer.read().await.get()).cloned() {
+    pub async fn add_keymap(&mut self, keymap_name: String, keymap: Gc<SchemeKeyMap>) -> Result<(), String> {
+        let keymap = keymap.make_keymap().await?;
+        self.key_maps.insert(keymap_name, keymap);
+        Ok(())
+    }
+
+    pub fn remove_keymap(&mut self, keymap_name: &str) {
+        self.key_maps.remove(keymap_name);
+    }
+
+    /// Returns: `true` if a mapping has been found, `false` if a mapping was not found
+    async fn try_process_keypress(&self, map: &KeyMap) -> bool {
+        if let Some(command) = map.lookup(self.key_buffer.read().await.get()).cloned() {
             let proc = command.command().clone();
             let args = self.key_buffer.read().await.get().iter().map(|press| {
                 Value::from(Record::from_rust_type(*press))
@@ -144,16 +157,37 @@ impl SessionState {
                     println!("{}", e);
                 }
             }
+            true
+        } else {
+            false
+        }
+    }
+
+    pub async fn process_keypress(&self, keypress: KeyPress) {
+        self.add_to_key_buffer(keypress).await;
+        let mut clear_key_buffer = false;
+        if self.try_process_keypress(&self.main_key_map).await {
             clear_key_buffer = true;
         }
+        for keymap in self.key_maps.values() {
+            if self.try_process_keypress(keymap).await {
+                clear_key_buffer = true;
+                break;
+            }
+        }
+
         if clear_key_buffer {
-            self.key_buffer.write().await.clear();
+            self.flush_key_buffer().await;
         }
     }
     
     pub async fn flush_key_buffer(&self) {
         self.key_buffer.write().await.clear();
     }
+    
+    pub async fn add_to_key_buffer(&self, key_press: KeyPress) {
+        self.key_buffer.write().await.push(key_press);
+    } 
 
     pub fn get_state() -> Arc<RwLock<SessionState>> {
         STATE.clone()
@@ -310,7 +344,34 @@ pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     let state = SessionState::get_state();
     let mut guard = state.write().await;
-    guard.key_map.add_binding(key_seq, command);
+    guard.main_key_map.add_binding(key_seq, command);
 
+    Ok(Vec::new())
+}
+
+#[bridge(name = "add-key-map", lib = "(koru-session)")]
+pub async fn add_keymap(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((keymap_name, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let Some((keymap, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let keymap_name: String = keymap_name.clone().try_into()?;
+    let keymap: Gc<SchemeKeyMap> = keymap.try_into_rust_type()?;
+    let state = SessionState::get_state();
+    let mut guard = state.write().await;
+    match guard.add_keymap(keymap_name, keymap).await {
+        Err(msg) => Err(Condition::error(msg)),
+        Ok(()) => Ok(Vec::new())
+    }
+}
+
+#[bridge(name = "remove-key-map", lib = "(koru-session)")]
+pub async fn remove_keymap(keymap_name: &Value) -> Result<Vec<Value>, Condition> {
+    let keymap_name: String = keymap_name.clone().try_into()?;
+    let state = SessionState::get_state();
+    let mut guard = state.write().await;
+    guard.remove_keymap(&keymap_name);
     Ok(Vec::new())
 }

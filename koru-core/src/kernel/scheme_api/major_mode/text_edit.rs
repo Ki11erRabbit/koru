@@ -8,6 +8,7 @@ use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::Mutex;
 use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, GridCursor};
+use crate::kernel::input::{KeyPress, KeyValue};
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
 
@@ -371,6 +372,18 @@ pub async fn change_main_cursor(args: &[Value]) -> Result<Vec<Value>, Condition>
     Ok(Vec::new())
 }
 
+pub async fn insert_text_at_cursor(
+    major_mode: Gc<MajorMode>,
+    cursor_index: usize,
+    text: String
+) -> Result<(), Condition> {
+    let data = get_data(&major_mode)?;
+    let cursor = data.get_cursor(cursor_index).await;
+    let handle: BufferHandle = data.get_buffer_handle().await?;
+    handle.insert(cursor, text).await;
+    Ok(())
+}
+
 #[bridge(name = "text-edit-insert-at-cursor", lib = "(text-edit)")]
 pub async fn insert_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((major_mode, rest)) = args.split_first() else {
@@ -389,21 +402,15 @@ pub async fn insert_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
     match text.clone().try_into() {
         Ok(text) => {
             let text: String = text;
-            let data = get_data(&major_mode)?;
-            let cursor = data.get_cursor(cursor_index).await;
-            let handle: BufferHandle = data.get_buffer_handle().await?;
-            handle.insert(cursor, text).await;
-            return Ok(Vec::new());
+            insert_text_at_cursor(major_mode.clone(), cursor_index, text).await?;
+            return Ok(Vec::new())
         }
         _ => {}
     }
     match text.clone().try_into() {
         Ok(letter) => {
             let letter: char = letter;
-            let data = get_data(&major_mode)?;
-            let cursor = data.get_cursor(cursor_index).await;
-            let handle: BufferHandle = data.get_buffer_handle().await?;
-            handle.insert(cursor, letter.to_string()).await;
+            insert_text_at_cursor(major_mode.clone(), cursor_index, letter.to_string()).await?;
             Ok(Vec::new())
         }
         _ => {
@@ -525,5 +532,57 @@ pub async fn redo(major_mode: &Value) -> Result<Vec<Value>, Condition> {
     let data = get_data(&major_mode)?;
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.redo().await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-insert-keypress", lib = "(text-edit)")]
+pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((cursor_index, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let Some((key_sequence, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let key_press = {
+        let key_sequence = key_sequence.clone().unpack();
+        match key_sequence {
+            UnpackedValue::Pair(pair) => {
+                let cdr = pair.cdr().clone();
+                if !cdr.is_null() {
+                    // Skip if the key sequence is 2 or greater
+                    return Ok(Vec::new());
+                }
+                let key = pair.car().clone();
+                let key: Gc<KeyPress> = key.try_into_rust_type()?;
+                *key
+            }
+            _ => {
+                return Err(Condition::type_error("List", key_sequence.type_name()))
+            }
+        }
+    };
+
+    if !key_press.modifiers.is_empty() {
+        let state = SessionState::get_state();
+        state.read().await.add_to_key_buffer(key_press).await;
+        return Ok(Vec::new());
+    }
+
+    match key_press.key {
+        KeyValue::CharacterKey(c) => {
+            insert_text_at_cursor(major_mode, cursor_index, c.to_string()).await?;
+        }
+        _ => {
+            let state = SessionState::get_state();
+            state.read().await.add_to_key_buffer(key_press).await;
+        }
+    }
+
     Ok(Vec::new())
 }

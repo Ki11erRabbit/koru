@@ -16,6 +16,7 @@
     text-edit-mode-replace-at-cursor
     text-edit-mode-undo
     text-edit-mode-redo
+    text-edit-mode-insert-key
     text-edit-mode-file-open-hook)
   (import (rnrs)
     (major-mode)
@@ -145,6 +146,14 @@
       "text-edit-mode-redo"
       "Redoes a text modification action"
       (lambda () (text-edit-redo (current-major-mode)))))
+
+  (define text-edit-mode-insert-key
+    (command-create
+      "text-edit-mode-insert-key"
+      "Inserts a key if the key sequence when the length is 1"
+      (lambda (cursor-index key-seq) (text-edit-insert-keypress (current-major-mode) cursor-index key-seq))
+      "number"
+      "key-sequence"))
 
   (define (text-edit-mode-create buffer-name)
     (major-mode-create

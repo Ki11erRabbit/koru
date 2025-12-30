@@ -2,6 +2,7 @@
 (import (koru-session))
 (import (koru-command))
 (import (major-mode))
+(import (key-map))
 (import (scheme text-edit-mode))
 
 (define cursor-up
@@ -50,7 +51,7 @@
   (command-create
     "insert-text"
     "Inserts text at the primary cursor"
-    (lambda (keys) (command-apply text-edit-mode-insert-at-cursor 0 "t"))
+    (lambda (keys) (command-apply text-edit-mode-insert-key 0 keys))
     "key-sequence"))
 
 (define delete-back
@@ -91,18 +92,31 @@
     (lambda (keys) (command-apply text-edit-mode-redo))
     "key-sequence"))
 
+(define key-map (key-map-create insert-text))
+
+(key-map-insert key-map "UP" cursor-up)
+(key-map-insert key-map "DOWN" cursor-down)
+(key-map-insert key-map "LEFT" cursor-left)
+(key-map-insert key-map "RIGHT" cursor-right)
+(key-map-insert key-map "BS" delete-back)
+(key-map-insert key-map "DEL" delete-forward)
+(key-map-insert key-map "C-u" undo)
+(key-map-insert key-map "C-r" redo)
+
+(add-key-map "base" key-map)
+
 (add-hook "file-open" "text-edit-mode" text-edit-mode-file-open-hook)
 
 
-(add-key-mapping "UP" cursor-up)
-(add-key-mapping "DOWN" cursor-down)
-(add-key-mapping "LEFT" cursor-left)
-(add-key-mapping "RIGHT" cursor-right)
-(add-key-mapping "m" place-point-mark)
-(add-key-mapping "r" remove-mark)
-(add-key-mapping "t" insert-text)
-(add-key-mapping "BS" delete-back)
-(add-key-mapping "DEL" delete-forward)
-(add-key-mapping "x" delete-region)
-(add-key-mapping "u" undo)
-(add-key-mapping "q" redo)
+;(add-key-mapping "UP" cursor-up)
+;(add-key-mapping "DOWN" cursor-down)
+;(add-key-mapping "LEFT" cursor-left)
+;(add-key-mapping "RIGHT" cursor-right)
+;(add-key-mapping "m" place-point-mark)
+;(add-key-mapping "r" remove-mark)
+;(add-key-mapping "t" insert-text)
+;(add-key-mapping "BS" delete-back)
+;(add-key-mapping "DEL" delete-forward)
+;(add-key-mapping "x" delete-region)
+;(add-key-mapping "u" undo)
+;(add-key-mapping "q" redo)

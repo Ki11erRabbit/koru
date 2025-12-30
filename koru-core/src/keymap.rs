@@ -133,4 +133,15 @@ impl KeyMap {
             }
         }
     }
+
+    pub fn get_default(&self) -> Option<Gc<Command>> {
+        self.default.clone()
+    }
+    pub fn set_default(&mut self, default: Gc<Command>) {
+        self.default = Some(default);
+    }
+
+    pub fn remove_default(&mut self) {
+        self.default = None;
+    }
 }
