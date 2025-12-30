@@ -556,7 +556,7 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
                 let cdr = pair.cdr().clone();
                 if !cdr.is_null() {
                     // Skip if the key sequence is 2 or greater
-                    return Ok(Vec::new());
+                    return Ok(vec![Value::from(false)]);
                 }
                 let key = pair.car().clone();
                 let key: Gc<KeyPress> = key.try_into_rust_type()?;
@@ -569,9 +569,7 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
     };
 
     if key_press.modifiers.contains(ModifierKey::Control) || key_press.modifiers.contains(ModifierKey::Alt) {
-        let state = SessionState::get_state();
-        state.read().await.add_to_key_buffer(key_press).await;
-        return Ok(Vec::new());
+        return Ok(vec![Value::from(false)]);
     }
 
     match key_press.key {
@@ -584,10 +582,9 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
             insert_text_at_cursor(major_mode, cursor_index, c.to_string()).await?;
         }
         _ => {
-            let state = SessionState::get_state();
-            state.read().await.add_to_key_buffer(key_press).await;
+            return Ok(vec![Value::from(false)]);
         }
     }
 
-    Ok(Vec::new())
+    Ok(vec![Value::from(true)])
 }

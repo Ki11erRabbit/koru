@@ -44,8 +44,10 @@
   (define editor-remove-mark
     (command-create
       "editor-remove-mark"
-      "Removes the mark at the primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-remove-mark 0))
+      "Removes the mark at the primary cursor and flushes the keybuffer"
+      (lambda (keys) (begin
+                       (flush-key-buffer)
+                       (command-apply text-edit-mode-remove-mark 0)))
       "key-sequence"))
 
   (define editor-insert-text
@@ -106,13 +108,14 @@
   (key-map-insert emacs-editor-key-map "BS" editor-delete-back)
   (key-map-insert emacs-editor-key-map "DEL" editor-delete-forward)
   (key-map-insert emacs-editor-key-map "C-SPC" editor-place-point-mark)
-  (key-map-insert emacs-editor-key-map "C-g" editor-remove-mark)
+  ;(key-map-insert emacs-editor-key-map "C-g" editor-remove-mark)
   (key-map-insert emacs-editor-key-map "C-w" editor-delete-region)
   (key-map-insert emacs-editor-key-map "C-_" editor-undo)
   (key-map-insert emacs-editor-key-map "C-x u" editor-redo)
 
   (define (emacs-config-hook)
-    (add-key-map "emacs-edit" emacs-editor-key-map))
+    (add-key-map "emacs-edit" emacs-editor-key-map)
+    (add-special-key-binding "C-g" editor-remove-mark))
 
 
   (define (init-emacs-config)

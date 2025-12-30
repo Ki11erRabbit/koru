@@ -152,7 +152,7 @@ impl SchemeCompatible for Command {
     }
 }
 
-#[bridge(name = "=command", lib = "(koru-command)")]
+#[bridge(name = "command=", lib = "(koru-command)")]
 pub fn equal_command(args: &[Value]) -> Result<Vec<Value>, Condition> {
     if let Some((first, rest)) = args.split_first() {
         let first: Gc<Command> = first.clone().try_into_rust_type()?;
@@ -171,7 +171,8 @@ pub async fn command_apply(args: &[Value]) -> Result<Vec<Value>, Condition> {
     if let Some((first, rest)) = args.split_first() {
         let command: Gc<Command> = first.clone().try_into_rust_type()?;
         let function = command.function.clone();
-        let _ = function.call(rest).await?;
+        let args = function.call(rest).await?;
+        return Ok(args);
     }
     Ok(Vec::new())
 }

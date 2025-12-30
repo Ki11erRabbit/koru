@@ -172,11 +172,8 @@ impl Session {
         loop {
             let message = self.broker_client.recv_async().await;
             match message {
-                Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) |
-                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('g'), modifiers: ModifierKey::Control})), .. }) => {
-                    let state = SessionState::get_state();
-                    let guard = state.read().await;
-                    guard.flush_key_buffer().await;
+                Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
+                    SessionState::flush_key_buffer().await;
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel/session.rs";
@@ -198,9 +195,9 @@ impl Session {
                 }
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(press)), .. }) => {
                     let focused_buffer = {
+                        SessionState::process_keypress(press).await;
                         let state = SessionState::get_state();
                         let guard = state.read().await;
-                        guard.process_keypress(press).await;
                         guard.current_focused_buffer().unwrap().clone()
                     };
                     self.send_draw(&focused_buffer).await.unwrap();
