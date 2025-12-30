@@ -74,7 +74,7 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
 #[bridge(name = "major-mode-data", lib = "(major-mode)")]
 pub fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
     let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
-    Ok(vec![mode.read().clone().data])
+    Ok(vec![mode.data.clone()])
 }
 
 
@@ -82,7 +82,7 @@ pub fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
 pub async fn prepend_line(mode: &Value) -> Result<Vec<Value>, Condition> {
     let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
 
-    let mod_line = mode.read().draw.clone();
+    let mod_line = mode.draw.clone();
 
     if let Some(mod_line) = mod_line {
         let result = mod_line.call(&[]).await?;

@@ -170,7 +170,7 @@ pub fn equal_command(args: &[Value]) -> Result<Vec<Value>, Condition> {
 pub async fn command_apply(args: &[Value]) -> Result<Vec<Value>, Condition> {
     if let Some((first, rest)) = args.split_first() {
         let command: Gc<Command> = first.clone().try_into_rust_type()?;
-        let function = command.read().function.clone();
+        let function = command.function.clone();
         let _ = function.call(rest).await?;
     }
     Ok(Vec::new())
@@ -180,14 +180,14 @@ pub async fn command_apply(args: &[Value]) -> Result<Vec<Value>, Condition> {
 pub fn command_name(command: &Value) -> Result<Vec<Value>, Condition> {
     let command: Gc<Command> = command.clone().try_into_rust_type()?;
 
-    Ok(vec![Value::from(command.read().name.clone())])
+    Ok(vec![Value::from(command.name.clone())])
 }
 
 #[bridge(name = "command-description", lib = "(koru-command)")]
 pub fn command_description(command: &Value) -> Result<Vec<Value>, Condition> {
     let command: Gc<Command> = command.clone().try_into_rust_type()?;
 
-    Ok(vec![Value::from(command.read().description.clone())])
+    Ok(vec![Value::from(command.description.clone())])
 }
 
 #[bridge(name = "command-create", lib = "(koru-command)")]

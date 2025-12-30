@@ -50,7 +50,6 @@ impl Buffer {
     pub async fn get_main_cursor(&self) -> Cursor {
         let major_mode: Gc<MajorMode> = self.major_mode.clone().try_into_rust_type().unwrap();
         let data = crate::kernel::scheme_api::major_mode::text_edit::get_data(&major_mode).unwrap();
-        let data = data.read().clone();
 
         data.get_main_cursor().await
     }

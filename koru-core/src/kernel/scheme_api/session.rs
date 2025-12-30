@@ -131,7 +131,7 @@ impl SessionState {
         self.key_buffer.write().await.push(keypress);
         let mut clear_key_buffer = false;
         if let Some(command) = self.key_map.lookup(self.key_buffer.read().await.get()).cloned() {
-            let proc = command.read().command().clone();
+            let proc = command.command().clone();
             let args = self.key_buffer.read().await.get().iter().map(|press| {
                 Value::from(Record::from_rust_type(*press))
             }).collect::<Vec<Value>>();

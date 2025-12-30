@@ -737,6 +737,7 @@ pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Conditi
         return Err(Condition::wrong_num_of_args(3, args.len()));
     };
     let file: Gc<StyledFile> = file.clone().try_into_rust_type()?;
+    let mut file = (*file).clone();
     let line_no: Arc<Number> = line_no.clone().try_into()?;
     let line_no: i64 = match line_no.as_ref() {
         Number::FixedInteger(line_no) => *line_no,
@@ -744,10 +745,10 @@ pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Conditi
     };
     let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
     let text: Gc<StyledText> = text.clone().try_into_rust_type()?;
-    let text = text.read().clone();
+    let text = (*text).clone();
     
-    file.write().prepend_segment(line_no as usize, text);
-    Ok(vec![])
+    file.prepend_segment(line_no as usize, text);
+    Ok(vec![Value::from(Record::from_rust_type(file))])
 }
 
 #[bridge(name = "styled-file-append", lib = "(styled-text)")]
@@ -762,6 +763,7 @@ pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Conditio
         return Err(Condition::wrong_num_of_args(3, args.len()));
     };
     let file: Gc<StyledFile> = file.clone().try_into_rust_type()?;
+    let mut file = (*file).clone();
     let line_no: Arc<Number> = line_no.clone().try_into()?;
     let line_no: i64 = match line_no.as_ref() {
         Number::FixedInteger(line_no) => *line_no,
@@ -769,10 +771,10 @@ pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Conditio
     };
     let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
     let text: Gc<StyledText> = text.clone().try_into_rust_type()?;
-    let text = text.read().clone();
+    let text = (*text).clone();
 
-    file.write().append_segment(line_no as usize, text);
-    Ok(vec![])
+    file.append_segment(line_no as usize, text);
+    Ok(vec![Value::from(Record::from_rust_type(file))])
 }
 
 

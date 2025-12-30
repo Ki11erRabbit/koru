@@ -134,11 +134,11 @@ impl Session {
 
         let major_mode = buffer.get_major_mode();
         let major_mode: Gc<MajorMode> = major_mode.try_into_rust_type().unwrap();
-        let draw = major_mode.read().draw();
+        let draw = major_mode.draw();
         if let Some(draw) = draw {
-            let out = draw.call(&[buffer.get_major_mode()]).await.unwrap();
+            let out = draw.call(&[buffer.get_major_mode()]).await?;
             let styled_file: Gc<StyledFile> = out[0].clone().try_into_rust_type().unwrap();
-            let styled_file = styled_file.read().clone();
+            let styled_file = (*styled_file).clone();
             self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
         }
         Ok(())
