@@ -357,7 +357,11 @@ impl SchemeCompatible for KeyPress {
 impl std::fmt::Display for KeyPress {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.modifiers)?;
-        
+
+        if !self.modifiers.is_empty() {
+            write!(f, "-")?;
+        }
+
         write!(f, "{}", self.key)
     }
 }

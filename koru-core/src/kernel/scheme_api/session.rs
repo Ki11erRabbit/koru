@@ -169,10 +169,12 @@ impl SessionState {
         if self.try_process_keypress(&self.main_key_map).await {
             clear_key_buffer = true;
         }
-        for keymap in self.key_maps.values() {
-            if self.try_process_keypress(keymap).await {
-                clear_key_buffer = true;
-                break;
+        if !clear_key_buffer {
+            for keymap in self.key_maps.values() {
+                if self.try_process_keypress(keymap).await {
+                    clear_key_buffer = true;
+                    break;
+                }
             }
         }
 
@@ -184,10 +186,10 @@ impl SessionState {
     pub async fn flush_key_buffer(&self) {
         self.key_buffer.write().await.clear();
     }
-    
+
     pub async fn add_to_key_buffer(&self, key_press: KeyPress) {
         self.key_buffer.write().await.push(key_press);
-    } 
+    }
 
     pub fn get_state() -> Arc<RwLock<SessionState>> {
         STATE.clone()

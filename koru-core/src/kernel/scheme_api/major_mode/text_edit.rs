@@ -8,7 +8,7 @@ use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::Mutex;
 use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, GridCursor};
-use crate::kernel::input::{KeyPress, KeyValue};
+use crate::kernel::input::{KeyPress, KeyValue, ModifierKey};
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
 
@@ -568,7 +568,7 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
         }
     };
 
-    if !key_press.modifiers.is_empty() {
+    if key_press.modifiers.contains(ModifierKey::Control) || key_press.modifiers.contains(ModifierKey::Alt) {
         let state = SessionState::get_state();
         state.read().await.add_to_key_buffer(key_press).await;
         return Ok(Vec::new());
@@ -576,6 +576,11 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     match key_press.key {
         KeyValue::CharacterKey(c) => {
+            let c = if key_press.modifiers.contains(ModifierKey::Shift) {
+                c.to_uppercase().next().unwrap()
+            } else {
+                c
+            };
             insert_text_at_cursor(major_mode, cursor_index, c.to_string()).await?;
         }
         _ => {
