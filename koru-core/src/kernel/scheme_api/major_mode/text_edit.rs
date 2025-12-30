@@ -527,3 +527,23 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
         }
     }
 }
+
+#[bridge(name = "text-edit-undo", lib = "(text-edit)")]
+pub async fn undo(major_mode: &Value) -> Result<Vec<Value>, Condition> {
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data = get_data(&major_mode)?;
+    let data = data.read().clone();
+    let handle: BufferHandle = data.get_buffer_handle().await?;
+    handle.undo().await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-redo", lib = "(text-edit)")]
+pub async fn redo(major_mode: &Value) -> Result<Vec<Value>, Condition> {
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data = get_data(&major_mode)?;
+    let data = data.read().clone();
+    let handle: BufferHandle = data.get_buffer_handle().await?;
+    handle.redo().await;
+    Ok(Vec::new())
+}

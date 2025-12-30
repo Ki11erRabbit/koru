@@ -117,6 +117,8 @@ impl UndoTree {
         }
         if moved_from_root {
             self.current_node = Some(node.clone());
+        } else if self.descent.is_empty() {
+            self.current_node = None;
         }
     }
 
@@ -209,14 +211,17 @@ impl UndoTree {
 
     pub async fn redo(&mut self) -> Option<EditOperation> {
         {
-            let Some(current) = self.current_node.clone() else {
-                return None;
+            let current = match self.current_node.clone() {
+                Some(current) => current,
+                None => self.root.clone(),
             };
-            let guard = current.lock().await;
-            if guard.children.is_empty() {
-                return None;
-            }
-            let last_branch = guard.children.len() - 1;
+            let last_branch = {
+                let guard = current.lock().await;
+                if guard.children.is_empty() {
+                    return None;
+                }
+                guard.children.len() - 1
+            };
             self.descent.push(last_branch);
             self.change_current_node().await;
         }

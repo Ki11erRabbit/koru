@@ -14,6 +14,8 @@
     text-edit-mode-delete-after-cursor
     text-edit-mode-delete-cursor-region
     text-edit-mode-replace-at-cursor
+    text-edit-mode-undo
+    text-edit-mode-redo
     text-edit-mode-file-open-hook)
   (import (rnrs)
     (major-mode)
@@ -131,6 +133,18 @@
       (lambda (index text) (text-edit-replace-text (current-major-mode) index text))
       "number"
       "text"))
+
+  (define text-edit-mode-undo
+    (command-create
+      "text-edit-mode-undo"
+      "Undoes a text modification action"
+      (lambda () (text-edit-undo (current-major-mode)))))
+
+  (define text-edit-mode-redo
+    (command-create
+      "text-edit-mode-redo"
+      "Redoes a text modification action"
+      (lambda () (text-edit-redo (current-major-mode)))))
 
   (define (text-edit-mode-create buffer-name)
     (major-mode-create

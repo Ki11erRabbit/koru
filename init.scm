@@ -67,6 +67,20 @@
     (lambda (keys) (command-apply text-edit-mode-delete-cursor-region 0))
     "key-sequence"))
 
+(define undo
+  (command-create
+    "undo"
+    "Undoes a text modification"
+    (lambda (keys) (command-apply text-edit-mode-undo))
+    "key-sequence"))
+
+(define redo
+  (command-create
+    "redo"
+    "Redoes a text modification"
+    (lambda (keys) (command-apply text-edit-mode-redo))
+    "key-sequence"))
+
 (add-hook "file-open" "text-edit-mode" text-edit-mode-file-open-hook)
 
 
@@ -79,3 +93,5 @@
 (add-key-mapping "t" insert-text)
 (add-key-mapping "BS" delete-back)
 (add-key-mapping "x" delete-region)
+(add-key-mapping "u" undo)
+(add-key-mapping "q" redo)

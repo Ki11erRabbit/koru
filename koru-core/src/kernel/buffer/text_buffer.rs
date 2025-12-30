@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder};
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
-use crate::kernel::buffer::UndoTree;
+use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
 
 pub struct TextBuffer {
     buffer: Rope,
@@ -184,7 +184,7 @@ impl TextBuffer {
         let text = self.buffer.byte_slice(character_offset..byte_offset);
         let text = text.to_string();
         self.buffer.delete(character_offset..byte_offset);
-        self.undo_tree.delete(byte_offset, text).await;
+        self.undo_tree.delete(byte_offset - 1, text).await;
     }
 
     pub async fn delete_forward(&mut self, cursor: Cursor) {
@@ -219,7 +219,7 @@ impl TextBuffer {
         let old_text = self.buffer.byte_slice(range.clone());
         let old_text = old_text.to_string();
         self.buffer.delete(range);
-        self.undo_tree.delete(start, old_text).await;
+        self.undo_tree.delete(start - 1, old_text).await;
     }
 
     pub async fn replace(&mut self, cursor: Cursor, text: String)  {
@@ -236,7 +236,7 @@ impl TextBuffer {
             let old_text = old_text.to_string();
             self.buffer.delete(mark_offset..cursor_offset);
             self.buffer.insert(start, &text);
-            self.undo_tree.replace(start, old_text, text).await;
+            self.undo_tree.replace(start - 1, old_text, text).await;
         } else {
             let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
             let line = self.buffer.line(cursor.line());
@@ -251,8 +251,46 @@ impl TextBuffer {
             let old_text = self.buffer.byte_slice(range.clone());
             let old_text = old_text.to_string();
             self.buffer.delete(range);
-            self.undo_tree.replace(byte_offset, old_text, text).await;
+            self.undo_tree.replace(byte_offset - 1, old_text, text).await;
         }
+    }
+
+    pub fn apply_edit_info(&mut self, edit_info: EditOperation) {
+        match edit_info.value {
+            EditValue::Insert {
+                text
+            } => {
+                self.buffer.insert(edit_info.byte_offset, text);
+            }
+            EditValue::Delete {
+                count
+            } => {
+                self.buffer.delete(edit_info.byte_offset..(edit_info.byte_offset + count));
+            }
+            EditValue::Replace {
+                text,
+                count
+            } => {
+                self.buffer.delete(edit_info.byte_offset..(edit_info.byte_offset + count));
+                self.buffer.insert(edit_info.byte_offset, text);
+            }
+        }
+    }
+
+    pub async fn undo(&mut self) {
+        let edit_info = self.undo_tree.undo().await;
+        let Some(edit_info) = edit_info else {
+            return;
+        };
+        self.apply_edit_info(edit_info);
+    }
+
+    pub async fn redo(&mut self) {
+        let edit_info = self.undo_tree.redo().await;
+        let Some(edit_info) = edit_info else {
+            return;
+        };
+        self.apply_edit_info(edit_info);
     }
 }
 

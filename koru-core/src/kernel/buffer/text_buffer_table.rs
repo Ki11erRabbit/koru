@@ -133,6 +133,14 @@ impl BufferHandle {
     pub async fn replace(&self, cursor: Cursor, text: String) {
         self.handle.lock().await.replace(cursor, text).await;
     }
+
+    pub async fn undo(&self) {
+        self.handle.lock().await.undo().await;
+    }
+
+    pub async fn redo(&self) {
+        self.handle.lock().await.redo().await;
+    }
 }
 
 
