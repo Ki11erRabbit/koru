@@ -215,6 +215,7 @@ impl SessionState {
     }
 
     pub async fn process_keypress(keypress: KeyPress) {
+        let keypress = keypress.canonicalize(SessionState::get_keyboard_region());
         let (key_buffer, main_map, maps, special) = {
             let state = Self::get_state();
             let guard = state.read().await;
@@ -233,7 +234,7 @@ impl SessionState {
             clear_key_buffer = true;
         }
         if !result.found {
-            for keymap in maps.read().await.values() {
+            for (name, keymap) in maps.read().await.iter() {
                 let result = Self::try_process_keypress(&keys, keymap).await;
                 if result.found {
                     if result.flush {
@@ -271,13 +272,13 @@ impl SessionState {
     pub fn get_state() -> Arc<RwLock<SessionState>> {
         STATE.clone()
     }
-    
+
     pub fn set_keyboard_region(new_region: KeyboardRegion) {
         unsafe {
             KEYBOARD_REGION = new_region;
         }
     }
-    
+
     pub fn get_keyboard_region() -> KeyboardRegion {
         unsafe {
             KEYBOARD_REGION
@@ -509,5 +510,14 @@ pub async fn flush_keybuffer() -> Result<Vec<Value>, Condition> {
     };
 
     keybuffer.write().await.clear();
+    Ok(Vec::new())
+}
+
+#[bridge(name = "buffer-change-focus", lib = "(koru-buffer)")]
+pub async fn change_current_buffer(name: &Value) -> Result<Vec<Value>, Condition> {
+    let name: String = name.clone().try_into()?;
+    let state = SessionState::get_state();
+    let mut guard = state.write().await;
+    guard.current_buffer = Some(name);
     Ok(Vec::new())
 }

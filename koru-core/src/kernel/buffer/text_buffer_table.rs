@@ -4,6 +4,9 @@ use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use crop::Rope;
+use scheme_rs::exceptions::Condition;
+use scheme_rs::registry::bridge;
+use scheme_rs::value::Value;
 use tokio::io::AsyncReadExt;
 use tokio::sync::{RwLock, Mutex};
 use crate::kernel::buffer::text_buffer::TextBuffer;
@@ -70,6 +73,12 @@ impl TextBufferTable {
         let mut table = OPEN_BUFFERS.write().await;
         table.open_internal(path).await
     }
+    
+    pub async fn create<S: AsRef<str>>(name: String, contents: S) -> Result<BufferHandle, Box<dyn Error>> {
+        let mut table = OPEN_BUFFERS.write().await;
+        let text_buffer = TextBuffer::new(contents.as_ref(), &name.clone());
+        Ok(table.insert_internal(name, text_buffer))
+    }
 }
 
 
@@ -90,6 +99,10 @@ impl BufferHandle {
     
     pub async fn get_text(&self) -> Rope {
         self.handle.lock().await.get_buffer()
+    }
+    
+    pub async fn get_name(&self) -> String {
+        self.handle.lock().await.get_name()
     }
     
     pub async fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
@@ -144,4 +157,34 @@ impl BufferHandle {
 }
 
 
+#[bridge(name = "buffer-from-path", lib = "(koru-buffer)")]
+pub async fn buffer_from_file(path: &Value) -> Result<Vec<Value>, Condition> {
+    let path: String = path.clone().try_into()?;
+    
+    let handle = TextBufferTable::open(path).await
+        .map_err(|e| Condition::error(e))?;
+    let name = handle.get_name().await;
+    
+    Ok(vec![Value::from(name)])
+}
 
+#[bridge(name = "buffer-create", lib = "(koru-buffer)")]
+pub async fn buffer_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((path, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(1, args.len()));
+    };
+    let contents = if let Some((contents, _)) = rest.split_first() {
+        let contents = contents.clone().try_into()?;
+        contents
+    } else {
+        String::new()
+    };
+    
+    let buffer_name: String = path.clone().try_into()?;
+    
+    let handle = TextBufferTable::create(buffer_name, contents).await
+        .map_err(|e| Condition::error(e))?;
+    
+    let name = handle.get_name().await;
+    Ok(vec![Value::from(name)])
+}

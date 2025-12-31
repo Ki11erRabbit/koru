@@ -54,7 +54,19 @@
     (command-create
       "editor-insert-text"
       "Inserts text at the primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-insert-key 0 keys))
+      (lambda (keys) (begin
+                       (if (command-apply text-edit-mode-insert-key 0 keys)
+                         (begin (command-apply text-edit-mode-cursor-right 0 #f) #t)
+                         #f)))
+      "key-sequence"))
+
+  (define editor-return
+    (command-create
+      "editor-return"
+      "Inserts a newline at the primary cursor"
+      (lambda (keys) (begin
+                       (command-apply text-edit-mode-insert-at-cursor 0 "\n")
+                       (command-apply text-edit-mode-cursor-right 0 #t)))
       "key-sequence"))
 
   (define editor-delete-back
@@ -63,7 +75,7 @@
       "Deletes text before the primary cursor"
       (lambda (keys) (begin
                        (command-apply text-edit-mode-delete-before-cursor 0)
-                       (command-apply text-edit-mode-cursor-left 0 #f)
+                       (command-apply text-edit-mode-cursor-left 0 #t)
                        ))
       "key-sequence"))
 
@@ -107,6 +119,7 @@
   (key-map-insert emacs-editor-key-map "C-f" editor-cursor-right)
   (key-map-insert emacs-editor-key-map "BS" editor-delete-back)
   (key-map-insert emacs-editor-key-map "DEL" editor-delete-forward)
+  (key-map-insert emacs-editor-key-map "ENTER" editor-return)
   (key-map-insert emacs-editor-key-map "C-SPC" editor-place-point-mark)
   ;(key-map-insert emacs-editor-key-map "C-g" editor-remove-mark)
   (key-map-insert emacs-editor-key-map "C-w" editor-delete-region)

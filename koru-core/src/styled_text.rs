@@ -701,6 +701,9 @@ impl From<Rope> for StyledFile {
                 start = end;
             }
         }
+        lines.push(vec![StyledText::None {
+            text: TextChunk::new(text.clone(), start, end)
+        }]);
 
         Self {
             rope: text,

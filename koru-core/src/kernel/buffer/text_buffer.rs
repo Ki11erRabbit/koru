@@ -33,6 +33,10 @@ impl TextBuffer {
             undo_tree: UndoTree::new(),
         }
     }
+
+    pub fn get_name(&self) -> String {
+        self.name.clone()
+    }
     
     pub fn rename(&mut self, name: String) {
         self.name = name;
@@ -155,6 +159,9 @@ impl TextBuffer {
             byte_offset += self.buffer.line_length(line);
         }
         byte_offset += '\n'.len_utf8() * line;
+        if self.buffer.line_len() == 0 {
+            return byte_offset;
+        }
 
         let line = self.buffer.line(line);
         byte_offset += line.chars()

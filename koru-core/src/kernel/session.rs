@@ -35,10 +35,6 @@ impl Session {
             command_state: CommandState::None,
         }
     }
-
-    async fn set_globals(&self) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
     
     fn write_warning(&self, _msg: String) -> Result<(), Box<dyn Error>> {
         todo!()
@@ -74,16 +70,13 @@ impl Session {
     
     async fn create_buffer(&self, name: &str) -> Result<String, Box<dyn Error>> {
         let out = name.to_string();
-        let handle = TextBufferTable::open(name.to_string()).await?;
-
+        let handle = TextBufferTable::create(name.to_string(), "arstarstarst").await?;
         {
             let state = SessionState::get_state();
             let mut guard = state.write().await;
             guard.add_buffer(name, handle).await;
         }
-        let path = PathBuf::from(name);
-        let ext = path.extension().unwrap_or(&OsStr::new("")).to_str().unwrap();
-        self.file_opened_hook(name, ext).await;
+        self.file_opened_hook(name, "").await;
         Ok(out)
     }
     
@@ -126,12 +119,13 @@ impl Session {
 
     async fn send_draw(&mut self, buffer_name: &str) -> Result<(), Box<dyn Error>> {
 
-        let buffer = {
+        let mut buffer = {
             let state = SessionState::get_state();
             let guard = state.read().await;
             guard.get_buffers().await.get(buffer_name).unwrap().clone()
         };
 
+        buffer.render_styled_text().await;
         let major_mode = buffer.get_major_mode();
         let major_mode: Gc<MajorMode> = major_mode.try_into_rust_type().unwrap();
         let draw = major_mode.draw();
@@ -146,15 +140,6 @@ impl Session {
 
     
     pub async fn run(&mut self, client_id: usize) {
-
-        match self.set_globals().await {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("{}", e);
-                panic!("set_globals failed");
-            }
-        }
-        
         /*match self.lua.load(session_code).exec_async().await {
             Ok(_) => {}
             Err(e) => {
@@ -168,7 +153,15 @@ impl Session {
                 self.write_error(e.to_string()).unwrap();
             }
         }
-        
+
+        let buffer_name = self.create_buffer("temp").await.unwrap();
+        let focused_buffer = {
+            let state = SessionState::get_state();
+            let mut guard = state.write().await;
+            guard.set_current_buffer(buffer_name.to_string());
+            guard.current_focused_buffer().unwrap().clone()
+        };
+        self.send_draw(&focused_buffer).await.unwrap();
         loop {
             let message = self.broker_client.recv_async().await;
             match message {
@@ -177,7 +170,7 @@ impl Session {
                 }
                 /*Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel/session.rs";
-                    
+
                     let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
                     let focused_buffer = {
                         let state = SessionState::get_state();

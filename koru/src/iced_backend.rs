@@ -9,6 +9,7 @@ use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
 use iced::widget::{column, text};
+use iced_core::Length;
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
@@ -86,8 +87,7 @@ impl App {
     }
     
 
-    fn update(&mut self, message: UiMessage) -> Task<UiMessage>{
-
+    fn update(&mut self, message: UiMessage) -> Task<UiMessage> {
         match message {
             UiMessage::Nop => Task::none(),
             UiMessage::RunKernelRuntime => {
@@ -228,7 +228,8 @@ impl App {
             AppInitializationState::Initialized(_) => {
                 column!(
                     styled_text::rich(&self.buffer_state.text.lines(), self.buffer_state.line_offset, self.buffer_state.column_offset, self.buffer_state.text_metrics_callback())
-                        .font(iced::font::Font::MONOSPACE),
+                        .font(iced::font::Font::MONOSPACE)
+                        .height(Length::Fill),
                     text(&self.message_bar)
                 ).into()
             }

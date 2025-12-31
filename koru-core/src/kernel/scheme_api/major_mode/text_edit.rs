@@ -568,17 +568,12 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
         }
     };
 
-    if key_press.modifiers.contains(ModifierKey::Control) || key_press.modifiers.contains(ModifierKey::Alt) {
+    if !key_press.modifiers.is_empty() {
         return Ok(vec![Value::from(false)]);
     }
 
     match &key_press.key {
         KeyValue::CharacterKey(c) => {
-            let c = if key_press.modifiers.contains(ModifierKey::Shift) {
-                c.to_uppercase()
-            } else {
-                c.to_string()
-            };
             insert_text_at_cursor(major_mode, cursor_index, c.to_string()).await?;
         }
         _ => {
