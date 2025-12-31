@@ -143,18 +143,23 @@ pub struct Broker {
     clients: Vec<Option<Sender<Message>>>,
     free_clients: VecDeque<usize>,
     receiver: Receiver<Message>,
-    sender: Sender<Message>
+    sender: Sender<Message>,
+    client_connector_client: usize,
 }
 
 impl Broker {
-    pub fn new() -> Broker {
+    pub fn new() -> (Broker, BrokerClient) {
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
-        Broker {
+        let mut broker = Broker {
             clients: Vec::new(),
             free_clients: VecDeque::new(),
             receiver,
             sender,
-        }
+            client_connector_client: 0,
+        };
+        let client = broker.create_client();
+        broker.client_connector_client = client.client_id;
+        (broker, client)
     }
     
     fn get_next_client_id(&mut self) -> usize {
@@ -187,6 +192,19 @@ impl Broker {
             match message.kind {
                 MessageKind::Broker(BrokerMessage::Shutdown) => {
                     self.free_client(message.source);
+                    let mut client_counts = 0;
+                    for client in &mut self.clients {
+                        if client.is_some() {
+                            client_counts += 1;
+                        }
+                    }
+                    if client_counts == 0 {
+                        return Ok(());
+                    } else if client_counts == 1 && self.clients[self.client_connector_client].is_some() {
+                        let message = Message::new(self.client_connector_client, 0, MessageKind::Broker(BrokerMessage::Shutdown));
+                        self.sender.send(message).await?;
+                        return Ok(());
+                    }
                 }
                 MessageKind::General(_) => {
                     self.send(message).await?;

@@ -1,5 +1,7 @@
 use crate::kernel::input::KeyPress;
 
+const KEY_BUFFER_CAPACITY: usize = 4;
+
 pub struct KeyBuffer {
     buffer: Vec<KeyPress>
 }
@@ -7,12 +9,18 @@ pub struct KeyBuffer {
 impl KeyBuffer {
     pub fn new() -> Self {
         KeyBuffer {
-            buffer: Vec::new()
+            buffer: Vec::with_capacity(KEY_BUFFER_CAPACITY)
         }
     }
     
     pub fn push(&mut self, key: KeyPress) {
+        if self.buffer.len() >= KEY_BUFFER_CAPACITY {
+            self.buffer.clear();
+        }
         self.buffer.push(key);
+        /*let string = self.buffer.iter().map(ToString::to_string).reduce(|a, b| a + " " + &b).unwrap();
+        println!("{}", string);
+        println!("{:?}", self.buffer);*/
     }
     
     pub fn clear(&mut self) {

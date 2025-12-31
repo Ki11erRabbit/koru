@@ -89,8 +89,7 @@ where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingRespon
 
 async fn start_runtime(pair: ChannelPair) {
     println!("Starting Koru Kernel");
-    let mut broker = Broker::new();
-    let connector_client = broker.create_client();
+    let (mut broker, connector_client) = Broker::new();
 
     tokio::spawn(async move {
         match broker.run_broker().await {

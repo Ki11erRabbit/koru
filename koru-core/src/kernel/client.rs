@@ -48,6 +48,18 @@ impl ClientConnector {
                 }
             }
         }
-        loop {}
+        loop {
+            match self.client.recv_async().await {
+                Some(message) => {
+                    match message.kind {
+                        MessageKind::Broker(BrokerMessage::Shutdown) => {
+                            return Ok(());
+                        }
+                        _ => {}
+                    }
+                }
+                None => {}
+            }
+        }
     }
 }
