@@ -22,6 +22,7 @@
     (major-mode)
     (koru-command)
     (koru-session)
+    (koru-buffer)
     (styled-text)
     (text-edit))
 

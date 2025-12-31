@@ -376,7 +376,7 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(Vec::new())
 }
 
-#[bridge(name = "major-mode-set!", lib = "(koru-session)")]
+#[bridge(name = "major-mode-set!", lib = "(koru-buffer)")]
 pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((buffer_name, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
@@ -399,7 +399,7 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(Vec::new())
 }
 
-#[bridge(name = "current-major-mode", lib = "(koru-session)")]
+#[bridge(name = "current-major-mode", lib = "(koru-buffer)")]
 pub async fn get_current_major_mode() -> Result<Vec<Value>, Condition> {
     let state = SessionState::get_state();
     let guard = state.read().await;
