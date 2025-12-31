@@ -95,3 +95,97 @@ Order is not guaranteed.
 (emit-hook "my-hook" 1 2 3 4)
 ```
 
+
+## `add-key-binding`
+Adds a global keybinding to the editor
+
+### Inputs
+- key-string: String, sequence of keys separated by spaces.
+- command: Command, the command to execute on the key input.
+
+### Outputs
+None
+
+### Behavior
+This will load a new keybinding into the global editor state.
+If the keybinding already existed, this will overwrite it.
+
+### Example
+```scheme
+(add-key-binding "C-x s" save-command)
+```
+
+## `add-special-key-binding`
+Adds a special keybinding to the editor
+
+### Inputs
+- key-string: String, a single key to execute the command on.
+- command: Command, the command to execute on the key input.
+
+### Outputs
+None
+
+### Behavior
+This will load a new keybinding into the special editor.
+Special keybindings only take one key and are always matched first.
+This bypasses key sequencing.
+
+### Example
+```scheme
+(add-special-key-binding "C-g" cancel-command)
+```
+
+## `add-key-map`
+Adds a new keymap to the editor.
+This should be used generally to add new keybindings.
+
+### Inputs
+- keymap-name: String, an identifier for the keymap.
+- key-map: KeyMap, holds the key bindings to commands.
+
+### Outputs
+None
+
+### Behavior
+This adds a new keymap to the editor.
+This will overwrite any previous keymaps if there are any.
+
+### Example
+```scheme
+(add-key-map "my-keymap" my-keymap)
+```
+
+## `remove-key-map`
+Removes a new keymap to the editor.
+
+### Inputs
+- keymap-name: String, an identifier for the keymap.
+
+### Outputs
+None
+
+### Behavior
+This adds a new keymap to the editor.
+This will overwrite any previous keymaps if there are any.
+
+### Example
+```scheme
+(add-key-map "my-keymap" my-keymap)
+```
+
+## `flush-key-buffer`
+Clears the key buffer.
+
+### Inputs
+None
+
+### Outputs
+None
+
+### Behavior
+This empties the key buffer and does nothing if the buffer is empty.
+
+### Example
+```scheme
+(add-key-map "my-keymap" my-keymap)
+```
