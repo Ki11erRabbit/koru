@@ -175,7 +175,7 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
                     SessionState::flush_key_buffer().await;
                 }
-                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
+                /*Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
                     const FILE_NAME: &str = "koru-core/src/kernel/session.rs";
                     
                     let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
@@ -192,7 +192,7 @@ impl Session {
                             self.write_error(e.to_string()).unwrap();
                         }
                     }
-                }
+                }*/
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(press)), .. }) => {
                     let focused_buffer = {
                         SessionState::process_keypress(press).await;
@@ -202,7 +202,7 @@ impl Session {
                     };
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
-                Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {
+                /*Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {
                     match &mut self.command_state {
                         CommandState::None => {
                             match key {
@@ -240,7 +240,7 @@ impl Session {
                             }
                         }
                     }
-                }
+                }*/
                 Some(Message { kind: MessageKind::General(GeneralMessage::RequestMainCursor), ..}) => {
                     let main_cursor = {
                         let state = SessionState::get_state();

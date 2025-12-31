@@ -15,6 +15,7 @@ use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::{Mutex, RwLock};
+use keypress_localize::KeyboardRegion;
 use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress};
 use crate::kernel::scheme_api::command::Command;
@@ -173,7 +174,7 @@ impl SessionState {
         if let Some(command) = map.lookup(&keys).cloned() {
             let proc = command.command().clone();
             let args = keys.iter().map(|press| {
-                Value::from(Record::from_rust_type(*press))
+                Value::from(Record::from_rust_type((*press).clone()))
             }).collect::<Vec<Value>>();
 
             let list = lists::slice_to_list(&args);
@@ -219,7 +220,7 @@ impl SessionState {
             let guard = state.read().await;
             (guard.key_buffer.clone(), guard.main_key_map.clone(), guard.key_maps.clone(), guard.special_key_map.clone())
         };
-        let result = Self::try_process_keypress(&vec![keypress], &*special.read().await).await;
+        let result = Self::try_process_keypress(&vec![keypress.clone()], &*special.read().await).await;
         if result.found {
             return;
         }
@@ -270,10 +271,23 @@ impl SessionState {
     pub fn get_state() -> Arc<RwLock<SessionState>> {
         STATE.clone()
     }
+    
+    pub fn set_keyboard_region(new_region: KeyboardRegion) {
+        unsafe {
+            KEYBOARD_REGION = new_region;
+        }
+    }
+    
+    pub fn get_keyboard_region() -> KeyboardRegion {
+        unsafe {
+            KEYBOARD_REGION
+        }
+    }
 }
 
 static STATE: LazyLock<Arc<RwLock<SessionState>>> = LazyLock::new(|| Arc::new(RwLock::new(SessionState::new())));
 
+static mut KEYBOARD_REGION: KeyboardRegion = KeyboardRegion::EnglishUS;
 
 #[bridge(name = "create-hook", lib = "(koru-session)")]
 pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {

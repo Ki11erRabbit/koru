@@ -12,3 +12,4 @@ crop = "0.4.3"
 scheme-rs = { workspace = true }
 inventory = { workspace = true }
 hashbrown = { workspace = true }
+keypress-localize = { workspace = true }

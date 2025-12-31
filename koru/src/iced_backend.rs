@@ -255,12 +255,7 @@ impl App {
             }
             let key = match key {
                 Key::Character(c) => {
-                    match c.as_str().chars().next() {
-                        Some(c) => {
-                            KeyValue::CharacterKey(c)
-                        }
-                        _ => panic!("invalid character key"),
-                    }
+                    KeyValue::CharacterKey(c.to_string().into_boxed_str())
                 }
                 Key::Named(Named::Enter) => KeyValue::ControlKey(ControlKey::Enter),
                 Key::Named(Named::Tab) => KeyValue::ControlKey(ControlKey::Tab),

@@ -1,12 +1,14 @@
 use scheme_rs::records::Record;
 use std::sync::{Arc};
-use bitflags::bitflags;
+use bitflags::{bitflags, Flags};
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::{OpaqueGcPtr, Trace};
 use scheme_rs::lists;
 use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
+use keypress_localize::KeyboardRegion;
+use crate::kernel::scheme_api::session::SessionState;
 
 bitflags! {
     #[derive(Eq, PartialEq, Copy, Clone, Hash, Debug)]
@@ -64,17 +66,21 @@ impl std::fmt::Display for ModifierKey {
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Trace)]
+#[derive(Eq, PartialEq, Clone, Hash, Debug, Trace)]
 pub enum KeyValue {
-    CharacterKey(char),
+    CharacterKey(#[trace(skip)] Box<str>),
     ControlKey(ControlKey),
 }
 
 impl std::fmt::Display for KeyValue {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            KeyValue::CharacterKey('-') => write!(f, "DASH"),
-            KeyValue::CharacterKey(c) => write!(f, "{}", c),
+            KeyValue::CharacterKey(string) => {
+                match string.as_ref() {
+                    "-" => write!(f, "DASH"),
+                    c => write!(f, "{}", c)
+                }
+            }
             KeyValue::ControlKey(c) => write!(f, "{}", c),
         }
     }
@@ -190,7 +196,7 @@ impl std::fmt::Display for ControlKey {
 }
 
 
-#[derive(Eq, PartialEq, Copy, Clone, Hash, Debug, Trace)]
+#[derive(Eq, Clone, Hash, Debug, Trace)]
 pub struct KeyPress {
     pub key: KeyValue,
     pub modifiers: ModifierKey,
@@ -206,29 +212,31 @@ impl KeyPress {
             return true;
         }
 
-        match self.key {
-            KeyValue::CharacterKey('!') => true,
-            KeyValue::CharacterKey('@') => true,
-            KeyValue::CharacterKey('#') => true,
-            KeyValue::CharacterKey('$') => true,
-            KeyValue::CharacterKey('%') => true,
-            KeyValue::CharacterKey('^') => true,
-            KeyValue::CharacterKey('&') => true,
-            KeyValue::CharacterKey('*') => true,
-            KeyValue::CharacterKey('(') => true,
-            KeyValue::CharacterKey(')') => true,
-            KeyValue::CharacterKey('{') => true,
-            KeyValue::CharacterKey('}') => true,
-            KeyValue::CharacterKey('~') => true,
-            KeyValue::CharacterKey('?') => true,
-            KeyValue::CharacterKey('"') => true,
-            KeyValue::CharacterKey('|') => true,
-            KeyValue::CharacterKey('_') => true,
-            KeyValue::CharacterKey(':') => true,
-            KeyValue::CharacterKey('+') => true,
-            KeyValue::CharacterKey('<') => true,
-            KeyValue::CharacterKey('>') => true,
-            KeyValue::CharacterKey(key) => key.is_uppercase(),
+        match &self.key {
+            KeyValue::CharacterKey(string) => {
+                match string.as_ref() {
+                    "!" => true,
+                    "@" => true,
+                    "#" => true,
+                    "$" => true,
+                    "^" => true,
+                    "&" => true,
+                    "*" => true,
+                    "(" => true,
+                    ")" => true,
+                    "{" => true,
+                    "}" => true,
+                    "~" => true,
+                    "?" => true,
+                    "|" => true,
+                    ":" => true,
+                    "+" => true,
+                    "_" => true,
+                    "<" => true,
+                    ">" => true,
+                    st => st.chars().any(|c| c.is_uppercase())
+                }
+            }
             _ => false,
         }
     }
@@ -266,7 +274,7 @@ impl KeyPress {
             "SPC" => KeyValue::ControlKey(ControlKey::Space),
             "TAB" => KeyValue::ControlKey(ControlKey::Tab),
             "ENTER" => KeyValue::ControlKey(ControlKey::Enter),
-            "DASH" => KeyValue::CharacterKey('-'),
+            "DASH" => KeyValue::CharacterKey("-".into()),
             "ESC" => KeyValue::ControlKey(ControlKey::Escape),
             "BS" => KeyValue::ControlKey(ControlKey::Backspace),
             "DEL" => KeyValue::ControlKey(ControlKey::Delete),
@@ -313,13 +321,7 @@ impl KeyPress {
             "F33" => KeyValue::ControlKey(ControlKey::F33),
             "F34" => KeyValue::ControlKey(ControlKey::F34),
             "F35" => KeyValue::ControlKey(ControlKey::F35),
-            c if c.chars().count() == 1 => {
-                let Some(char) = c.chars().next() else {
-                    unreachable!("We have already asserted this");
-                };
-                KeyValue::CharacterKey(char)
-            }
-            _ => return None,
+            c => KeyValue::CharacterKey(c.into()),
         };
         Some(key)
     }
@@ -342,6 +344,33 @@ impl KeyPress {
             }
         }
         None
+    }
+    
+    pub fn canonicalize(mut self, region: KeyboardRegion) -> Self {
+        match &mut self.key {
+            KeyValue::CharacterKey(c) => {
+                if !self.modifiers.contains(ModifierKey::Shift) {
+                    return self;
+                }
+                
+                let new_value = keypress_localize::canonicalize_keypress(region, c);
+                if new_value.as_str() != c.as_ref() {
+                    *c = new_value.into_boxed_str();
+                    self.modifiers.remove(ModifierKey::Shift);
+                }
+            }
+            _ => {}
+        }
+        self
+    }
+}
+
+impl PartialEq for KeyPress {
+    fn eq(&self, other: &Self) -> bool {
+        let region = SessionState::get_keyboard_region();
+        let self_can = self.clone().canonicalize(region);
+        let other_can = other.clone().canonicalize(region);
+        self_can.key == other_can.key && self_can.modifiers == other_can.modifiers
     }
 }
 

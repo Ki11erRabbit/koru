@@ -86,7 +86,7 @@ impl Component<UiMessage, UiMessage> for Input {
                     Key::Function(33) => KeyValue::ControlKey(ControlKey::F33),
                     Key::Function(34) => KeyValue::ControlKey(ControlKey::F34),
                     Key::Function(35) => KeyValue::ControlKey(ControlKey::F35),
-                    Key::Char(c) => KeyValue::CharacterKey(c),
+                    Key::Char(c) => KeyValue::CharacterKey(c.to_string().into_boxed_str()),
                     _ => return None,
                 };
                 let mut modifiers = ModifierKey::empty();

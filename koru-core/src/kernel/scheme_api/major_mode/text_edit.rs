@@ -560,7 +560,7 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
                 }
                 let key = pair.car().clone();
                 let key: Gc<KeyPress> = key.try_into_rust_type()?;
-                *key
+                (*key).clone()
             }
             _ => {
                 return Err(Condition::type_error("List", key_sequence.type_name()))
@@ -572,12 +572,12 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Ok(vec![Value::from(false)]);
     }
 
-    match key_press.key {
+    match &key_press.key {
         KeyValue::CharacterKey(c) => {
             let c = if key_press.modifiers.contains(ModifierKey::Shift) {
-                c.to_uppercase().next().unwrap()
+                c.to_uppercase()
             } else {
-                c
+                c.to_string()
             };
             insert_text_at_cursor(major_mode, cursor_index, c.to_string()).await?;
         }
