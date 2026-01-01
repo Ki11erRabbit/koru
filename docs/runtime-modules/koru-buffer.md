@@ -12,6 +12,7 @@ Changes the currently focused buffer.
 ###### Outputs
 None
 ###### Errors
+None
 
 ###### Behavior
 The buffer in focus will be changed to the one that matches the string.
