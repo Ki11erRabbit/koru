@@ -3,7 +3,7 @@
   (import (rnrs)
     (koru-command)
     (koru-session)
-    (key-map)
+    (koru-key)
     (scheme text-edit-mode))
 
   (define editor-cursor-up

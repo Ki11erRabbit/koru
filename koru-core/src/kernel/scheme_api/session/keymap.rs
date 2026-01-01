@@ -62,7 +62,7 @@ impl SchemeCompatible for SchemeKeyMap {
     }
 }
 
-#[bridge(name = "key-map-create", lib = "(key-map)")]
+#[bridge(name = "key-map-create", lib = "(koru-key)")]
 pub fn create_keymap(default: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((default, _)) = default.split_first() else {
         return Ok(vec![Value::from(Record::from_rust_type(SchemeKeyMap::new(None)))])
@@ -72,7 +72,7 @@ pub fn create_keymap(default: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(vec![Value::from(Record::from_rust_type(SchemeKeyMap::new(Some(default))))])
 }
 
-#[bridge(name = "key-map-insert", lib = "(key-map)")]
+#[bridge(name = "key-map-insert", lib = "(koru-key)")]
 pub async fn keymap_insert(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((keymap, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(3, args.len()));
@@ -91,7 +91,7 @@ pub async fn keymap_insert(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(vec![])
 }
 
-#[bridge(name = "key-map-delete", lib = "(key-map)")]
+#[bridge(name = "key-map-delete", lib = "(koru-key)")]
 pub async fn keymap_delete(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((keymap, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));

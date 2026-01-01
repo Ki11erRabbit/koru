@@ -2,8 +2,9 @@
 
 This module contains the APIs to interact with buffers directly.
 
+## Functions
 
-##### `buffer-change-focus`
+### `buffer-change-focus`
 Changes the currently focused buffer.
 
 ###### Inputs
@@ -22,7 +23,7 @@ The buffer in focus will be changed to the one that matches the string.
 (buffer-change-focus "my buffer")
 ```
 
-##### `buffer-from-path`
+### `buffer-from-path`
 Creates a new buffer from a file, given its path.
 
 ###### Inputs
@@ -45,7 +46,7 @@ The name returned will be the absolute path of the file.
   (buffer-change-focus new-buffer))
 ```
 
-###### `buffer-create`
+### `buffer-create`
 Creates a new buffer with a given name and an optional given contents.
 
 ###### Inputs
@@ -67,7 +68,7 @@ It is a safe way to create a buffer programmatically.
   (buffer-change-focus new-buffer))
 ```
 
-###### `major-mode-set!`
+### `major-mode-set!`
 Sets the major mode of a given buffer
 This should be called after buffer creation.
 
@@ -89,7 +90,7 @@ This will change the major mode of a buffer to the one specified.
 ```
 
 
-###### `current-major-mode`
+### `current-major-mode`
 Fetches the major mode of the currently focused buffer.
 
 ###### Inputs

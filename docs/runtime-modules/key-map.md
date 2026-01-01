@@ -1,6 +1,0 @@
-# key-map
-
-## Types
-
-### KeyMap
-

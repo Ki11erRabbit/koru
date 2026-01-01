@@ -1,7 +1,9 @@
 # koru-session
 These functions are for manipulating the state of the editor directly.
 
-##### `create-hook`
+## Functions
+
+### `create-hook`
 Creates a new hook that can be subscribed to when activated.
 
 ###### Inputs
@@ -20,7 +22,7 @@ If the hook already exists, it will destroy the previous callbacks.
 (create-hook "my-hook")
 ```
 
-##### `destroy-hook`
+### `destroy-hook`
 Removes a hook from the runtime, removing callbacks.
 
 ###### Inputs
@@ -39,7 +41,7 @@ It will also remove all subscribers to the hook.
 (destroy-hook "my-hook")
 ```
 
-##### `add-hook`
+### `add-hook`
 Adds a new listener to a specified hook.
 
 ###### Inputs
@@ -61,7 +63,7 @@ If the `callback-name` overlaps with another callback, then the old callback wil
 (add-hook "my-hook" "my-callback" (lambda () (something)))
 ```
 
-##### `remove-hook`
+### `remove-hook`
 Unregisters a callback from a given hook.
 
 ###### Inputs
@@ -82,7 +84,7 @@ If the hook or callback does not exist, then this function does nothing.
 (remove-hook "my-hook" "my-callback")
 ```
 
-##### `emit-hook`
+### `emit-hook`
 Triggers all callbacks with a particular hook.
 
 ###### Inputs
@@ -104,7 +106,7 @@ Order is not guaranteed.
 ```
 
 
-##### `add-key-binding`
+### `add-key-binding`
 Adds a global keybinding to the editor
 
 ###### Inputs
@@ -125,7 +127,7 @@ If the keybinding already existed, this will overwrite it.
 (add-key-binding "C-x s" save-command)
 ```
 
-##### `add-special-key-binding`
+### `add-special-key-binding`
 Adds a special keybinding to the editor
 
 ###### Inputs
@@ -147,7 +149,7 @@ This bypasses key sequencing.
 (add-special-key-binding "C-g" cancel-command)
 ```
 
-##### `add-key-map`
+### `add-key-map`
 Adds a new keymap to the editor.
 This should be used generally to add new keybindings.
 
@@ -169,7 +171,7 @@ This will overwrite any previous keymaps if there are any.
 (add-key-map "my-keymap" my-keymap)
 ```
 
-##### `remove-key-map`
+### `remove-key-map`
 Removes a new keymap to the editor.
 
 ###### Inputs
@@ -189,7 +191,7 @@ This will overwrite any previous keymaps if there are any.
 (add-key-map "my-keymap" my-keymap)
 ```
 
-##### `flush-key-buffer`
+### `flush-key-buffer`
 Clears the key buffer.
 
 ###### Inputs

@@ -395,7 +395,7 @@ impl std::fmt::Display for KeyPress {
     }
 }
 
-#[bridge(name = "string->keypress", lib = "(key-press)")]
+#[bridge(name = "string->keypress", lib = "(koru-key)")]
 pub fn string_to_keypress(string: &Value) -> Result<Vec<Value>, Condition> {
     let string: String = string.clone().try_into()?;
     let Some(keypress) = KeyPress::from_string(&string) else {
@@ -405,7 +405,7 @@ pub fn string_to_keypress(string: &Value) -> Result<Vec<Value>, Condition> {
     Ok(vec![Value::from(Record::from_rust_type(keypress))])
 }
 
-#[bridge(name = "string->keysequence", lib = "(key-press)")]
+#[bridge(name = "string->key-sequence", lib = "(koru-key)")]
 pub fn string_to_key_list(string: &Value) -> Result<Vec<Value>, Condition> {
     let string: String = string.clone().try_into()?;
     let vec = string.split_whitespace()

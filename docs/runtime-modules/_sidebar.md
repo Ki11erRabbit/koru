@@ -6,5 +6,5 @@
   * [koru-session](runtime-modules/koru-session.md)
   * [koru-buffer](runtime-modules/koru-buffer.md)
   * [koru-command](runtime-modules/koru-command.md)
-  * [key-map](runtime-modules/key-map.md)
+  * [koru-key](runtime-modules/koru-key.md)
   * [styled-text](runtime-modules/styled-text.md)
