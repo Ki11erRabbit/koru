@@ -159,7 +159,9 @@
   (define (text-edit-mode-create buffer-name)
     (major-mode-create
       "TextEdit"
-      text-edit-draw
+      (lambda (major-mode)
+        (let ((data (major-mode-data major-mode)))
+          (plain-draw (text-edit-get-buffer-name data) (text-edit-get-cursors data))))
       (text-edit-data-create buffer-name)))
 
   (define (text-edit-mode-file-open-hook buffer-name file-ext)

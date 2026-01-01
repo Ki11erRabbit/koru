@@ -7,9 +7,9 @@ use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::Mutex;
-use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, GridCursor};
+use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, Cursors, GridCursor};
 use crate::kernel::input::{KeyPress, KeyValue, ModifierKey};
-use crate::kernel::scheme_api::major_mode::MajorMode;
+use crate::kernel::scheme_api::major_mode::{MajorMode};
 use crate::kernel::scheme_api::session::SessionState;
 
 #[derive(Debug, Trace)]
@@ -145,6 +145,22 @@ pub fn create_text_edit_data(buffer_name: &Value) -> Result<Vec<Value>, Conditio
     let data = TextEditData::new(buffer_name);
     
     Ok(vec![Value::from(Record::from_rust_type(data))])
+}
+
+#[bridge(name = "text-edit-get-cursors", lib = "(text-edit)")]
+pub async fn get_cursors(text_edit_data: &Value) -> Result<Vec<Value>, Condition> {
+    let text_edit_data: Gc<TextEditData> = text_edit_data.clone().try_into_rust_type()?;
+    let cursors = text_edit_data.internal.lock().await.cursors.clone();
+    let cursors = Cursors { cursors };
+    let value = Record::from_rust_type(cursors);
+    Ok(vec![Value::from(value)])
+}
+
+#[bridge(name = "text-edit-get-buffer-name", lib = "(text-edit)")]
+pub async fn get_buffer_name(text_edit_data: &Value) -> Result<Vec<Value>, Condition> {
+    let text_edit_data: Gc<TextEditData> = text_edit_data.clone().try_into_rust_type()?;
+    let buffer_name = text_edit_data.internal.lock().await.buffer_name.clone();
+    Ok(vec![Value::from(buffer_name)])
 }
 
 #[bridge(name = "text-edit-draw", lib = "(text-edit)")]

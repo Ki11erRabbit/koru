@@ -1,13 +1,9 @@
 use std::error::Error;
-use std::ffi::OsStr;
-use std::path::{PathBuf};
 use scheme_rs::gc::Gc;
 use scheme_rs::runtime::Runtime;
 use scheme_rs::value::Value;
 use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::buffer::TextBufferTable;
-use crate::kernel::input::{ControlKey, KeyPress, KeyValue, ModifierKey};
-use crate::kernel::scheme_api;
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
 use crate::styled_text::StyledFile;
@@ -129,12 +125,10 @@ impl Session {
         let major_mode = buffer.get_major_mode();
         let major_mode: Gc<MajorMode> = major_mode.try_into_rust_type().unwrap();
         let draw = major_mode.draw();
-        if let Some(draw) = draw {
-            let out = draw.call(&[buffer.get_major_mode()]).await?;
-            let styled_file: Gc<StyledFile> = out[0].clone().try_into_rust_type().unwrap();
-            let styled_file = (*styled_file).clone();
-            self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
-        }
+        let out = draw.call(&[buffer.get_major_mode()]).await?;
+        let styled_file: Gc<StyledFile> = out[0].clone().try_into_rust_type().unwrap();
+        let styled_file = (*styled_file).clone();
+        self.notify_clients(MessageKind::General(GeneralMessage::Draw(styled_file))).await;
         Ok(())
     }
 

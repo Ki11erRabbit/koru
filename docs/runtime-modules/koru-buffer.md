@@ -108,3 +108,23 @@ This fetches the current buffer's major mode and returns it.
 ```scheme
 (current-major-mode)
 ```
+
+
+### `plain-draw`
+Draws a buffer by name with cursors
+
+###### Inputs
+- buffer-name: String, the name of the buffer to draw.
+- cursors: Cursors, the cursors to draw with
+###### Outputs
+StyledFile: The styled file that represents the text.
+###### Errors
+An error is raised if the buffer can't be found.
+
+###### Behavior
+This accesses the buffer and causes it to render itself before being rendered.
+
+###### Example
+```scheme
+(plain-draw "Temp" (cursors-create))
+```

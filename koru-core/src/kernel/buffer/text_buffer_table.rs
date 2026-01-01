@@ -1,16 +1,19 @@
 use std::collections::{HashMap, VecDeque};
 use std::error::Error;
-use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use crop::Rope;
 use scheme_rs::exceptions::Condition;
+use scheme_rs::gc::Gc;
+use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use tokio::io::AsyncReadExt;
 use tokio::sync::{RwLock, Mutex};
 use crate::kernel::buffer::text_buffer::TextBuffer;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
+use crate::kernel::buffer::Cursors;
+use crate::kernel::scheme_api::session::SessionState;
 
 static OPEN_BUFFERS: LazyLock<RwLock<TextBufferTable>> = LazyLock::new(|| {
     RwLock::new(TextBufferTable::new())
@@ -187,4 +190,29 @@ pub async fn buffer_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     
     let name = handle.get_name().await;
     Ok(vec![Value::from(name)])
+}
+
+#[bridge(name = "plain-draw", lib = "(koru-buffer)")]
+pub async fn text_edit_draw(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((buffer_name, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let Some((cursors, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let buffer = {
+        let buffer_name: String = buffer_name.clone().try_into()?;
+        let state = SessionState::get_state();
+        let mut guard = state.write().await;
+        let mut buffers = guard.get_buffers_mut().await;
+        let buffer = buffers.get_mut(&buffer_name).unwrap();
+        buffer.render_styled_text().await;
+        buffer.clone()
+    };
+    let cursors: Gc<Cursors> = cursors.try_into_rust_type()?;
+
+    let styled_text = buffer.get_styled_text(&cursors.cursors);
+
+    let value = Value::from(Record::from_rust_type(styled_text));
+    Ok(vec![value])
 }

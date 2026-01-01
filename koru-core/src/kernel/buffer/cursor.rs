@@ -1,7 +1,34 @@
 use std::sync::Arc;
+use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::Trace;
-use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
+use scheme_rs::registry::bridge;
+use scheme_rs::value::Value;
 use crate::kernel::buffer::TextBufferImpl;
+
+#[derive(Clone, Debug, Trace)]
+pub struct Cursors {
+    pub cursors: Vec<Cursor>
+}
+
+impl SchemeCompatible for Cursors {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&Cursors")
+    }
+}
+
+
+#[bridge(name = "cursors-create", lib = "(koru-cursor)")]
+pub fn cursors_create() -> Result<Vec<Value>, Condition> {
+    let cursors = Cursors {
+        cursors: Vec::new(),
+    };
+    let value = Record::from_rust_type(cursors);
+    Ok(vec![Value::from(value)])
+}
 
 #[derive(Copy, Clone)]
 pub enum CursorDirection {

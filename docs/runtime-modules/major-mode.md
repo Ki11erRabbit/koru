@@ -9,6 +9,7 @@ The type that represents the major mode of a buffer.
 Creates a new major mode.
 ###### Inputs
 - name: String, the name of the major mode.
+- draw: Procedure, A function that takes in the major mode and draws the buffer.
 - data: Optional Any, state for the major mode instance.
 ###### Outputs
 MajorMode: The resulting major mode instance.
@@ -18,7 +19,7 @@ None
 Simple Constructor
 ###### Example
 ```scheme
-(major-mode-create "my-major-mode" #f)
+(major-mode-create "my-major-mode" my-draw #f)
 ```
 
 #### Accessors

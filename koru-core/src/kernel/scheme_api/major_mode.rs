@@ -9,30 +9,31 @@ use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
-
 #[derive(Clone, Debug, Trace)]
 pub struct MajorMode {
     name: String,
     data: Value,
+    draw: Procedure,
 }
 
 impl MajorMode {
     pub fn new(
         name: String,
         data: Value,
+        draw: Procedure,
     ) -> Self {
         MajorMode {
             name,
             data,
+            draw,
         }
+    }
+
+    pub fn draw(&self) -> Procedure {
+        self.draw.clone()
     }
 }
 
-impl Default for MajorMode {
-    fn default() -> Self {
-        MajorMode::new(String::from("Bogus"), Value::from(false), None)
-    }
-}
 
 impl SchemeCompatible for MajorMode {
     fn rtd() -> Arc<RecordTypeDescriptor>
@@ -46,16 +47,20 @@ impl SchemeCompatible for MajorMode {
 #[bridge(name = "major-mode-create", lib = "(major-mode)")]
 pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Condition::wrong_num_of_args(3, args.len()));
     };
     let name: String = name.clone().try_into()?;
+    let Some((draw, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(3, args.len()));
+    };
+    let draw: Procedure = draw.clone().try_into()?;
     let data = if let Some((data, _)) = rest.split_first() {
         data.clone()
     } else {
         Value::undefined()
     };
 
-    let major_mode = MajorMode::new(name, data);
+    let major_mode = MajorMode::new(name, data, draw);
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }
@@ -65,6 +70,7 @@ pub fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
     let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
     Ok(vec![mode.data.clone()])
 }
+
 
 /*
 #[bridge(name = "major-mode-append-line", lib = "(major-mode)")]
