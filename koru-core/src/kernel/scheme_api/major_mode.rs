@@ -14,24 +14,17 @@ use scheme_rs::value::Value;
 pub struct MajorMode {
     name: String,
     data: Value,
-    draw: Option<Procedure>,
 }
 
 impl MajorMode {
     pub fn new(
         name: String,
         data: Value,
-        draw: Option<Procedure>,
     ) -> Self {
         MajorMode {
             name,
             data,
-            draw,
         }
-    }
-    
-    pub fn draw(&self) -> Option<Procedure> {
-        self.draw.clone()
     }
 }
 
@@ -53,20 +46,16 @@ impl SchemeCompatible for MajorMode {
 #[bridge(name = "major-mode-create", lib = "(major-mode)")]
 pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Condition::wrong_num_of_args(2, args.len()));
     };
     let name: String = name.clone().try_into()?;
-    let Some((draw, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
-    };
-    let draw: Procedure = draw.clone().try_into()?;
     let data = if let Some((data, _)) = rest.split_first() {
         data.clone()
     } else {
         Value::undefined()
     };
 
-    let major_mode = MajorMode::new(name, data, Some(draw));
+    let major_mode = MajorMode::new(name, data);
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }
@@ -77,20 +66,6 @@ pub fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
     Ok(vec![mode.data.clone()])
 }
 
-
-#[bridge(name = "major-mode-draw", lib = "(major-mode)")]
-pub async fn prepend_line(mode: &Value) -> Result<Vec<Value>, Condition> {
-    let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
-
-    let mod_line = mode.draw.clone();
-
-    if let Some(mod_line) = mod_line {
-        let result = mod_line.call(&[]).await?;
-        Ok(result)
-    } else {
-        Ok(vec![])
-    }
-}
 /*
 #[bridge(name = "major-mode-append-line", lib = "(major-mode)")]
 pub async fn append_line(args: &[Value]) -> Result<Vec<Value>, Condition> {

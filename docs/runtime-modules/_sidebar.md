@@ -8,3 +8,4 @@
   * [koru-command](runtime-modules/koru-command.md)
   * [koru-key](runtime-modules/koru-key.md)
   * [styled-text](runtime-modules/styled-text.md)
+  * [major-mode](runtime-modules/major-mode.md)
