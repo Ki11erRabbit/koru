@@ -72,7 +72,7 @@ impl Session {
             let mut guard = state.write().await;
             guard.add_buffer(name, handle).await;
         }
-        self.file_opened_hook(name, "").await;
+        self.buffer_opened_hook(name, "").await;
         Ok(out)
     }
     
@@ -91,7 +91,7 @@ impl Session {
         }
     }
 
-    async fn file_opened_hook(&self, file_name: &str, file_ext: &str) {
+    async fn buffer_opened_hook(&self, file_name: &str, file_ext: &str) {
 
         let hooks = {
             let state = SessionState::get_state();
@@ -99,7 +99,7 @@ impl Session {
         };
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
 
-        hooks.read().await.execute_hook("file-open", args).await.unwrap();
+        hooks.read().await.execute_hook("buffer-open", args).await.unwrap();
 
         /*let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
         for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {

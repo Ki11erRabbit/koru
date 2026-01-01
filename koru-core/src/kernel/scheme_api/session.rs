@@ -95,7 +95,7 @@ pub struct SessionState {
 impl SessionState {
     pub fn new() -> Self {
         let mut hooks = Hooks::new();
-        hooks.add_new_hook_kind(String::from("file-open"));
+        hooks.add_new_hook_kind(String::from("buffer-open"));
 
         let hooks = Arc::new(RwLock::new(hooks));
 
@@ -125,7 +125,7 @@ impl SessionState {
         &self.hooks
     }
 
-    pub fn set_current_buffer(&mut self, buffer_name: String) {
+    pub async fn set_current_buffer(&mut self, buffer_name: String) {
         self.current_buffer = Some(buffer_name);
     }
 
@@ -269,6 +269,21 @@ impl SessionState {
         key_buffer.write().await.push(key_press);
     }
 
+    pub async fn emit_hook(hook_name: &str, args: &[Value]) -> Result<(), Condition> {
+        let state = SessionState::get_state();
+
+        let hooks = state.read().await.hooks.clone();
+        let hooks = hooks.read().await;
+        hooks.execute_hook(hook_name, args).await?;
+        Ok(())
+    }
+
+    pub async fn emit_hook_self(&mut self, hook_name: &str, args: &[Value]) -> Result<(), Condition> {
+        let hooks = self.hooks.read().await;
+        hooks.execute_hook(hook_name, args).await?;
+        Ok(())
+    }
+
     pub fn get_state() -> Arc<RwLock<SessionState>> {
         STATE.clone()
     }
@@ -368,11 +383,7 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     };
     let hook_name: String = hook_name_kind.clone().try_into()?;
 
-    let state = SessionState::get_state();
-
-    let hooks = state.read().await.hooks.clone();
-    let hooks = hooks.read().await;
-    hooks.execute_hook(&hook_name, rest).await?;
+    SessionState::emit_hook(&hook_name, rest).await?;
     Ok(Vec::new())
 }
 
