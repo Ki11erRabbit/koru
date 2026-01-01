@@ -14,12 +14,13 @@ use scheme_rs::proc::Procedure;
 use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{RwLock};
 use keypress_localize::KeyboardRegion;
 use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress};
 use crate::kernel::scheme_api::command::Command;
 use crate::kernel::scheme_api::major_mode::MajorMode;
+use crate::kernel::scheme_api::minor_mode::MinorMode;
 use crate::kernel::scheme_api::session::keymap::SchemeKeyMap;
 use crate::keymap::KeyMap;
 
@@ -126,7 +127,47 @@ impl SessionState {
     }
 
     pub async fn set_current_buffer(&mut self, buffer_name: String) {
-        self.current_buffer = Some(buffer_name);
+        let mut different_buffer = true;
+        if let Some(current_buffer) = self.current_buffer.as_ref() {
+            if current_buffer.as_str() != buffer_name.as_str() {
+                let buffer = {
+                    self.buffers.read().await.get(&buffer_name).cloned().unwrap()
+                };
+                let major_mode_value = buffer.get_major_mode();
+                let major_mode: Gc<MajorMode> = major_mode_value.clone().try_into_rust_type().unwrap();
+                let lost_focus = major_mode.lose_focus();
+                lost_focus.call(&[major_mode_value]).await.unwrap();
+                
+                let minor_modes = buffer.get_minor_modes();
+                for mode in minor_modes {
+                    let minor_mode: Gc<MinorMode> = mode.try_into_rust_type().unwrap();
+                    let lost_focus = minor_mode.lose_focus();
+                    lost_focus.call(&[mode]).await.unwrap();
+                }
+                
+            } else {
+                different_buffer = false;
+            }
+        }
+        self.current_buffer = Some(buffer_name.clone());
+        if different_buffer {
+            let buffer = {
+                self.buffers.read().await.get(&buffer_name).cloned().unwrap()
+            };
+            let major_mode_value = buffer.get_major_mode();
+            let Ok(major_mode): Result<Gc<MajorMode>, Condition> = major_mode_value.clone().try_into_rust_type() else {
+                return
+            };
+            let gain_focus = major_mode.gain_focus();
+            gain_focus.call(&[major_mode_value]).await.unwrap();
+
+            let minor_modes = buffer.get_minor_modes();
+            for mode in minor_modes {
+                let minor_mode: Gc<MinorMode> = mode.try_into_rust_type().unwrap();
+                let gain_focus = minor_mode.gain_focus();
+                gain_focus.call(&[mode]).await.unwrap();
+            }
+        }
     }
 
     pub fn current_focused_buffer(&self) -> Option<&String> {
@@ -234,7 +275,7 @@ impl SessionState {
             clear_key_buffer = true;
         }
         if !result.found {
-            for (name, keymap) in maps.read().await.iter() {
+            for (_, keymap) in maps.read().await.iter() {
                 let result = Self::try_process_keypress(&keys, keymap).await;
                 if result.found {
                     if result.flush {

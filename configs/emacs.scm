@@ -132,5 +132,5 @@
 
 
   (define (init-emacs-config)
-    (add-hook "file-open" "text-edit-mode" text-edit-mode-file-open-hook)
+    (add-hook "buffer-open" "text-edit-mode" text-edit-mode-file-open-hook)
     (add-hook "text-edit-mode" "emacs-editor-config" emacs-config-hook)))

@@ -152,7 +152,7 @@ impl Session {
         let focused_buffer = {
             let state = SessionState::get_state();
             let mut guard = state.write().await;
-            guard.set_current_buffer(buffer_name.to_string());
+            guard.set_current_buffer(buffer_name.to_string()).await;
             guard.current_focused_buffer().unwrap().clone()
         };
         self.send_draw(&focused_buffer).await.unwrap();

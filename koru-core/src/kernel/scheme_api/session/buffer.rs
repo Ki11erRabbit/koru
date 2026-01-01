@@ -1,12 +1,6 @@
-use crate::kernel::scheme_api::session::SessionState;
-use std::sync::{Arc};
-use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::Gc;
-use scheme_rs::lists::Pair;
-use scheme_rs::num::Number;
-use scheme_rs::registry::bridge;
-use scheme_rs::value::{UnpackedValue, Value};
-use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, GridCursor};
+use scheme_rs::value::{Value};
+use crate::kernel::buffer::{BufferHandle, Cursor};
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::minor_mode::{MinorMode, MinorModeManager};
 use crate::styled_text::StyledFile;
@@ -33,12 +27,16 @@ impl Buffer {
         self.major_mode = major_mode;
     }
 
-    pub fn add_minor_mode(&mut self, minor_mode: Gc<MinorMode>) {
-        self.minor_modes.add_minor_mode(minor_mode);
+    pub async fn add_minor_mode(&mut self, minor_mode: Value) {
+        self.minor_modes.add_minor_mode(minor_mode).await;
     }
 
-    pub fn remove_minor_mode(&mut self, minor_mode: &str) -> Option<String> {
-        self.minor_modes.remove_minor_mode(minor_mode)
+    pub async fn remove_minor_mode(&mut self, minor_mode: &str) -> Option<String> {
+        self.minor_modes.remove_minor_mode(minor_mode).await
+    }
+    
+    pub fn get_minor_modes(&self) -> Vec<Value> {
+        self.minor_modes.get_minor_modes()
     }
 
     pub fn get_handle(&self) -> BufferHandle {

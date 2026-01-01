@@ -16,6 +16,8 @@ pub struct MajorMode {
     name: String,
     data: RwLock<Value>,
     draw: Procedure,
+    gain_focus: Procedure,
+    lose_focus: Procedure,
 }
 
 impl MajorMode {
@@ -23,16 +25,28 @@ impl MajorMode {
         name: String,
         data: Value,
         draw: Procedure,
+        gain_focus: Procedure,
+        lose_focus: Procedure,
     ) -> Self {
         MajorMode {
             name,
             data: RwLock::new(data),
             draw,
+            gain_focus,
+            lose_focus,
         }
     }
 
     pub fn draw(&self) -> Procedure {
         self.draw.clone()
+    }
+    
+    pub fn gain_focus(&self) -> Procedure {
+        self.gain_focus.clone()
+    }
+    
+    pub fn lose_focus(&self) -> Procedure {
+        self.lose_focus.clone()
     }
 }
 
@@ -49,12 +63,20 @@ impl SchemeCompatible for MajorMode {
 #[bridge(name = "major-mode-create", lib = "(major-mode)")]
 pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Condition::wrong_num_of_args(4, args.len()));
     };
     let name: String = name.clone().try_into()?;
     let Some((draw, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Condition::wrong_num_of_args(4, args.len()));
     };
+    let Some((gain_focus, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(4, args.len()));
+    };
+    let Some((lose_focus, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(4, args.len()));
+    };
+    let gain_focus: Procedure = gain_focus.clone().try_into()?;
+    let lose_focus: Procedure = lose_focus.clone().try_into()?;
     let draw: Procedure = draw.clone().try_into()?;
     let data = if let Some((data, _)) = rest.split_first() {
         data.clone()
@@ -62,7 +84,7 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
         Value::undefined()
     };
 
-    let major_mode = MajorMode::new(name, data, draw);
+    let major_mode = MajorMode::new(name, data, draw, gain_focus, lose_focus);
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }
