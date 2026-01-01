@@ -1,191 +1,210 @@
 # koru-session
 These functions are for manipulating the state of the editor directly.
 
-#### `create-hook`
+##### `create-hook`
 Creates a new hook that can be subscribed to when activated.
 
-##### Inputs
+###### Inputs
 - hook-name: String, the name of the new hook to be created.
 
-##### Outputs
+###### Outputs
 None
-
-##### Behavior
+###### Errors
+None
+###### Behavior
 This will register a new hook with the runtime.
 If the hook already exists, it will destroy the previous callbacks.
 
-##### Example
+###### Example
 ```scheme
 (create-hook "my-hook")
 ```
 
-#### `destroy-hook`
+##### `destroy-hook`
 Removes a hook from the runtime, removing callbacks.
 
-##### Inputs
+###### Inputs
 - hook-name: String, the name of the hook to be destroyed.
 
-##### Outputs
+###### Outputs
 None
+###### Errors
 
-##### Behavior
+###### Behavior
 This will remove the hook from the editor's state.
 It will also remove all subscribers to the hook.
 
-##### Example
+###### Example
 ```scheme
 (destroy-hook "my-hook")
 ```
 
-#### `add-hook`
+##### `add-hook`
 Adds a new listener to a specified hook.
 
-##### Inputs
+###### Inputs
 - hook-name: String, the name of the hook to respond to.
 - callback-name: String, the name of the callback (used for deregistration purposes).
 - callback: Procedure, a function that takes in the arguments of a hook and will be called when the hook activates.
 
-##### Outputs
+###### Outputs
+None
+###### Errors
 None
 
-##### Behavior
+###### Behavior
 This will register a callback to a hook.
 If the `callback-name` overlaps with another callback, then the old callback will be replaced.
 
-##### Example
+###### Example
 ```scheme
 (add-hook "my-hook" "my-callback" (lambda () (something)))
 ```
 
-#### `remove-hook`
+##### `remove-hook`
 Unregisters a callback from a given hook.
 
-##### Inputs
+###### Inputs
 - hook-name: String, the name of the particular hook.
 - callback-name: String, the name of the callback to be removed.
 
-##### Outputs
+###### Outputs
+None
+###### Errors
 None
 
-##### Behavior
+###### Behavior
 This will remove a callback from a given hook.
 If the hook or callback does not exist, then this function does nothing.
 
-##### Example
+###### Example
 ```scheme
 (remove-hook "my-hook" "my-callback")
 ```
 
-#### `emit-hook`
+##### `emit-hook`
 Triggers all callbacks with a particular hook.
 
-##### Inputs
+###### Inputs
 - hook-name: String, the name of the hook to trigger.
 - rest: Argument List, the arguments to pass into the hook.
 
-##### Outputs
+###### Outputs
+None
+###### Errors
 None
 
-##### Behavior
+###### Behavior
 This will trigger all callbacks associated with the hook.
 Order is not guaranteed.
 
-##### Example
+###### Example
 ```scheme
 (emit-hook "my-hook" 1 2 3 4)
 ```
 
 
-#### `add-key-binding`
+##### `add-key-binding`
 Adds a global keybinding to the editor
 
-##### Inputs
+###### Inputs
 - key-string: String, sequence of keys separated by spaces.
 - command: Command, the command to execute on the key input.
 
-##### Outputs
+###### Outputs
+None
+###### Errors
 None
 
-##### Behavior
+###### Behavior
 This will load a new keybinding into the global editor state.
 If the keybinding already existed, this will overwrite it.
 
-##### Example
+###### Example
 ```scheme
 (add-key-binding "C-x s" save-command)
 ```
 
-#### `add-special-key-binding`
+##### `add-special-key-binding`
 Adds a special keybinding to the editor
 
-##### Inputs
+###### Inputs
 - key-string: String, a single key to execute the command on.
 - command: Command, the command to execute on the key input.
 
-##### Outputs
+###### Outputs
+None
+###### Errors
 None
 
-##### Behavior
+###### Behavior
 This will load a new keybinding into the special editor.
 Special keybindings only take one key and are always matched first.
 This bypasses key sequencing.
 
-##### Example
+###### Example
 ```scheme
 (add-special-key-binding "C-g" cancel-command)
 ```
 
-#### `add-key-map`
+##### `add-key-map`
 Adds a new keymap to the editor.
 This should be used generally to add new keybindings.
 
-##### Inputs
+###### Inputs
 - keymap-name: String, an identifier for the keymap.
 - key-map: KeyMap, holds the key bindings to commands.
 
-##### Outputs
+###### Outputs
+None
+###### Errors
 None
 
-##### Behavior
+###### Behavior
 This adds a new keymap to the editor.
 This will overwrite any previous keymaps if there are any.
 
-##### Example
+###### Example
 ```scheme
 (add-key-map "my-keymap" my-keymap)
 ```
 
-#### `remove-key-map`
+##### `remove-key-map`
 Removes a new keymap to the editor.
 
-##### Inputs
+###### Inputs
 - keymap-name: String, an identifier for the keymap.
 
-##### Outputs
+###### Outputs
+None
+###### Errors
 None
 
-##### Behavior
+###### Behavior
 This adds a new keymap to the editor.
 This will overwrite any previous keymaps if there are any.
 
-##### Example
+###### Example
 ```scheme
 (add-key-map "my-keymap" my-keymap)
 ```
 
-#### `flush-key-buffer`
+##### `flush-key-buffer`
 Clears the key buffer.
 
-##### Inputs
+###### Inputs
 None
 
-##### Outputs
+###### Outputs
 None
 
-##### Behavior
+###### Errors
+None
+
+###### Behavior
 This empties the key buffer and does nothing if the buffer is empty.
 
-##### Example
+###### Example
 ```scheme
 (add-key-map "my-keymap" my-keymap)
 ```
