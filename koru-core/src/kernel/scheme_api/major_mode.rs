@@ -9,10 +9,12 @@ use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
-#[derive(Clone, Debug, Trace)]
+use tokio::sync::RwLock;
+
+#[derive(Debug, Trace)]
 pub struct MajorMode {
     name: String,
-    data: Value,
+    data: RwLock<Value>,
     draw: Procedure,
 }
 
@@ -24,7 +26,7 @@ impl MajorMode {
     ) -> Self {
         MajorMode {
             name,
-            data,
+            data: RwLock::new(data),
             draw,
         }
     }
@@ -66,9 +68,22 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "major-mode-data", lib = "(major-mode)")]
-pub fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn major_mode_data(mode: &Value) -> Result<Vec<Value>, Condition> {
     let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
-    Ok(vec![mode.data.clone()])
+    Ok(vec![mode.data.read().await.clone()])
+}
+
+#[bridge(name = "major-mode-data-set!", lib = "(major-mode)")]
+pub async fn major_mode_set_data(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let Some((data_value, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let mode: Gc<MajorMode> = mode.clone().try_into_rust_type()?;
+    *mode.data.write().await = data_value.clone();
+    Ok(Vec::new())
 }
 
 

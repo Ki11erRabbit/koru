@@ -133,8 +133,8 @@ impl SchemeCompatible for TextEditData {
     }
 }
 
-pub fn get_data(major_mode: &Gc<MajorMode>) -> Result<Gc<TextEditData>, Condition> {
-    let data = major_mode.data.clone();
+pub async fn get_data(major_mode: &Gc<MajorMode>) -> Result<Gc<TextEditData>, Condition> {
+    let data = major_mode.data.read().await.clone();
     let data: Gc<TextEditData> = data.try_into_rust_type()?;
     Ok(data)
 }
@@ -166,7 +166,7 @@ pub async fn get_buffer_name(text_edit_data: &Value) -> Result<Vec<Value>, Condi
 #[bridge(name = "text-edit-draw", lib = "(text-edit)")]
 pub async fn text_edit_draw(major_mode: &Value) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let buffer = {
         let buffer_name = data.internal.lock().await.buffer_name.clone();
         let state = SessionState::get_state();
@@ -192,7 +192,7 @@ pub async fn move_cursor_up(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.as_ref().try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Up).await?;
@@ -208,7 +208,7 @@ pub async fn move_cursor_down(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.as_ref().try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Down).await?;
@@ -228,7 +228,7 @@ pub async fn move_cursor_left(args: &[Value]) -> Result<Vec<Value>, Condition> {
     };
     let wrap: bool = wrap.clone().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.as_ref().try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Left { wrap }).await?;
@@ -248,7 +248,7 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Condition> 
     };
     let wrap: bool = wrap.clone().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.as_ref().try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Right { wrap }).await?;
@@ -266,7 +266,7 @@ pub async fn place_mark(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     data.place_mark(cursor_index).await?;
     Ok(Vec::new())
 }
@@ -282,14 +282,14 @@ pub async fn remove_mark(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     data.remove_mark(cursor_index).await?;
     Ok(Vec::new())
 }
 
 
 #[bridge(name = "text-edit-cursor-position", lib = "(text-edit)")]
-pub fn get_cursor_position(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn get_cursor_position(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((major_mode, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
@@ -299,7 +299,7 @@ pub fn get_cursor_position(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let (row, column): (usize, usize) = data.get_cursor_position(cursor_index);
 
     let pair = Value::new(UnpackedValue::Pair(Pair::new(Value::from(Number::from(row)), Value::from(Number::from(column)), false)));
@@ -308,7 +308,7 @@ pub fn get_cursor_position(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "text-edit-cursor-create", lib = "(text-edit)")]
-pub fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((major_mode, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
@@ -337,14 +337,14 @@ pub fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
         ty => return Err(Condition::type_error("Pair or Integer", ty.type_name()))
     };
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     data.add_cursor(row, col);
 
     Ok(Vec::new())
 }
 
 #[bridge(name = "text-edit-cursor-destroy", lib = "(text-edit)")]
-pub fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((major_mode, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
@@ -354,16 +354,16 @@ pub fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let index: Arc<Number> = index.clone().try_into()?;
     let index: usize = index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     data.remove_cursor(index);
 
     Ok(Vec::new())
 }
 
 #[bridge(name = "text-edit-cursor-count", lib = "(text-edit)")]
-pub fn get_cursor_count(major_mode: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn get_cursor_count(major_mode: &Value) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data: Gc<TextEditData> = major_mode.data.clone().try_into_rust_type()?;
+    let data: Gc<TextEditData> = major_mode.data.read().await.clone().try_into_rust_type()?;
     
     let cursor_count = data.num_cursors();
     
@@ -383,7 +383,7 @@ pub async fn change_main_cursor(args: &[Value]) -> Result<Vec<Value>, Condition>
     let index: Arc<Number> = index.clone().try_into()?;
     let index: usize = index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     data.change_main_cursor(index).await;
     Ok(Vec::new())
 }
@@ -393,7 +393,7 @@ pub async fn insert_text_at_cursor(
     cursor_index: usize,
     text: String
 ) -> Result<(), Condition> {
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor = data.get_cursor(cursor_index).await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.insert(cursor, text).await;
@@ -447,7 +447,7 @@ pub async fn delete_text_back(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index: usize = cursor_index.as_ref().try_into()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor = data.get_cursor(cursor_index).await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.delete_back(cursor).await;
@@ -466,7 +466,7 @@ pub async fn delete_text_forward(args: &[Value]) -> Result<Vec<Value>, Condition
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index: usize = cursor_index.as_ref().try_into()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor = data.get_cursor(cursor_index).await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.delete_forward(cursor).await;
@@ -485,7 +485,7 @@ pub async fn delete_text_region(args: &[Value]) -> Result<Vec<Value>, Condition>
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index: usize = cursor_index.as_ref().try_into()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let cursor = data.get_cursor(cursor_index).await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.delete_region(cursor).await;
@@ -510,7 +510,7 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
     match text.clone().try_into() {
         Ok(text) => {
             let text: String = text;
-            let data = get_data(&major_mode)?;
+            let data = get_data(&major_mode).await?;
             let cursor = data.get_cursor(cursor_index).await;
             let handle: BufferHandle = data.get_buffer_handle().await?;
             handle.replace(cursor, text).await;
@@ -521,7 +521,7 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
     match text.clone().try_into() {
         Ok(letter) => {
             let letter: char = letter;
-            let data = get_data(&major_mode)?;
+            let data = get_data(&major_mode).await?;
             let cursor = data.get_cursor(cursor_index).await;
             let handle: BufferHandle = data.get_buffer_handle().await?;
             handle.replace(cursor, letter.to_string()).await;
@@ -536,7 +536,7 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Condition> {
 #[bridge(name = "text-edit-undo", lib = "(text-edit)")]
 pub async fn undo(major_mode: &Value) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.undo().await;
     Ok(Vec::new())
@@ -545,7 +545,7 @@ pub async fn undo(major_mode: &Value) -> Result<Vec<Value>, Condition> {
 #[bridge(name = "text-edit-redo", lib = "(text-edit)")]
 pub async fn redo(major_mode: &Value) -> Result<Vec<Value>, Condition> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
-    let data = get_data(&major_mode)?;
+    let data = get_data(&major_mode).await?;
     let handle: BufferHandle = data.get_buffer_handle().await?;
     handle.redo().await;
     Ok(Vec::new())

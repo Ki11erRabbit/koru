@@ -14,6 +14,7 @@ use tokio::sync::{Mutex, RwLock};
 pub mod major_mode;
 pub mod command;
 pub mod session;
+mod minor_mode;
 
 pub static SCHEME_RUNTIME: LazyLock<Mutex<Option<Runtime>>> = LazyLock::new(|| {
     Mutex::new(Some(Runtime::new()))
