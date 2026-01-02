@@ -16,6 +16,7 @@ use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::{RwLock};
 use keypress_localize::KeyboardRegion;
+use crate::kernel::broker::BrokerClient;
 use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress};
 use crate::kernel::scheme_api::command::Command;
@@ -91,6 +92,8 @@ pub struct SessionState {
     special_key_map: Arc<RwLock<KeyMap>>,
     main_key_map: Arc<RwLock<KeyMap>>,
     key_maps: Arc<RwLock<HashMap<String, KeyMap>>>,
+    broker_client: Arc<RwLock<BrokerClient>>,
+    active_sessions: Arc<RwLock<Vec<usize>>>,
 }
 
 impl SessionState {
@@ -99,6 +102,7 @@ impl SessionState {
         hooks.add_new_hook_kind(String::from("buffer-open"));
 
         let hooks = Arc::new(RwLock::new(hooks));
+        let (sender, receiver) = tokio::sync::mpsc::channel(100);
 
         Self {
             buffers: Arc::new(RwLock::new(HashMap::new())),
@@ -108,7 +112,36 @@ impl SessionState {
             main_key_map: Arc::new(RwLock::new(KeyMap::new_sparse())),
             special_key_map: Arc::new(RwLock::new(KeyMap::new_sparse())),
             key_maps: Arc::new(RwLock::new(HashMap::new())),
+            broker_client: Arc::new(RwLock::new(BrokerClient::new(0, sender, receiver))),
+            active_sessions: Arc::new(RwLock::new(Vec::new())),
         }
+    }
+    
+    pub async fn add_session(session_id: usize) {
+        let active_sessions = {
+            let state = SessionState::get_state();
+            state.read().await.active_sessions.clone()
+        };
+        active_sessions.write().await.push(session_id);
+    }
+    
+    pub async fn remove_session(session_id: usize) {
+        let active_sessions = {
+            let state = SessionState::get_state();
+            state.read().await.active_sessions.clone()
+        };
+        active_sessions.write().await.remove(session_id);
+    }
+    
+    /// This function should only ever be called once.
+    /// 
+    /// This function should always be called so that the backend has a way to communicate with the frontend.
+    pub async fn set_broker_client(broker_client: BrokerClient) {
+        let client = {
+            let state = SessionState::get_state();
+            state.read().await.broker_client.clone()
+        };
+        *client.write().await = broker_client;
     }
 
     pub async fn get_buffers(&self) -> impl Deref<Target = HashMap<String, Buffer>> {

@@ -250,8 +250,9 @@ impl Session {
 
     pub async fn run_session(broker_client: BrokerClient, client_id: usize) {
         let mut session = Session::new(broker_client).await;
-
+        SessionState::add_session(session.broker_client.id()).await;
         session.run(client_id).await;
+        SessionState::remove_session(session.broker_client.id()).await;
     }
 }
 

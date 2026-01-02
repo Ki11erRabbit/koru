@@ -4,6 +4,7 @@ use std::hash::Hash;
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
+use crate::kernel::scheme_api::session::SessionState;
 use crate::kernel::session::Session;
 use crate::styled_text::{ColorDefinition, StyledFile};
 
@@ -34,6 +35,7 @@ impl PartialEq for Message {
 pub enum MessageKind {
     General(GeneralMessage),
     Broker(BrokerMessage),
+    BackEnd(BackendMessage)
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -65,6 +67,11 @@ pub enum BrokerMessage {
     CreateClientResponse(BrokerClient),
     ConnectToSession,
     ConnectedToSession(usize),
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum BackendMessage {
+
 }
 
 
@@ -145,10 +152,11 @@ pub struct Broker {
     receiver: Receiver<Message>,
     sender: Sender<Message>,
     client_connector_client: usize,
+    backend_client: usize,
 }
 
 impl Broker {
-    pub fn new() -> (Broker, BrokerClient) {
+    pub async fn new() -> (Broker, BrokerClient) {
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
         let mut broker = Broker {
             clients: Vec::new(),
@@ -156,9 +164,11 @@ impl Broker {
             receiver,
             sender,
             client_connector_client: 0,
+            backend_client: 0,
         };
         let client = broker.create_client();
         broker.client_connector_client = client.client_id;
+        broker.create_backend_client().await;
         (broker, client)
     }
     
@@ -184,6 +194,12 @@ impl Broker {
 
         BrokerClient::new(id, self.sender.clone(), receiver)
     }
+
+    async fn create_backend_client(&mut self) {
+        let client = self.create_client();
+        self.backend_client = client.client_id;
+        SessionState::set_broker_client(client).await;
+    }
     
     pub async fn run_broker(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
@@ -200,7 +216,9 @@ impl Broker {
                     }
                     if client_counts == 0 {
                         return Ok(());
-                    } else if client_counts == 1 && self.clients[self.client_connector_client].is_some() {
+                    } else if client_counts == 2
+                        && self.clients[self.client_connector_client].is_some()
+                        && self.clients[self.backend_client].is_some() {
                         let message = Message::new(self.client_connector_client, 0, MessageKind::Broker(BrokerMessage::Shutdown));
                         self.sender.send(message).await?;
                         return Ok(());
