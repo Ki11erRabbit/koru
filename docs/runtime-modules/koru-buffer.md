@@ -74,7 +74,7 @@ This should be called after buffer creation.
 
 ###### Inputs
 - buffer-name: String, the name of a buffer that exists.
-- major-mode: MajorMode, the major mode to set in the buffer.
+- major-mode: MajorMode, the major mode to be set in the buffer.
 
 ###### Outputs
 None
@@ -107,6 +107,45 @@ This fetches the current buffer's major mode and returns it.
 ###### Example
 ```scheme
 (current-major-mode)
+```
+
+### `minor-mode-add`
+Adds a minor mode to a particular buffer
+
+###### Inputs
+- buffer-name: String, the name of a buffer that exists.
+- minor-mode: MinorMode, the minor mode to be added to the buffer.
+
+###### Outputs
+None
+###### Errors
+An error message if the buffer is not found.
+
+###### Behavior
+This will add a new minor mode to a buffer if it is found.
+
+###### Example
+```scheme
+(minor-mode-add "my-buffer" "vi-mode" vi-mode)
+```
+
+### `minor-mode-get`
+Gets a minor mode from the current buffer if it exists.
+
+###### Inputs
+- buffer-name: String, the name of a minor mode in the current buffer that exists.
+
+###### Outputs
+None
+###### Errors
+An error message if there is no current buffer or the minor mode is not found.
+
+###### Behavior
+This searches the current buffer for the minor mode.
+
+###### Example
+```scheme
+(minor-mode-get "vi-mode")
 ```
 
 

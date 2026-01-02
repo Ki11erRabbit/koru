@@ -9,4 +9,5 @@
   * [koru-key](runtime-modules/koru-key.md)
   * [styled-text](runtime-modules/styled-text.md)
   * [major-mode](runtime-modules/major-mode.md)
+  * [minor-mode](runtime-modules/minor-mode.md)
   * [koru-cursor](runtime-modules/koru-cursor.md)

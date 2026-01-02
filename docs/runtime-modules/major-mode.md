@@ -10,6 +10,8 @@ Creates a new major mode.
 ###### Inputs
 - name: String, the name of the major mode.
 - draw: Procedure, A function that takes in the major mode and draws the buffer.
+- gain-focus: Procedure, A function that takes in the major mode and is used to restore state to the major mode when the current buffer changes.
+- lose-focus: Procedure, A function that takes in the major mode and is used to save state when the current buffer changes.
 - data: Optional Any, state for the major mode instance.
 ###### Outputs
 MajorMode: The resulting major mode instance.
@@ -32,7 +34,19 @@ Any: The state associated with the major mode.
 ###### Errors
 None
 ###### Behavior
-Simple Accessor
+Simple Getter
+
+##### `major-mode-data-set!`
+Sets the data field from the major mode.
+###### Inputs
+- mode: MajorMode
+- data: Any
+###### Outputs
+None
+###### Errors
+None
+###### Behavior
+Simple Setter
 
 #### Methods
 None
