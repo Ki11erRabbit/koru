@@ -150,10 +150,8 @@ impl Session {
 
         let buffer_name = self.create_buffer("temp").await.unwrap();
         let focused_buffer = {
-            let state = SessionState::get_state();
-            let mut guard = state.write().await;
-            guard.set_current_buffer(buffer_name.to_string()).await;
-            guard.current_focused_buffer().await.unwrap().0
+            SessionState::set_current_buffer(buffer_name.to_string()).await;
+            SessionState::current_focused_buffer().await.unwrap().0
         };
         self.send_draw(&focused_buffer).await.unwrap();
         loop {
@@ -183,9 +181,7 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(press)), .. }) => {
                     let focused_buffer = {
                         SessionState::process_keypress(press).await;
-                        let state = SessionState::get_state();
-                        let guard = state.read().await;
-                        guard.current_focused_buffer().await.unwrap().0
+                        SessionState::current_focused_buffer().await.unwrap().0
                     };
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
@@ -230,9 +226,7 @@ impl Session {
                 }*/
                 Some(Message { kind: MessageKind::General(GeneralMessage::RequestMainCursor), ..}) => {
                     let main_cursor = {
-                        let state = SessionState::get_state();
-                        let guard = state.read().await;
-                        let Some((_, buffer)) = guard.current_focused_buffer().await else {
+                        let Some((_, buffer)) = SessionState::current_focused_buffer().await else {
                             continue
                         };
                         buffer.get_main_cursor().await

@@ -37,11 +37,16 @@ impl MinorModeManager {
         }
     }
 
-    pub async fn add_minor_mode(&mut self, minor_mode: Value) {
-        let minor_mode_value: Gc<MinorMode> = minor_mode.try_into_rust_type().unwrap();
+    pub async fn add_minor_mode(&mut self, minor_mode: Value) -> Result<(), Condition> {
+        let minor_mode_value: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
         let mut guard = self.metadata.write().await;
         if guard.map.contains_key(&minor_mode_value.name) {
-            return;
+            return Ok(());
+        }
+        {
+            let mm: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+            let gain_focus = mm.gain_focus();
+            gain_focus.call(&[minor_mode.clone()]).await?;
         }
         if let Some(index) = guard.free_list.pop_front() {
             self.minor_modes[index] = Some(minor_mode);
@@ -51,6 +56,7 @@ impl MinorModeManager {
             guard.map.insert(name, index);
             self.minor_modes.push(Some(minor_mode));
         }
+        Ok(())
     }
 
     pub async fn remove_minor_mode(&mut self, minor_mode_name: &str) -> Option<String> {
@@ -126,7 +132,7 @@ impl SchemeCompatible for MinorMode {
 }
 
 #[bridge(name = "minor-mode-create", lib = "(minor-mode)")]
-pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn minor_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(3, args.len()));
     };
@@ -148,4 +154,26 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let major_mode = MinorMode::new(name, data, gain_focus, lose_focus);
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
+}
+
+#[bridge(name = "minor-mode-data", lib = "(minor-mode)")]
+pub async fn minor_mode_data(minor_mode: &Value) -> Result<Vec<Value>, Condition> {
+    let minor_mode: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+    let data = minor_mode.data.read().await.clone();
+
+    Ok(vec![data])
+}
+
+#[bridge(name = "minor-mode-data-set!", lib = "(minor-mode)")]
+pub async fn minor_mode_data_set(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((minor_mode, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let Some((data, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let minor_mode: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+    *minor_mode.data.write().await = data.clone();
+
+    Ok(Vec::new())
 }

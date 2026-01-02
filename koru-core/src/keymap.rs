@@ -4,6 +4,7 @@ use scheme_rs::gc::Gc;
 use crate::kernel::input::KeyPress;
 use crate::kernel::scheme_api::command::Command;
 
+#[derive(Debug)]
 enum KeyMapNode {
     Node {
         children: HashMap<KeyPress, KeyMapNode>,
@@ -13,6 +14,7 @@ enum KeyMapNode {
     }
 }
 
+#[derive(Debug)]
 pub struct KeyMap {
     keys_to_command: KeyMapNode,
     default: Option<Gc<Command>>,

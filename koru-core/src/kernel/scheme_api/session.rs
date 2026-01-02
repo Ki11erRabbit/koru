@@ -80,9 +80,9 @@ impl KeyPressCommandResult {
 }
 
 pub struct SessionState {
-    buffers: RwLock<HashMap<String, Buffer>>,
+    buffers: Arc<RwLock<HashMap<String, Buffer>>>,
     hooks: Arc<RwLock<Hooks>>,
-    current_buffer: Option<String>,
+    current_buffer: Arc<RwLock<Option<String>>>,
     key_buffer: Arc<RwLock<KeyBuffer>>,
     /// This is for checking if a key is special,
     /// i.e. it performs editor state specific functionality like clearing the key buffer.
@@ -101,9 +101,9 @@ impl SessionState {
         let hooks = Arc::new(RwLock::new(hooks));
 
         Self {
-            buffers: RwLock::new(HashMap::new()),
+            buffers: Arc::new(RwLock::new(HashMap::new())),
             hooks,
-            current_buffer: None,
+            current_buffer: Arc::new(RwLock::new(None)),
             key_buffer: Arc::new(RwLock::new(KeyBuffer::new())),
             main_key_map: Arc::new(RwLock::new(KeyMap::new_sparse())),
             special_key_map: Arc::new(RwLock::new(KeyMap::new_sparse())),
@@ -126,12 +126,17 @@ impl SessionState {
         &self.hooks
     }
 
-    pub async fn set_current_buffer(&mut self, buffer_name: String) {
+    pub async fn set_current_buffer(buffer_name: String) {
+        let (buffers, current_buffer) = {
+            let state = Self::get_state();
+            let guard = state.read().await;
+            (guard.buffers.clone(), guard.current_buffer.clone())
+        };
         let mut different_buffer = true;
-        if let Some(current_buffer) = self.current_buffer.as_ref() {
+        if let Some(current_buffer) = current_buffer.read().await.as_ref() {
             if current_buffer.as_str() != buffer_name.as_str() {
                 let buffer = {
-                    self.buffers.read().await.get(&buffer_name).cloned().unwrap()
+                    buffers.read().await.get(&buffer_name).cloned().unwrap()
                 };
                 let major_mode_value = buffer.get_major_mode();
                 let major_mode: Gc<MajorMode> = major_mode_value.clone().try_into_rust_type().unwrap();
@@ -148,10 +153,10 @@ impl SessionState {
                 different_buffer = false;
             }
         }
-        self.current_buffer = Some(buffer_name.clone());
+        *current_buffer.write().await = Some(buffer_name.clone());
         if different_buffer {
             let buffer = {
-                self.buffers.read().await.get(&buffer_name).cloned().unwrap()
+                buffers.read().await.get(&buffer_name).cloned().unwrap()
             };
             let major_mode_value = buffer.get_major_mode();
             let Ok(major_mode): Result<Gc<MajorMode>, Condition> = major_mode_value.clone().try_into_rust_type() else {
@@ -169,18 +174,28 @@ impl SessionState {
         }
     }
 
-    pub async fn current_focused_buffer(&self) -> Option<(String, Buffer)> {
-        if let Some(buffer) = self.current_buffer.as_ref() {
-            let buffers = self.buffers.read().await;
+    pub async fn current_focused_buffer() -> Option<(String, Buffer)> {
+        let (buffers, current_buffer) = {
+            let state = Self::get_state();
+            let guard = state.read().await;
+            (guard.buffers.clone(), guard.current_buffer.clone())
+        };
+        if let Some(buffer) = current_buffer.read().await.as_ref() {
+            let buffers = buffers.read().await;
             buffers.get(buffer.as_str()).cloned().map(|bfr| (buffer.clone(), bfr))
         } else {
             None
         }
     }
 
-    pub async fn get_current_buffer(&self) -> Option<Buffer> {
-        if let Some(buffer) = self.current_buffer.as_ref() {
-            self.buffers.read().await.get(buffer).cloned()
+    pub async fn get_current_buffer() -> Option<Buffer> {
+        let (buffers, current_buffer) = {
+            let state = Self::get_state();
+            let guard = state.read().await;
+            (guard.buffers.clone(), guard.current_buffer.clone())
+        };
+        if let Some(buffer) = current_buffer.read().await.as_ref() {
+            buffers.read().await.get(buffer).cloned()
         } else {
             None
         }
@@ -450,16 +465,37 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
         return Err(Condition::error(String::from("Buffer not found")));
     };
     
-    buffer.set_major_mode(major_mode.clone());
+    buffer.set_major_mode(major_mode.clone()).await?;
     
+    Ok(Vec::new())
+}
+
+#[bridge(name = "minor-mode-add", lib = "(koru-buffer)")]
+pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((buffer_name, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let Some((minor_mode, _)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()))
+    };
+    let buffer_name: String = buffer_name.clone().try_into()?;
+    let _: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+
+    let state = SessionState::get_state();
+    let guard = state.read().await;
+    let mut buffer_guard = guard.buffers.write().await;
+    let Some(buffer) = buffer_guard.get_mut(&buffer_name) else {
+        return Err(Condition::error(String::from("Buffer not found")));
+    };
+
+    buffer.add_minor_mode(minor_mode.clone()).await?;
+
     Ok(Vec::new())
 }
 
 #[bridge(name = "current-major-mode", lib = "(koru-buffer)")]
 pub async fn get_current_major_mode() -> Result<Vec<Value>, Condition> {
-    let state = SessionState::get_state();
-    let guard = state.read().await;
-    let Some(buffer) = guard.get_current_buffer().await else {
+    let Some(buffer) = SessionState::get_current_buffer().await else {
         return Err(Condition::error(String::from("Buffer not found")));
     };
 
@@ -498,6 +534,34 @@ pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(Vec::new())
 }
 
+#[bridge(name = "remove-key-binding", lib = "(koru-session)")]
+pub async fn remove_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((key_string, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(1, args.len()))
+    };
+
+    let key_string: String = key_string.clone().try_into()?;
+
+    let key_seq = key_string.split_whitespace()
+        .map(|s| {
+            KeyPress::from_string(s)
+        })
+        .collect::<Option<Vec<KeyPress>>>();
+
+    let key_seq = match key_seq {
+        Some(key_seq) => key_seq,
+        None => {
+            return Err(Condition::error(String::from("Invalid key in sequence")))
+        }
+    };
+
+    let state = SessionState::get_state();
+    let guard = state.read().await;
+    guard.remove_keybinding(&key_seq).await;
+
+    Ok(Vec::new())
+}
+
 #[bridge(name = "add-special-key-binding", lib = "(koru-session)")]
 pub async fn add_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((key_string, rest)) = args.split_first() else {
@@ -526,6 +590,34 @@ pub async fn add_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Conditi
     let state = SessionState::get_state();
     let guard = state.read().await;
     guard.add_special_keybinding(key_seq, command).await;
+
+    Ok(Vec::new())
+}
+
+#[bridge(name = "remove-special-key-binding", lib = "(koru-session)")]
+pub async fn remove_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((key_string, _)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(1, args.len()))
+    };
+
+    let key_string: String = key_string.clone().try_into()?;
+
+    let key_seq = key_string.split_whitespace()
+        .map(|s| {
+            KeyPress::from_string(s)
+        })
+        .collect::<Option<Vec<KeyPress>>>();
+
+    let key_seq = match key_seq {
+        Some(key_seq) => key_seq,
+        None => {
+            return Err(Condition::error(String::from("Invalid key in sequence")))
+        }
+    };
+
+    let state = SessionState::get_state();
+    let guard = state.read().await;
+    guard.remove_special_keybinding(&key_seq).await;
 
     Ok(Vec::new())
 }
@@ -572,8 +664,6 @@ pub async fn flush_keybuffer() -> Result<Vec<Value>, Condition> {
 #[bridge(name = "buffer-change-focus", lib = "(koru-buffer)")]
 pub async fn change_current_buffer(name: &Value) -> Result<Vec<Value>, Condition> {
     let name: String = name.clone().try_into()?;
-    let state = SessionState::get_state();
-    let mut guard = state.write().await;
-    guard.current_buffer = Some(name);
+    SessionState::set_current_buffer(name).await;
     Ok(Vec::new())
 }

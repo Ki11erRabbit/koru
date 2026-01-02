@@ -1,3 +1,4 @@
+use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::Gc;
 use scheme_rs::value::{Value};
 use crate::kernel::buffer::{BufferHandle, Cursor};
@@ -23,18 +24,24 @@ impl Buffer {
         }
     }
 
-    pub fn set_major_mode(&mut self, major_mode: Value) {
+    pub async fn set_major_mode(&mut self, major_mode: Value) -> Result<(), Condition>{
+        {
+            let mm: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+            let gain_focus = mm.gain_focus();
+            gain_focus.call(&[major_mode.clone()]).await?;
+        }
         self.major_mode = major_mode;
+        Ok(())
     }
 
-    pub async fn add_minor_mode(&mut self, minor_mode: Value) {
-        self.minor_modes.add_minor_mode(minor_mode).await;
+    pub async fn add_minor_mode(&mut self, minor_mode: Value) -> Result<(), Condition> {
+        self.minor_modes.add_minor_mode(minor_mode).await
     }
 
     pub async fn remove_minor_mode(&mut self, minor_mode: &str) -> Option<String> {
         self.minor_modes.remove_minor_mode(minor_mode).await
     }
-    
+
     pub fn get_minor_modes(&self) -> Vec<Value> {
         self.minor_modes.get_minor_modes()
     }
