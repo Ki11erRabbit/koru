@@ -45,6 +45,10 @@ impl Buffer {
     pub fn get_minor_modes(&self) -> Vec<Value> {
         self.minor_modes.get_minor_modes()
     }
+    
+    pub async fn get_minor_mode(&self, minor_mode: &str) -> Option<Value> {
+        self.minor_modes.get_minor_mode(minor_mode).await.cloned()
+    }
 
     pub fn get_handle(&self) -> BufferHandle {
         self.handle.clone()

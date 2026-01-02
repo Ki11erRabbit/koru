@@ -224,7 +224,8 @@ impl SessionState {
     }
 
     pub async fn remove_keymap(&self, keymap_name: &str) {
-        self.key_maps.write().await.remove(keymap_name);
+        let mut guard = self.key_maps.write().await;
+        guard.remove(keymap_name);
     }
 
     /// Returns: `true` if a mapping has been found, `false` if a mapping was not found
@@ -279,7 +280,7 @@ impl SessionState {
         let (key_buffer, main_map, maps, special) = {
             let state = Self::get_state();
             let guard = state.read().await;
-            (guard.key_buffer.clone(), guard.main_key_map.clone(), guard.key_maps.clone(), guard.special_key_map.clone())
+            (guard.key_buffer.clone(), guard.main_key_map.clone(), (*guard.key_maps.read().await).clone(), guard.special_key_map.clone())
         };
         let result = Self::try_process_keypress(&vec![keypress.clone()], &*special.read().await).await;
         if result.found {
@@ -294,7 +295,7 @@ impl SessionState {
             clear_key_buffer = true;
         }
         if !result.found {
-            for (_, keymap) in maps.read().await.iter() {
+            for (_, keymap) in maps.iter() {
                 let result = Self::try_process_keypress(&keys, keymap).await;
                 if result.found {
                     if result.flush {
@@ -491,6 +492,18 @@ pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     buffer.add_minor_mode(minor_mode.clone()).await?;
 
     Ok(Vec::new())
+}
+
+#[bridge(name = "minor-mode-get", lib = "(koru-buffer)")]
+pub async fn get_minor_mode(minor_mode_name: &Value) -> Result<Vec<Value>, Condition> {
+    let minor_mode_name: String = minor_mode_name.clone().try_into()?;
+    let current_buffer = SessionState::get_current_buffer().await
+        .ok_or(Condition::error(String::from("no buffer currently focused")))?;
+
+    let minor_mode = current_buffer.get_minor_mode(&minor_mode_name).await
+        .ok_or(Condition::error(String::from("minor mode not found")))?;
+
+    Ok(vec![minor_mode])
 }
 
 #[bridge(name = "current-major-mode", lib = "(koru-buffer)")]

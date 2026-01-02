@@ -1,4 +1,4 @@
 (import (rnrs))
-(import (configs emacs))
+(import (configs vi))
 
-(init-emacs-config)
+(init-vi-config)
