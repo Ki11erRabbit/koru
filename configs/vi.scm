@@ -15,6 +15,9 @@
       "Clears the keybuffer and leaves the current mode if it isn't Normal mode"
       (lambda (keys)
         (flush-key-buffer)
+        (command-bar-take)
+        (command-bar-update)
+        (command-bar-hide)
         (vi-change-mode "Normal"))
       "key-sequence"))
 
@@ -81,6 +84,52 @@
                        #f))
       "key-sequence"))
 
+  (define command-insert-text
+    (command-create
+      "command-insert-text"
+      "Inserts text into the command bar from a key sequence"
+      (lambda (keys) (command-bar-insert-key keys)
+                     (command-bar-update))
+      "key-sequence"))
+
+  (define command-activate
+    (command-create
+      "command-activate"
+      "Activates the command"
+      (lambda (keys) (command-bar-take)
+                     (command-bar-update)
+                     (command-bar-hide)
+                     (vi-change-mode "Normal"))
+      "key-sequence"))
+
+  (define command-delete-back
+    (command-create
+      "command-delete-back"
+      "Deletes backwards in the command bar"
+      (lambda (keys) (command-bar-delete-back))
+      "key-sequence"))
+
+  (define command-delete-forward
+    (command-create
+      "command-delete-forward"
+      "Deletes forwards in the command bar"
+      (lambda (keys) (command-bar-delete-forward))
+      "key-sequence"))
+
+  (define command-cursor-left
+    (command-create
+      "command-cursor-left"
+      "Moves the cursor to the left in the command bar"
+      (lambda (keys) (command-bar-left))
+      "key-sequence"))
+
+  (define command-cursor-right
+    (command-create
+      "command-cursor-right"
+      "Moves the cursor to the right in the command bar"
+      (lambda (keys) (command-bar-right))
+      "key-sequence"))
+
   (define vi-enter-insert
     (command-create
       "vi-enter-insert"
@@ -95,6 +144,13 @@
       (lambda (keys) (vi-change-mode "Visual"))
       "key-sequence"))
 
+  (define vi-enter-command
+    (command-create
+      "vi-enter-command"
+      "Enters into command mode"
+      (lambda (keys) (vi-change-mode "Command"))
+      "key-sequence"))
+
   (define (vi-normal-mode-keymap)
     (let ((vi-key-map (key-map-create)))
       (key-map-insert vi-key-map "UP" editor-cursor-up)
@@ -107,6 +163,7 @@
       (key-map-insert vi-key-map "l" editor-cursor-right)
       (key-map-insert vi-key-map "i" vi-enter-insert)
       (key-map-insert vi-key-map "v" vi-enter-visual)
+      (key-map-insert vi-key-map ":" vi-enter-command)
       vi-key-map))
 
   (define (vi-visual-mode-keymap)
@@ -132,6 +189,15 @@
       (key-map-insert vi-key-map "ENTER" editor-return)
       vi-key-map))
 
+  (define (vi-command-mode-keymap)
+    (let ((vi-key-map (key-map-create command-insert-text)))
+      (key-map-insert vi-key-map "LEFT" command-cursor-left)
+      (key-map-insert vi-key-map "RIGHT" command-cursor-right)
+      (key-map-insert vi-key-map "BS" command-delete-back)
+      (key-map-insert vi-key-map "DEL" command-delete-forward)
+      (key-map-insert vi-key-map "ENTER" command-activate)
+      vi-key-map))
+
   (define (enter-normal-mode)
     (command-apply text-edit-mode-remove-mark 0)
     (add-key-map "vi-edit" (vi-normal-mode-keymap)))
@@ -146,11 +212,16 @@
     (command-apply text-edit-mode-place-point-mark 0)
     (add-key-map "vi-edit" (vi-visual-mode-keymap)))
 
+  (define (enter-command-mode)
+    (command-bar-show)
+    (add-key-map "vi-edit" (vi-command-mode-keymap)))
+
   (define (vi-enter-mode mode)
     (cond
       ((equal? mode "Normal") (enter-normal-mode))
       ((equal? mode "Insert") (enter-insert-mode))
-      ((equal? mode "Visual") (enter-visual-mode))))
+      ((equal? mode "Visual") (enter-visual-mode))
+      ((equal? mode "Command") (enter-command-mode))))
 
   (define (vi-change-keymap mode)
     (remove-key-map "vi-edit")

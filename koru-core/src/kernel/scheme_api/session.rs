@@ -16,9 +16,9 @@ use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::{RwLock};
 use keypress_localize::KeyboardRegion;
-use crate::kernel::broker::BrokerClient;
+use crate::kernel::broker::{BackendMessage, BrokerClient, MessageKind};
 use crate::kernel::buffer::{BufferHandle};
-use crate::kernel::input::{KeyBuffer, KeyPress};
+use crate::kernel::input::{KeyBuffer, KeyPress, KeyValue};
 use crate::kernel::scheme_api::command::Command;
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::minor_mode::MinorMode;
@@ -80,6 +80,65 @@ impl KeyPressCommandResult {
     }
 }
 
+pub struct CommandBar {
+    buffer: String,
+    cursor: usize,
+}
+
+impl CommandBar {
+    pub fn new() -> Self {
+        Self {
+            buffer: String::new(),
+            cursor: 0,
+        }
+    }
+
+    pub fn cursor_left(&mut self) {
+        self.cursor = self.cursor.saturating_sub(1);
+    }
+    pub fn cursor_right(&mut self) {
+        if self.cursor != self.buffer.chars().count() {
+            self.cursor = self.cursor.saturating_add(1);
+        }
+    }
+
+    pub fn delete_backward(&mut self) {
+        let chars = self.buffer.chars()
+            .take(self.cursor - 1)
+            .chain(self.buffer.chars().skip(self.cursor))
+            .collect::<String>();
+        self.buffer = chars;
+        self.cursor -= 1;
+    }
+
+    pub fn delete_forward(&mut self) {
+        let chars = self.buffer.chars()
+        .take(self.cursor)
+        .chain(self.buffer.chars().skip(self.cursor + 1))
+        .collect::<String>();
+        self.buffer = chars;
+    }
+
+    pub fn take(&mut self) -> String {
+        self.cursor = 0;
+        std::mem::take(&mut self.buffer)
+    }
+
+    pub fn get(&self) -> String {
+        self.buffer.clone()
+    }
+
+    pub fn insert(&mut self, value: &str) {
+        let index = self.buffer.chars()
+            .take(self.cursor)
+            .map(char::len_utf8)
+            .sum();
+        let char_count = value.chars().count();
+        self.buffer.insert_str(index, value);
+        self.cursor += char_count;
+    }
+}
+
 pub struct SessionState {
     buffers: Arc<RwLock<HashMap<String, Buffer>>>,
     hooks: Arc<RwLock<Hooks>>,
@@ -94,6 +153,7 @@ pub struct SessionState {
     key_maps: Arc<RwLock<HashMap<String, KeyMap>>>,
     broker_client: Arc<RwLock<BrokerClient>>,
     active_sessions: Arc<RwLock<Vec<usize>>>,
+    command_bar: Arc<RwLock<CommandBar>>,
 }
 
 impl SessionState {
@@ -114,9 +174,10 @@ impl SessionState {
             key_maps: Arc::new(RwLock::new(HashMap::new())),
             broker_client: Arc::new(RwLock::new(BrokerClient::new(0, sender, receiver))),
             active_sessions: Arc::new(RwLock::new(Vec::new())),
+            command_bar: Arc::new(RwLock::new(CommandBar::new())),
         }
     }
-    
+
     pub async fn add_session(session_id: usize) {
         let active_sessions = {
             let state = SessionState::get_state();
@@ -124,7 +185,7 @@ impl SessionState {
         };
         active_sessions.write().await.push(session_id);
     }
-    
+
     pub async fn remove_session(session_id: usize) {
         let active_sessions = {
             let state = SessionState::get_state();
@@ -132,9 +193,9 @@ impl SessionState {
         };
         active_sessions.write().await.remove(session_id);
     }
-    
+
     /// This function should only ever be called once.
-    /// 
+    ///
     /// This function should always be called so that the backend has a way to communicate with the frontend.
     pub async fn set_broker_client(broker_client: BrokerClient) {
         let client = {
@@ -142,6 +203,20 @@ impl SessionState {
             state.read().await.broker_client.clone()
         };
         *client.write().await = broker_client;
+    }
+
+    pub async fn send_message(message: MessageKind) -> Result<(), Condition> {
+        let clients = SessionState::get_state().read().await.active_sessions.clone();
+        let client = SessionState::get_state().read().await.broker_client.clone();
+
+        let mut broker_guard = client.write().await;
+
+        for client in clients.read().await.iter() {
+            broker_guard.send_async(message.clone(), *client)
+                .await
+                .map_err(|err| Condition::error(format!("{:?}", err)))?;
+        }
+        Ok(())
     }
 
     pub async fn get_buffers(&self) -> impl Deref<Target = HashMap<String, Buffer>> {
@@ -157,6 +232,14 @@ impl SessionState {
 
     pub fn get_hooks(&self) -> &Arc<RwLock<Hooks>> {
         &self.hooks
+    }
+
+    pub async fn get_command_bar() -> Arc<RwLock<CommandBar>> {
+        let command_bar = {
+            let state = SessionState::get_state();
+            state.read().await.command_bar.clone()
+        };
+        command_bar
     }
 
     pub async fn set_current_buffer(buffer_name: String) {
@@ -711,5 +794,106 @@ pub async fn flush_keybuffer() -> Result<Vec<Value>, Condition> {
 pub async fn change_current_buffer(name: &Value) -> Result<Vec<Value>, Condition> {
     let name: String = name.clone().try_into()?;
     SessionState::set_current_buffer(name).await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-left", lib = "(koru-session)")]
+pub async fn command_bar_left() -> Result<Vec<Value>, Condition> {
+    let command_buffer = SessionState::get_command_bar().await;
+    command_buffer.write().await.cursor_left();
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-right", lib = "(koru-session)")]
+pub async fn command_bar_right() -> Result<Vec<Value>, Condition> {
+    let command_buffer = SessionState::get_command_bar().await;
+    command_buffer.write().await.cursor_right();
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-delete-back", lib = "(koru-session)")]
+pub async fn command_bar_delete_backward() -> Result<Vec<Value>, Condition> {
+    let command_buffer = SessionState::get_command_bar().await;
+    command_buffer.write().await.delete_backward();
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-delete-forward", lib = "(koru-session)")]
+pub async fn command_bar_delete_forward() -> Result<Vec<Value>, Condition> {
+    let command_buffer = SessionState::get_command_bar().await;
+    command_buffer.write().await.delete_forward();
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-take", lib = "(koru-session)")]
+pub async fn command_bar_take() -> Result<Vec<Value>, Condition> {
+    let command_buffer = SessionState::get_command_bar().await;
+    let string = command_buffer.write().await.take();
+    Ok(vec![Value::from(string)])
+}
+
+#[bridge(name = "command-bar-get", lib = "(koru-session)")]
+pub async fn command_bar_get() -> Result<Vec<Value>, Condition> {
+    let command_buffer = SessionState::get_command_bar().await;
+    let string = command_buffer.read().await.get();
+    Ok(vec![Value::from(string)])
+}
+
+#[bridge(name = "command-bar-insert", lib = "(koru-session)")]
+pub async fn command_bar_insert(string: &Value) -> Result<Vec<Value>, Condition> {
+    let string: String = string.clone().try_into()?;
+    let command_buffer = SessionState::get_command_bar().await;
+    command_buffer.write().await.insert(&string);
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-insert-key", lib = "(koru-session)")]
+pub async fn command_bar_insert_key(key_seq: &Value) -> Result<Vec<Value>, Condition> {
+    let key_press = {
+        let key_sequence = key_seq.clone().unpack();
+        match key_sequence {
+            UnpackedValue::Pair(pair) => {
+                let cdr = pair.cdr().clone();
+                if !cdr.is_null() {
+                    // Skip if the key sequence is 2 or greater
+                    return Ok(vec![Value::from(false)]);
+                }
+                let key = pair.car().clone();
+                let key: Gc<KeyPress> = key.try_into_rust_type()?;
+                (*key).clone()
+            }
+            _ => {
+                return Err(Condition::type_error("List", key_sequence.type_name()))
+            }
+        }
+    };
+    let command_buffer = SessionState::get_command_bar().await;
+    match key_press.key {
+        KeyValue::CharacterKey(str) => {
+            command_buffer.write().await.insert(&str);
+        }
+        _ => {}
+    }
+
+    Ok(vec![Value::from(true)])
+}
+
+#[bridge(name = "command-bar-show", lib = "(koru-session)")]
+pub async fn command_bar_show() -> Result<Vec<Value>, Condition> {
+    SessionState::send_message(MessageKind::BackEnd(BackendMessage::ShowCommandBar)).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-hide", lib = "(koru-session)")]
+pub async fn command_bar_hide() -> Result<Vec<Value>, Condition> {
+    SessionState::send_message(MessageKind::BackEnd(BackendMessage::HideCommandBar)).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-bar-update", lib = "(koru-session)")]
+pub async fn command_bar_update() -> Result<Vec<Value>, Condition> {
+    let command_buffer = SessionState::get_command_bar().await;
+    let string = command_buffer.read().await.get();
+    SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
     Ok(Vec::new())
 }

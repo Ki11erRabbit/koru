@@ -108,6 +108,16 @@ impl App {
                 self.redraw = true;
                 Ok(())
             }
+            MessageKind::General(GeneralMessage::HideCommandBar) => {
+                Ok(())
+            }
+            MessageKind::General(GeneralMessage::ShowCommandBar) => {
+                Ok(())
+            }
+            MessageKind::General(GeneralMessage::UpdateCommandBar(commandbar)) => {
+                self.message_bar = commandbar;
+                Ok(())
+            }
             _ => Ok(())
         }
     }

@@ -50,7 +50,9 @@ pub enum GeneralMessage {
     SetUiAttrs(Vec<AttrSet>),
     RequestMainCursor,
     MainCursorPosition(usize, usize),
-    
+    ShowCommandBar,
+    HideCommandBar,
+    UpdateCommandBar(String),
 }
 
 impl Hash for GeneralMessage {
@@ -71,7 +73,9 @@ pub enum BrokerMessage {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum BackendMessage {
-
+    ShowCommandBar,
+    HideCommandBar,
+    UpdateCommandBar(String),
 }
 
 
@@ -234,6 +238,9 @@ impl Broker {
                 }
                 MessageKind::Broker(BrokerMessage::ConnectToSession) => {
                     self.create_editor_session(message).await?;
+                }
+                MessageKind::BackEnd(_) => {
+                    self.send(message).await?;
                 }
                 _ => {}
             }

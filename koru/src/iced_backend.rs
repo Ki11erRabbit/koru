@@ -85,7 +85,7 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
-            message_bar: String::from("Hello world!"),
+            message_bar: String::new(),
             key_buffer: KeyBuffer::new(),
             buffer_state: BufferState::default(),
         }
@@ -236,6 +236,16 @@ impl App {
                 self.buffer_state.col = col;
                 self.buffer_state.line = line;
                 self.buffer_state.scroll_view();
+                Task::none()
+            }
+            MessageKind::General(GeneralMessage::ShowCommandBar) => {
+                Task::none()
+            }
+            MessageKind::General(GeneralMessage::HideCommandBar) => {
+                Task::none()
+            }
+            MessageKind::General(GeneralMessage::UpdateCommandBar(commandbar)) => {
+                self.message_bar = commandbar;
                 Task::none()
             }
             _ => Task::none()

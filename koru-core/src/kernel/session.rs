@@ -2,22 +2,16 @@ use std::error::Error;
 use scheme_rs::gc::Gc;
 use scheme_rs::runtime::Runtime;
 use scheme_rs::value::Value;
-use crate::kernel::broker::{BrokerClient, GeneralMessage, Message, MessageKind};
+use crate::kernel::broker::{BackendMessage, BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
 use crate::styled_text::StyledFile;
 
-pub enum CommandState {
-    None,
-    EnteringCommand(String),
-}
-
 
 pub struct Session {
     broker_client: BrokerClient,
     client_ids: Vec<usize>,
-    command_state: CommandState,
 }
 
 impl Session {
@@ -28,7 +22,6 @@ impl Session {
         Self {
             broker_client,
             client_ids: vec![],
-            command_state: CommandState::None,
         }
     }
     
@@ -160,24 +153,6 @@ impl Session {
                 Some(Message { kind: MessageKind::General(GeneralMessage::FlushKeyBuffer), ..}) => {
                     SessionState::flush_key_buffer().await;
                 }
-                /*Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key: KeyValue::CharacterKey('j'), ..})), .. }) => {
-                    const FILE_NAME: &str = "koru-core/src/kernel/session.rs";
-
-                    let buffer_name = self.create_buffer(FILE_NAME).await.unwrap();
-                    let focused_buffer = {
-                        let state = SessionState::get_state();
-                        let mut guard = state.write().await;
-                        guard.set_current_buffer(buffer_name.to_string());
-                        guard.current_focused_buffer().unwrap().clone()
-                    };
-                    self.send_draw(&focused_buffer).await.unwrap();
-                    match self.send_draw(FILE_NAME).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            self.write_error(e.to_string()).unwrap();
-                        }
-                    }
-                }*/
                 Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(press)), .. }) => {
                     let focused_buffer = {
                         SessionState::process_keypress(press).await;
@@ -185,45 +160,6 @@ impl Session {
                     };
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
-                /*Some(Message { kind: MessageKind::General(GeneralMessage::KeyEvent(KeyPress { key, ..})), .. }) => {
-                    match &mut self.command_state {
-                        CommandState::None => {
-                            match key {
-                                KeyValue::CharacterKey(';') => {
-                                    self.command_state = CommandState::EnteringCommand(String::from(": "));
-                                    self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(String::from(": ")))).await;
-                                }
-                                _ => {}
-                            }
-                        }
-                        CommandState::EnteringCommand(cmd) => {
-                            let msg = match key {
-                                KeyValue::CharacterKey(c) => {
-                                    cmd.push(c);
-                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(cmd.clone())))
-                                }
-                                KeyValue::ControlKey(ControlKey::Escape) => {
-                                    self.command_state = CommandState::None;
-                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(String::new())))
-                                }
-                                KeyValue::ControlKey(ControlKey::Backspace) => {
-                                    cmd.pop();
-                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(cmd.clone())))
-                                }
-                                KeyValue::ControlKey(ControlKey::Space) => {
-                                    cmd.push(' ');
-                                    Some(MessageKind::General(GeneralMessage::UpdateMessageBar(cmd.clone())))
-                                }
-                                _ => {
-                                    None
-                                }
-                            };
-                            if let Some(msg) = msg {
-                                self.notify_clients(msg).await;
-                            }
-                        }
-                    }
-                }*/
                 Some(Message { kind: MessageKind::General(GeneralMessage::RequestMainCursor), ..}) => {
                     let main_cursor = {
                         let Some((_, buffer)) = SessionState::current_focused_buffer().await else {
@@ -234,6 +170,9 @@ impl Session {
 
                     self.notify_clients(MessageKind::General(GeneralMessage::MainCursorPosition(main_cursor.line(), main_cursor.column()))).await;
                 }
+                Some(Message { kind: MessageKind::BackEnd(message), ..}) => {
+                    self.handle_backend_message(message).await;
+                }
                 Some(message) => {
                     self.notify_clients(MessageKind::General(GeneralMessage::UpdateMessageBar(format!("{:?}", message)))).await;
                     //println!("Received message: {:?}", message);
@@ -242,6 +181,20 @@ impl Session {
             }
         }
         // TODO: add a way to send error to the frontend
+    }
+
+    async fn handle_backend_message(&mut self, message: BackendMessage) {
+        match message {
+            BackendMessage::ShowCommandBar => {
+                self.notify_clients(MessageKind::General(GeneralMessage::ShowCommandBar)).await;
+            }
+            BackendMessage::HideCommandBar => {
+                self.notify_clients(MessageKind::General(GeneralMessage::HideCommandBar)).await;
+            }
+            BackendMessage::UpdateCommandBar(buffer_name) => {
+                self.notify_clients(MessageKind::General(GeneralMessage::UpdateCommandBar(buffer_name))).await;
+            }
+        }
     }
     
     fn get_runtime() -> Runtime {
