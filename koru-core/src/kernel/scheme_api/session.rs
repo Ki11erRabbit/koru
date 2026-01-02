@@ -280,9 +280,9 @@ impl SessionState {
         let (key_buffer, main_map, maps, special) = {
             let state = Self::get_state();
             let guard = state.read().await;
-            (guard.key_buffer.clone(), guard.main_key_map.clone(), (*guard.key_maps.read().await).clone(), guard.special_key_map.clone())
+            (guard.key_buffer.clone(), guard.main_key_map.read().await.clone(), guard.key_maps.read().await.clone(), guard.special_key_map.read().await.clone())
         };
-        let result = Self::try_process_keypress(&vec![keypress.clone()], &*special.read().await).await;
+        let result = Self::try_process_keypress(&vec![keypress.clone()], &special).await;
         if result.found {
             return;
         }
@@ -290,7 +290,7 @@ impl SessionState {
         Self::add_to_key_buffer(keypress).await;
         let mut clear_key_buffer = false;
         let keys = key_buffer.read().await.get().to_vec();
-        let result = Self::try_process_keypress(&keys, &*main_map.read().await).await;
+        let result = Self::try_process_keypress(&keys, &main_map).await;
         if result.found && result.flush {
             clear_key_buffer = true;
         }
