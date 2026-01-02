@@ -137,14 +137,13 @@ impl SessionState {
                 let major_mode: Gc<MajorMode> = major_mode_value.clone().try_into_rust_type().unwrap();
                 let lost_focus = major_mode.lose_focus();
                 lost_focus.call(&[major_mode_value]).await.unwrap();
-                
+
                 let minor_modes = buffer.get_minor_modes();
                 for mode in minor_modes {
                     let minor_mode: Gc<MinorMode> = mode.try_into_rust_type().unwrap();
                     let lost_focus = minor_mode.lose_focus();
                     lost_focus.call(&[mode]).await.unwrap();
                 }
-                
             } else {
                 different_buffer = false;
             }
@@ -170,8 +169,13 @@ impl SessionState {
         }
     }
 
-    pub fn current_focused_buffer(&self) -> Option<&String> {
-        self.current_buffer.as_ref()
+    pub async fn current_focused_buffer(&self) -> Option<(String, Buffer)> {
+        if let Some(buffer) = self.current_buffer.as_ref() {
+            let buffers = self.buffers.read().await;
+            buffers.get(buffer.as_str()).cloned().map(|bfr| (buffer.clone(), bfr))
+        } else {
+            None
+        }
     }
 
     pub async fn get_current_buffer(&self) -> Option<Buffer> {

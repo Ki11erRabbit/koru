@@ -153,7 +153,7 @@ impl Session {
             let state = SessionState::get_state();
             let mut guard = state.write().await;
             guard.set_current_buffer(buffer_name.to_string()).await;
-            guard.current_focused_buffer().unwrap().clone()
+            guard.current_focused_buffer().await.unwrap().0
         };
         self.send_draw(&focused_buffer).await.unwrap();
         loop {
@@ -185,7 +185,7 @@ impl Session {
                         SessionState::process_keypress(press).await;
                         let state = SessionState::get_state();
                         let guard = state.read().await;
-                        guard.current_focused_buffer().unwrap().clone()
+                        guard.current_focused_buffer().await.unwrap().0
                     };
                     self.send_draw(&focused_buffer).await.unwrap();
                 }
@@ -232,13 +232,9 @@ impl Session {
                     let main_cursor = {
                         let state = SessionState::get_state();
                         let guard = state.read().await;
-                        let Some(buffer_name) = guard.current_focused_buffer() else {
+                        let Some((_, buffer)) = guard.current_focused_buffer().await else {
                             continue
                         };
-                        let state = SessionState::get_state();
-                        let guard = state.read().await;
-                        let buffers = guard.get_buffers().await;
-                        let buffer = buffers.get(buffer_name).unwrap();
                         buffer.get_main_cursor().await
                     };
 
