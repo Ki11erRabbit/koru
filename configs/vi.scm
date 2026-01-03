@@ -58,6 +58,15 @@
                        (command-apply text-edit-mode-cursor-right 0 #t)))
       "key-sequence"))
 
+  (define editor-insert-space
+    (command-create
+      "editor-insert-text"
+      "Inserts text at the primary cursor"
+      (lambda (keys)
+        (command-apply text-edit-mode-insert-at-cursor 0 " ")
+        (command-apply text-edit-mode-cursor-right 0 #f))
+      "key-sequence"))
+
   (define editor-delete-back
     (command-create
       "editor-delete-back"
@@ -92,6 +101,14 @@
                      (command-bar-update))
       "key-sequence"))
 
+  (define command-insert-space
+    (command-create
+      "command-insert-text"
+      "Inserts text into the command bar from a key sequence"
+      (lambda (keys) (command-bar-insert " ")
+                     (command-bar-update))
+      "key-sequence"))
+
   (define command-activate
     (command-create
       "command-activate"
@@ -106,14 +123,18 @@
     (command-create
       "command-delete-back"
       "Deletes backwards in the command bar"
-      (lambda (keys) (command-bar-delete-back))
+      (lambda (keys)
+        (command-bar-delete-back)
+        (command-bar-update))
       "key-sequence"))
 
   (define command-delete-forward
     (command-create
       "command-delete-forward"
       "Deletes forwards in the command bar"
-      (lambda (keys) (command-bar-delete-forward))
+      (lambda (keys)
+        (command-bar-delete-forward)
+        (command-bar-update))
       "key-sequence"))
 
   (define command-cursor-left
@@ -187,6 +208,7 @@
       (key-map-insert vi-key-map "BS" editor-delete-back)
       (key-map-insert vi-key-map "DEL" editor-delete-forward)
       (key-map-insert vi-key-map "ENTER" editor-return)
+      (key-map-insert vi-key-map "ENTER" editor-insert-space)
       vi-key-map))
 
   (define (vi-command-mode-keymap)
@@ -196,6 +218,7 @@
       (key-map-insert vi-key-map "BS" command-delete-back)
       (key-map-insert vi-key-map "DEL" command-delete-forward)
       (key-map-insert vi-key-map "ENTER" command-activate)
+      (key-map-insert vi-key-map "SPC" command-insert-space)
       vi-key-map))
 
   (define (enter-normal-mode)

@@ -76,7 +76,7 @@ impl TextBufferTable {
         let mut table = OPEN_BUFFERS.write().await;
         table.open_internal(path).await
     }
-    
+
     pub async fn create<S: AsRef<str>>(name: String, contents: S) -> Result<BufferHandle, Box<dyn Error>> {
         let mut table = OPEN_BUFFERS.write().await;
         let text_buffer = TextBuffer::new(contents.as_ref(), &name.clone());
@@ -103,7 +103,7 @@ impl BufferHandle {
     pub async fn get_text(&self) -> Rope {
         self.handle.lock().await.get_buffer()
     }
-    
+
     pub async fn get_name(&self) -> String {
         self.handle.lock().await.get_name()
     }
@@ -129,23 +129,23 @@ impl BufferHandle {
     pub async fn remove_mark(&self, cursor: Cursor) -> Cursor {
         self.handle.lock().await.remove_mark(cursor)
     }
-    
+
     pub async fn insert(&self, cursor: Cursor, text: String) {
         self.handle.lock().await.insert(cursor, text).await;
     }
-    
+
     pub async fn delete_back(&self, cursor: Cursor) {
         self.handle.lock().await.delete_back(cursor).await;
     }
-    
+
     pub async fn delete_forward(&self, cursor: Cursor) {
         self.handle.lock().await.delete_forward(cursor).await;
     }
-    
+
     pub async fn delete_region(&self, cursor: Cursor) {
         self.handle.lock().await.delete_region(cursor).await;
     }
-    
+
     pub async fn replace(&self, cursor: Cursor, text: String) {
         self.handle.lock().await.replace(cursor, text).await;
     }
@@ -157,13 +157,17 @@ impl BufferHandle {
     pub async fn redo(&self) {
         self.handle.lock().await.redo().await;
     }
-    
+
     pub async fn save(&self) -> Result<(), Condition> {
         self.handle.lock().await.save().await
     }
-    
+
     pub async fn save_as(&self, path: &str) -> Result<(), Condition> {
         self.handle.lock().await.save_as(path).await
+    }
+
+    pub async fn get_path(&self) -> Option<String> {
+        self.handle.lock().await.get_path()
     }
 }
 
@@ -171,11 +175,11 @@ impl BufferHandle {
 #[bridge(name = "buffer-from-path", lib = "(koru-buffer)")]
 pub async fn buffer_from_file(path: &Value) -> Result<Vec<Value>, Condition> {
     let path: String = path.clone().try_into()?;
-    
+
     let handle = TextBufferTable::open(path).await
         .map_err(|e| Condition::error(e))?;
     let name = handle.get_name().await;
-    
+
     Ok(vec![Value::from(name)])
 }
 
@@ -190,12 +194,12 @@ pub async fn buffer_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     } else {
         String::new()
     };
-    
+
     let buffer_name: String = path.clone().try_into()?;
-    
+
     let handle = TextBufferTable::create(buffer_name, contents).await
         .map_err(|e| Condition::error(e))?;
-    
+
     let name = handle.get_name().await;
     Ok(vec![Value::from(name)])
 }
@@ -212,7 +216,7 @@ pub async fn save_buffer(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
     let Some(buffer) = buffer else {
         return Err(Condition::error(String::from("Buffer not found")))
     };
-    
+
     let handle = buffer.get_handle();
     handle.save().await.map_err(|e| Condition::error(e))?;
     Ok(vec![])
@@ -223,7 +227,7 @@ pub async fn save_buffer_as(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((buffer_name, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
-    let Some((new_name, new_rest)) = args.split_first() else {
+    let Some((new_name, _)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()));
     };
     let buffer_name: String = buffer_name.clone().try_into()?;
@@ -241,6 +245,24 @@ pub async fn save_buffer_as(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let handle = buffer.get_handle();
     handle.save_as(&new_name).await.map_err(|e| Condition::error(e))?;
     Ok(vec![])
+}
+
+#[bridge(name = "buffer-get-path", lib = "(koru-buffer)")]
+pub async fn get_path(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
+    let buffer_name: String = buffer_name.clone().try_into()?;
+    let buffer = {
+        let state = SessionState::get_state();
+        let guard = state.read().await;
+        let buffers = guard.get_buffers().await;
+        buffers.get(buffer_name.as_str()).cloned()
+    };
+    let Some(buffer) = buffer else {
+        return Err(Condition::error(String::from("Buffer not found")))
+    };
+
+    let handle = buffer.get_handle();
+    let value = handle.get_path().await.map(|path| Value::from(path)).unwrap_or(Value::null());
+    Ok(vec![value])
 }
 
 #[bridge(name = "plain-draw", lib = "(koru-buffer)")]

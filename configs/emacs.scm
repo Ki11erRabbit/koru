@@ -66,6 +66,15 @@
                          #f)))
       "key-sequence"))
 
+  (define editor-insert-space
+    (command-create
+      "editor-insert-text"
+      "Inserts text at the primary cursor"
+      (lambda (keys)
+        (command-apply text-edit-mode-insert-at-cursor 0 " ")
+        (command-apply text-edit-mode-cursor-right 0 #f))
+      "key-sequence"))
+
   (define editor-return
     (command-create
       "editor-return"
@@ -117,7 +126,14 @@
     (command-create
       "emacs-enter-command"
       "Enters into command mode"
-      (lambda (keys) (emacs-change-state (minor-mode-get "emacs-mode") "command" #f))
+      (lambda (keys)
+        (emacs-mode-callback-set!
+          (minor-mode-get "emacs-mode")
+          (lambda ()
+            (command-bar-take)
+            (command-bar-update)
+            (command-bar-hide)))
+        (emacs-change-state (minor-mode-get "emacs-mode") "command" #f))
       "key-sequence"))
 
   (define command-insert-text
@@ -128,28 +144,40 @@
                      (command-bar-update))
       "key-sequence"))
 
+  (define command-insert-space
+    (command-create
+      "command-insert-text"
+      "Inserts text into the command bar from a key sequence"
+      (lambda (keys) (command-bar-insert " ")
+                     (command-bar-update))
+      "key-sequence"))
+
   (define command-activate
     (command-create
       "command-activate"
       "Activates the command"
-      (lambda (keys) (command-bar-take)
-                     (command-bar-update)
-                     (command-bar-hide)
-                     (emacs-change-state (minor-mode-get "emacs-mode") "edit" #f))
+      (lambda (keys)
+        (let ((callback (emacs-mode-callback (minor-mode-get "emacs-mode"))))
+          (callback)
+          (emacs-change-state (minor-mode-get "emacs-mode") "edit" #f)))
       "key-sequence"))
 
   (define command-delete-back
     (command-create
       "command-delete-back"
       "Deletes backwards in the command bar"
-      (lambda (keys) (command-bar-delete-back))
+      (lambda (keys)
+        (command-bar-delete-back)
+        (command-bar-update))
       "key-sequence"))
 
   (define command-delete-forward
     (command-create
       "command-delete-forward"
       "Deletes forwards in the command bar"
-      (lambda (keys) (command-bar-delete-forward))
+      (lambda (keys)
+        (command-bar-delete-forward)
+        (command-bar-update))
       "key-sequence"))
 
   (define command-cursor-left
@@ -166,6 +194,38 @@
       (lambda (keys) (command-bar-right))
       "key-sequence"))
 
+  (define editor-save
+    (command-create
+      "editor-save"
+      "Saves the currently focused buffer if it is an open file"
+      (lambda (keys) (emacs-save))
+      "key-sequence"))
+
+  (define editor-save-as
+    (command-create
+      "editor-save-as"
+      "Saves the currently focused buffer as a different or new file"
+      (lambda (keys) (emacs-save-as))
+      "key-sequence"))
+
+  (define (emacs-save)
+    (let ((path (buffer-get-path (current-buffer-name))))
+      (cond
+        ((null? path) (display "TODO: add way to send messages to frontend"))
+        (#t (buffer-save (current-buffer-name))))))
+
+  (define (emacs-save-as-callback)
+    (let ((bar-text (command-bar-take)))
+      (command-bar-update)
+      (command-bar-hide)
+      (buffer-save-as (current-buffer-name) bar-text)))
+
+  (define (emacs-save-as)
+    (emacs-change-state (minor-mode-get "emacs-mode") "command" #f)
+    (emacs-mode-callback-set!
+      (minor-mode-get "emacs-mode")
+      emacs-save-as-callback))
+
   (define (emacs-editor)
     (let ((emacs-editor-key-map (key-map-create editor-insert-text)))
       (key-map-insert emacs-editor-key-map "UP" editor-cursor-up)
@@ -179,12 +239,15 @@
       (key-map-insert emacs-editor-key-map "BS" editor-delete-back)
       (key-map-insert emacs-editor-key-map "DEL" editor-delete-forward)
       (key-map-insert emacs-editor-key-map "ENTER" editor-return)
+      (key-map-insert emacs-editor-key-map "SPC" editor-insert-space)
       (key-map-insert emacs-editor-key-map "C-SPC" editor-place-point-mark)
       ;(key-map-insert emacs-editor-key-map "C-g" editor-remove-mark)
       (key-map-insert emacs-editor-key-map "C-w" editor-delete-region)
       (key-map-insert emacs-editor-key-map "C-_" editor-undo)
       (key-map-insert emacs-editor-key-map "C-x u" editor-redo)
       (key-map-insert emacs-editor-key-map "A-x" emacs-enter-command)
+      (key-map-insert emacs-editor-key-map "C-x C-s" editor-save)
+      (key-map-insert emacs-editor-key-map "C-x C-w" editor-save-as)
       emacs-editor-key-map))
 
   (define (emacs-command)
@@ -196,6 +259,7 @@
       (key-map-insert emacs-editor-key-map "BS" command-delete-back)
       (key-map-insert emacs-editor-key-map "DEL" command-delete-forward)
       (key-map-insert emacs-editor-key-map "ENTER" command-activate)
+      (key-map-insert emacs-editor-key-map "SPC" command-insert-space)
       emacs-editor-key-map))
 
   (define (emacs-editor-state-keymap)
@@ -209,7 +273,7 @@
     (cond
       ((equal? state "edit") (emacs-editor-state-keymap))
       ((equal? state "command") (emacs-command-state-keymap)))
-    (minor-mode-data-set! emacs-mode state))
+    (emacs-mode-state-set! emacs-mode state))
 
   (define (emacs-change-state emacs-mode state override)
     (if (and (not (equal? (minor-mode-data emacs-mode) state)) (not override))
@@ -220,14 +284,24 @@
     (emacs-change-state emacs-mode state #t)
     (add-special-key-binding "C-g" editor-remove-mark))
 
+  (define (emacs-mode-state-set! emacs-mode mode)
+    (minor-mode-data-set! emacs-mode (cons mode (cdr (minor-mode-data emacs-mode)))))
+  (define (emacs-mode-state emacs-mode)
+    (car (minor-mode-data emacs-mode)))
+
+  (define (emacs-mode-callback-set! emacs-mode callback)
+    (minor-mode-data-set! emacs-mode (cons (car (minor-mode-data emacs-mode)) callback)))
+  (define (emacs-mode-callback emacs-mode)
+    (cdr (minor-mode-data emacs-mode)))
+
   (define (emacs-mode-gain-focus minor-mode)
-    (emacs-config-setup minor-mode (minor-mode-data minor-mode)))
+    (emacs-config-setup minor-mode (emacs-mode-callback minor-mode)))
   (define (emacs-mode-lose-focus minor-mode)
     (remove-key-map "emacs-edit")
     (remove-special-key-binding "C-g"))
 
   (define (emacs-edit-mode)
-    (let ((emacs-mode (minor-mode-create "emacs-mode" emacs-mode-gain-focus emacs-mode-gain-focus "edit")))
+    (let ((emacs-mode (minor-mode-create "emacs-mode" emacs-mode-gain-focus emacs-mode-gain-focus (cons "edit" '()))))
       (emacs-editor-state-keymap)
       emacs-mode))
 

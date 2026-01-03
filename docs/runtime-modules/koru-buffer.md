@@ -207,6 +207,25 @@ This should always succeed unless the path to the new file name does not exist.
 (buffer-save-as "my-buffer.txt" "my-buffer.md")
 ```
 
+### `buffer-get-path`
+Fetches the path from a buffer if the buffer exists or if the path doesn't exist.
+
+###### Inputs
+- buffer-name: String, the name of the buffer to get its path.
+
+###### Outputs
+String: If there is a path associated with the buffer.
+Null: If there isn't a path associated with the buffer.
+###### Errors
+Buffer not found: if the buffer-name does not exist.
+###### Behavior
+This returns null if there is no file path associated with the buffer.
+
+###### Example
+```scheme
+(buffer-get-path "my-buffer.txt")
+```
+
 ### `plain-draw`
 Draws a buffer by name with cursors
 

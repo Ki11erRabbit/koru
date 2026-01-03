@@ -336,10 +336,15 @@ impl TextBuffer {
     }
 
     pub async fn save_as(&mut self, new_name: &str) -> Result<(), Condition> {
+        println!("new_name: {}", new_name);
         let path = PathBuf::from(new_name);
         self.path = Some(path);
         self.save().await?;
         Ok(())
+    }
+
+    pub fn get_path(&self) -> Option<String> {
+        self.path.as_ref().map(|p| p.to_string_lossy().to_string())
     }
 }
 
