@@ -157,6 +157,10 @@ impl BufferHandle {
     pub async fn redo(&self) {
         self.handle.lock().await.redo().await;
     }
+    
+    pub async fn save(&self) -> Result<(), Condition> {
+        self.handle.lock().await.save().await
+    }
 }
 
 
@@ -190,6 +194,24 @@ pub async fn buffer_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     
     let name = handle.get_name().await;
     Ok(vec![Value::from(name)])
+}
+
+#[bridge(name = "buffer-save", lib = "(koru-buffer)")]
+pub async fn save_buffer(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
+    let buffer_name: String = buffer_name.clone().try_into()?;
+    let buffer = {
+        let state = SessionState::get_state();
+        let guard = state.read().await;
+        let buffers = guard.get_buffers().await;
+        buffers.get(buffer_name.as_str()).cloned()
+    };
+    let Some(buffer) = buffer else {
+        return Err(Condition::error(String::from("Buffer not found")))
+    };
+    
+    let handle = buffer.get_handle();
+    handle.save().await.map_err(|e| Condition::error(e))?;
+    Ok(vec![])
 }
 
 #[bridge(name = "plain-draw", lib = "(koru-buffer)")]

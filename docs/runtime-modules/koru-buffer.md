@@ -148,6 +148,25 @@ This searches the current buffer for the minor mode.
 (minor-mode-get "vi-mode")
 ```
 
+### `current-buffer-name`
+Gets the name of the currently focused buffer.
+
+###### Inputs
+None
+
+###### Outputs
+- String: if there is a currently focused buffer.
+- Null: if there isn't a currently focused buffer.
+###### Errors
+None
+###### Behavior
+This simply fetches the currently focused buffer
+
+###### Example
+```scheme
+(current-buffer-name)
+```
+
 
 ### `plain-draw`
 Draws a buffer by name with cursors
