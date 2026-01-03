@@ -2,12 +2,21 @@ pub mod kernel;
 pub mod styled_text;
 pub mod keymap;
 mod attr_set;
+mod args;
 
 pub use attr_set::AttrSet;
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
+use crate::args::Args;
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
+
+/// Parses the commandline arguments for Koru's runtime
+/// 
+/// This should be called before starting the kernel
+pub fn parse_cmdline_arguments() {
+    Args::parse_args();
+}
 
 
 /// Starts the Kernel's Runtime

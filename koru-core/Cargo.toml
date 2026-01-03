@@ -8,8 +8,8 @@ tokio = { workspace = true }
 futures = { workspace = true }
 bitflags = "2.9.4"
 crop = "0.4.3"
-#guile-rs = { workspace = true }
 scheme-rs = { workspace = true }
 inventory = { workspace = true }
 hashbrown = { workspace = true }
 keypress-localize = { workspace = true }
+clap = { version = "4.5.54", features = ["derive"] }
