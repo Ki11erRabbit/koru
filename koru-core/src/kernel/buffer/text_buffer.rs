@@ -334,6 +334,13 @@ impl TextBuffer {
         file.flush().await.map_err(|err| Condition::error(err))?;
         Ok(())
     }
+
+    pub async fn save_as(&mut self, new_name: &str) -> Result<(), Condition> {
+        let path = PathBuf::from(new_name);
+        self.path = Some(path);
+        self.save().await?;
+        Ok(())
+    }
 }
 
 pub trait TextBufferImpl {

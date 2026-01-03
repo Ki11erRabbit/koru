@@ -877,6 +877,11 @@ pub async fn command_bar_insert_key(key_seq: &Value) -> Result<Vec<Value>, Condi
             }
         }
     };
+
+    if !key_press.modifiers.is_empty() {
+        return Ok(vec![Value::from(false)]);
+    }
+
     let command_buffer = SessionState::get_command_bar().await;
     match key_press.key {
         KeyValue::CharacterKey(str) => {

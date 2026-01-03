@@ -161,6 +161,10 @@ impl BufferHandle {
     pub async fn save(&self) -> Result<(), Condition> {
         self.handle.lock().await.save().await
     }
+    
+    pub async fn save_as(&self, path: &str) -> Result<(), Condition> {
+        self.handle.lock().await.save_as(path).await
+    }
 }
 
 
@@ -211,6 +215,31 @@ pub async fn save_buffer(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
     
     let handle = buffer.get_handle();
     handle.save().await.map_err(|e| Condition::error(e))?;
+    Ok(vec![])
+}
+
+#[bridge(name = "buffer-save-as", lib = "(koru-buffer)")]
+pub async fn save_buffer_as(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((buffer_name, rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let Some((new_name, new_rest)) = args.split_first() else {
+        return Err(Condition::wrong_num_of_args(2, args.len()));
+    };
+    let buffer_name: String = buffer_name.clone().try_into()?;
+    let new_name: String = new_name.clone().try_into()?;
+    let buffer = {
+        let state = SessionState::get_state();
+        let guard = state.read().await;
+        let buffers = guard.get_buffers().await;
+        buffers.get(buffer_name.as_str()).cloned()
+    };
+    let Some(buffer) = buffer else {
+        return Err(Condition::error(String::from("Buffer not found")))
+    };
+
+    let handle = buffer.get_handle();
+    handle.save_as(&new_name).await.map_err(|e| Condition::error(e))?;
     Ok(vec![])
 }
 

@@ -167,6 +167,45 @@ This simply fetches the currently focused buffer
 (current-buffer-name)
 ```
 
+### `buffer-save`
+Saves the current buffer if it is bound to a path.
+
+###### Inputs
+- buffer-name: String, the name of the buffer to save.
+
+###### Outputs
+None
+###### Errors
+- Buffer not found: if the buffer-name does not exist.
+- IO Error: when there was an io error
+- Buffer has no associated path: When there is no path associated with the buffer.
+###### Behavior
+This will overwrite the file on disk with the current contents of the buffer.
+
+###### Example
+```scheme
+(buffer-save "my-buffer.txt")
+```
+
+### `buffer-save-as`
+Saves the current buffer and binds it to a path.
+
+###### Inputs
+- buffer-name: String, the name of the buffer to save.
+- path: String, the path to bind the buffer to.
+
+###### Outputs
+None
+###### Errors
+- Buffer not found: if the buffer-name does not exist.
+- IO Error: when there was an io error
+###### Behavior
+This should always succeed unless the path to the new file name does not exist.
+
+###### Example
+```scheme
+(buffer-save-as "my-buffer.txt" "my-buffer.md")
+```
 
 ### `plain-draw`
 Draws a buffer by name with cursors
