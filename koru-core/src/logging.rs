@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::error::Error;
 use std::ops::DerefMut;
 use std::sync::{Arc, OnceLock};
@@ -112,6 +113,30 @@ impl LogKind {
     }
 }
 
+#[derive(Clone)]
+pub struct AllowedLogs {
+    set: Arc<Mutex<HashSet<String>>>,
+}
+
+impl AllowedLogs {
+    pub fn new() -> Self {
+        let mut set = HashSet::new();
+        set.insert(String::from("koru_core"));
+        set.insert(String::from("koru"));
+        Self {
+            set: Arc::new(Mutex::new(set)),
+        }
+    }
+
+    pub fn set(&self) -> impl DerefMut<Target = HashSet<String>> + '_ {
+        self.set.blocking_lock()
+    }
+
+    pub async fn set_async(&self) -> impl DerefMut<Target = HashSet<String>> + '_ {
+        self.set.lock().await
+    }
+}
+
 static LOGGER: OnceLock<Logger> = OnceLock::new();
 
 #[derive(Clone)]
@@ -121,6 +146,7 @@ pub struct Logger {
     info: LogKind,
     warn: LogKind,
     error: LogKind,
+    allowed_logs: AllowedLogs,
 }
 
 impl Logger {
@@ -137,6 +163,7 @@ impl Logger {
             info,
             warn,
             error,
+            allowed_logs: AllowedLogs::new(),
         }
     }
 
@@ -152,7 +179,7 @@ impl Logger {
             Err(_) => panic!("Logger already initialized"),
         }
         log::set_boxed_logger(Box::new(logger)).unwrap();
-        log::set_max_level(log::LevelFilter::Debug);
+        log::set_max_level(log::LevelFilter::Trace);
     }
 
     fn trace(&self) -> LogKind {
@@ -173,6 +200,15 @@ impl Logger {
 
     fn get_logger() -> Logger {
         LOGGER.get().expect("logger was not initialized").clone()
+    }
+
+    pub fn add_module_path(module_path: &str) {
+        let logger = Self::get_logger();
+        logger.allowed_logs.set().insert(module_path.to_string());
+    }
+    pub async fn add_module_path_async(module_path: &str) {
+        let logger = Self::get_logger();
+        logger.allowed_logs.set_async().await.insert(module_path.to_string());
     }
 
     pub fn log_trace(record: &Record) {
@@ -293,8 +329,22 @@ impl Logger {
 }
 
 impl Log for Logger {
-    fn enabled(&self, _: &Metadata) -> bool {
-        true
+    fn enabled(&self, metadata: &Metadata) -> bool {
+        let prefix = metadata.target().split("::").next().unwrap().to_string();
+        let handle = Handle::try_current();
+        match handle {
+            Ok(handle) => {
+                let allow_logs = self.allowed_logs.clone();
+                tokio::task::block_in_place(|| {
+                    handle.block_on(async {
+                        allow_logs.set_async().await.contains(&prefix)
+                    })
+                })
+            }
+            Err(_) => {
+                self.allowed_logs.set().contains(&prefix)
+            }
+        }
     }
 
     fn log(&self, record: &Record) {
@@ -305,16 +355,22 @@ impl Log for Logger {
             Level::Warn => self.warn(),
             Level::Error => self.error(),
         };
+        let prefix = record.metadata().target().split("::").next().unwrap().to_string();
         let log_entry = LogEntry::from(record);
         let handle = Handle::try_current();
         match handle {
             Ok(_) => {
+                let allow_logs = self.allowed_logs.clone();
                 tokio::spawn(async move {
-                    log_kind.buffer_async().await.push(log_entry);
+                    if allow_logs.set_async().await.contains(&prefix) {
+                        log_kind.buffer_async().await.push(log_entry);
+                    }
                 });
             }
             Err(_) => {
-                log_kind.buffer().push(log_entry);
+                if self.allowed_logs.set().contains(&prefix) {
+                    log_kind.buffer().push(log_entry);
+                }
             }
         }
     }

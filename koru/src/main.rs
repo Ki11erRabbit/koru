@@ -12,7 +12,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     KoruArgs::parse_args();
     let logger_capacity = KoruArgs::get_log_capacity()?;
     KoruLogger::install_logger(logger_capacity);
-    info!("info log");
     if KoruArgs::get_tui() {
         koru_main_ui_start_runtime(tuirealm_backend::real_main)
     } else {

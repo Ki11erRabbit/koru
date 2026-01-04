@@ -45,7 +45,7 @@ impl Buffer {
     pub fn get_minor_modes(&self) -> Vec<Value> {
         self.minor_modes.get_minor_modes()
     }
-    
+
     pub async fn get_minor_mode(&self, minor_mode: &str) -> Option<Value> {
         self.minor_modes.get_minor_mode(minor_mode).await.cloned()
     }
@@ -70,8 +70,7 @@ impl Buffer {
     pub async fn get_main_cursor(&self) -> Result<Cursor, Exception> {
         let mm_value = self.major_mode.clone();
         let major_mode: Gc<MajorMode> = self.major_mode.clone()
-            .try_into_rust_type()
-            .expect("Somehow a non-MajorMode is in the spot of a MajorMode");
+            .try_into_rust_type()?;
         major_mode.get_main_cursor(mm_value).await
     }
 }

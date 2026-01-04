@@ -307,11 +307,15 @@ impl App {
                     .font(iced::font::Font::MONOSPACE)
                     .wrapping(Wrapping::None)
                     .into();
+                let body = scrollable(body).direction(scrollable::Direction::Both {
+                    vertical: Default::default(),
+                    horizontal: Default::default(),
+                })
+                    .height(Length::Fill)
+                    .width(Length::Fill);
                 column!(
                     title,
-                    scrollable(body).direction(scrollable::Direction::Both {
-
-                    vertical: Default::default(),horizontal: Default::default(),})
+                    body
                 ).into()
             }
             _ => {

@@ -44,15 +44,15 @@ impl MajorMode {
     pub fn draw(&self) -> Procedure {
         self.draw.clone()
     }
-    
+
     pub fn gain_focus(&self) -> Procedure {
         self.gain_focus.clone()
     }
-    
+
     pub fn lose_focus(&self) -> Procedure {
         self.lose_focus.clone()
     }
-    
+
     pub async fn get_main_cursor(&self, self_value: Value) -> Result<Cursor, Exception> {
         let cursor: Gc<Cursor> = self.get_main_cursor.call(&[self_value]).await
             .map(|values| {
