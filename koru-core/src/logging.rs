@@ -44,7 +44,8 @@ impl LogEntry {
         self.line
     }
 
-    pub fn format(&self, time_fmt_string: &str) -> Result<(String, String, String, String), Box<dyn Error>> {
+    pub fn format(&self, time_fmt_string: &str) -> Result<(String, String, String, String, String), Box<dyn Error>> {
+        let level = self.log_level.to_string();
 
         let timestamp = if time_fmt_string.is_empty() {
             format!("{}", self.timestamp.duration_since(SystemTime::UNIX_EPOCH)?.as_millis())
@@ -65,7 +66,7 @@ impl LogEntry {
 
         let message = self.message.clone();
 
-        Ok((timestamp, module, file, message))
+        Ok((level, timestamp, module, file, message))
     }
 }
 

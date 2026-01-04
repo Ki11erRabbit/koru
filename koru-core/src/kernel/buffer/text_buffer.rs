@@ -336,7 +336,6 @@ impl TextBuffer {
     }
 
     pub async fn save_as(&mut self, new_name: &str) -> Result<(), Condition> {
-        println!("new_name: {}", new_name);
         let path = PathBuf::from(new_name);
         self.path = Some(path);
         self.save().await?;

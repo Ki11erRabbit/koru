@@ -1,6 +1,7 @@
 use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
+use log::error;
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
@@ -207,7 +208,13 @@ impl Broker {
     
     pub async fn run_broker(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
-            let message = self.receiver.recv().await.unwrap();
+            let message = match self.receiver.recv().await {
+                Some(message) => message,
+                None => {
+                    error!("All Clients dropped");
+                    return Ok(())
+                },
+            };
             
             match message.kind {
                 MessageKind::Broker(BrokerMessage::Shutdown) => {

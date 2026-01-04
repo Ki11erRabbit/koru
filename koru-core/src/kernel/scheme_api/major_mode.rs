@@ -3,19 +3,21 @@ pub(crate) mod text_edit;
 
 use scheme_rs::gc::Gc;
 use std::sync::{Arc};
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::{Condition, Exception};
 use scheme_rs::gc::Trace;
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use tokio::sync::RwLock;
+use crate::kernel::buffer::Cursor;
 
 #[derive(Debug, Trace)]
 pub struct MajorMode {
     name: String,
     data: RwLock<Value>,
     draw: Procedure,
+    get_main_cursor: Procedure,
     gain_focus: Procedure,
     lose_focus: Procedure,
 }
@@ -25,6 +27,7 @@ impl MajorMode {
         name: String,
         data: Value,
         draw: Procedure,
+        get_main_cursor: Procedure,
         gain_focus: Procedure,
         lose_focus: Procedure,
     ) -> Self {
@@ -32,6 +35,7 @@ impl MajorMode {
             name,
             data: RwLock::new(data),
             draw,
+            get_main_cursor,
             gain_focus,
             lose_focus,
         }
@@ -48,6 +52,15 @@ impl MajorMode {
     pub fn lose_focus(&self) -> Procedure {
         self.lose_focus.clone()
     }
+    
+    pub async fn get_main_cursor(&self, self_value: Value) -> Result<Cursor, Exception> {
+        let cursor: Gc<Cursor> = self.get_main_cursor.call(&[self_value]).await
+            .map(|values| {
+                let cursor = values[0].clone();
+                cursor.try_into_rust_type()
+        })??;
+        Ok((*cursor).clone())
+    }
 }
 
 
@@ -63,18 +76,22 @@ impl SchemeCompatible for MajorMode {
 #[bridge(name = "major-mode-create", lib = "(major-mode)")]
 pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()));
+        return Err(Condition::wrong_num_of_args(5, args.len()));
     };
     let name: String = name.clone().try_into()?;
     let Some((draw, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()));
+        return Err(Condition::wrong_num_of_args(5, args.len()));
+    };
+    let Some((get_main_cursor, rest)) = rest.split_first() else {
+        return Err(Condition::wrong_num_of_args(5, args.len()));
     };
     let Some((gain_focus, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()));
+        return Err(Condition::wrong_num_of_args(5, args.len()));
     };
     let Some((lose_focus, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(4, args.len()));
+        return Err(Condition::wrong_num_of_args(5, args.len()));
     };
+    let get_main_cursor: Procedure = get_main_cursor.clone().try_into()?;
     let gain_focus: Procedure = gain_focus.clone().try_into()?;
     let lose_focus: Procedure = lose_focus.clone().try_into()?;
     let draw: Procedure = draw.clone().try_into()?;
@@ -84,7 +101,7 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
         Value::undefined()
     };
 
-    let major_mode = MajorMode::new(name, data, draw, gain_focus, lose_focus);
+    let major_mode = MajorMode::new(name, data, draw, get_main_cursor, gain_focus, lose_focus);
 
     Ok(vec![Value::from(Record::from_rust_type(major_mode))])
 }

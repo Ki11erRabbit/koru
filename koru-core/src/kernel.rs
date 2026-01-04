@@ -11,6 +11,7 @@ pub mod scheme_api;
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
+use log::{error, info};
 use crate::kernel::broker::Broker;
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse, ClientConnector};
 use crate::kernel::scheme_api::SCHEME_RUNTIME;
@@ -88,14 +89,14 @@ where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingRespon
 }
 
 async fn start_runtime(pair: ChannelPair) {
-    println!("Starting Koru Kernel");
+    info!("Starting Koru Kernel");
     let (mut broker, connector_client) = Broker::new().await;
 
     tokio::spawn(async move {
         match broker.run_broker().await {
             Ok(_) => (),
             Err(e) => {
-                eprintln!("{}", e);
+                error!("Error starting/running broker: {}", e);
             }
         }
     });
@@ -107,12 +108,17 @@ async fn start_runtime(pair: ChannelPair) {
         match client_connector.run_connector(Some(channel_pair)).await {
             Ok(()) => {}
             Err(e) => {
-                eprintln!("{}", e);
+                error!("Error starting/running client connector: {}", e);
             }
         }
     });
     
-    scheme_api::load_user_config().await;
+    let result = scheme_api::load_user_config().await;
+    let _loaded_user_config = result.unwrap_or_else(|err| {
+        // TODO: probably display the log to the user since no user config means no way to interact with it
+        error!("Error loading user config: {}", err);
+        false
+    });
 }
 
 
@@ -134,7 +140,7 @@ where F: AsyncFnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingR
         match func(send_message, recv_response).await {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("{}", e);
+                error!("Error starting frontend: {}", e);
             }
         }
     };

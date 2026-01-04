@@ -162,6 +162,8 @@
       (lambda (major-mode)
         (let ((data (major-mode-data major-mode)))
           (plain-draw (text-edit-get-buffer-name data) (text-edit-get-cursors data))))
+      (lambda (major-mode)
+        (text-edit-get-main-cursor (major-mode-data major-mode)))
       (lambda (major-mode) '())
       (lambda (major-mode) '())
       (text-edit-data-create buffer-name)))

@@ -172,7 +172,7 @@ pub async fn text_edit_draw(major_mode: &Value) -> Result<Vec<Value>, Condition>
         let state = SessionState::get_state();
         let mut guard = state.write().await;
         let mut buffers = guard.get_buffers_mut().await;
-        let buffer = buffers.get_mut(&buffer_name).unwrap();
+        let buffer = buffers.get_mut(&buffer_name).ok_or(Condition::error(String::from("Buffer does not exist")))?;
         buffer.render_styled_text().await;
         buffer.clone()
     };
@@ -386,6 +386,15 @@ pub async fn change_main_cursor(args: &[Value]) -> Result<Vec<Value>, Condition>
     let data = get_data(&major_mode).await?;
     data.change_main_cursor(index).await;
     Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-get-main-cursor", lib = "(text-edit)")]
+pub async fn get_main_cursor(major_mode: &Value) -> Result<Vec<Value>, Condition> {
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor = data.get_main_cursor().await;
+    let cursor = Value::from(Record::from_rust_type(cursor));
+    Ok(vec![cursor])
 }
 
 pub async fn insert_text_at_cursor(

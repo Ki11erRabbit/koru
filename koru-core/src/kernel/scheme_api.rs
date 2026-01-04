@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::error::Error;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::sync::LazyLock;
 use futures::future::BoxFuture;
+use log::info;
 use scheme_rs::ast::DefinitionBody;
 use scheme_rs::env::Environment;
 use scheme_rs::cps::Compile;
@@ -51,19 +53,19 @@ pub static KORU_USER_PATH: &str = ".";
 fn load_directory<'load, P: AsRef<Path>>(
     path: P, 
     runtime: &'load Runtime, 
-    futures: &mut Vec<BoxFuture<'load, ()>>, 
+    futures: &mut Vec<BoxFuture<'load, Result<(), Box<dyn Error>>>>,
     no_recurse: bool
-) -> bool {
+) -> Result<bool, Box<dyn Error>> {
     let mut loaded_file = false;
-    for entry in path.as_ref().read_dir().unwrap() {
-        let entry = entry.unwrap();
+    for entry in path.as_ref().read_dir()? {
+        let entry = entry?;
         let path = entry.path();
-        let file_type = entry.file_type().unwrap();
+        let file_type = entry.file_type()?;
         if file_type.is_dir() {
             if no_recurse {
                 continue;
             }
-            loaded_file = loaded_file || load_directory(path, runtime, futures, no_recurse);
+            loaded_file = loaded_file || load_directory(path, runtime, futures, no_recurse)?;
         } else if file_type.is_file() {
             if let Some(extension) = path.extension() {
                 if extension != OsStr::new("scm") {
@@ -73,16 +75,16 @@ fn load_directory<'load, P: AsRef<Path>>(
                 continue;
             }
             
-            println!("Loading {:?}", path);
+            info!("Loading {:?}", path);
             
             let prog = Library::new_program(runtime, &path);
             let env = Environment::Top(prog);
 
-            let file = std::fs::read_to_string(&path).unwrap();
+            let file = std::fs::read_to_string(&path)?;
 
             let file_name = entry.file_name().into_string().unwrap();
 
-            let sexprs = Syntax::from_str(file.as_str(), Some(file_name.as_str())).unwrap();
+            let sexprs = Syntax::from_str(file.as_str(), Some(file_name.as_str()))?;
             let span = Span::default();
             let future = Box::pin(async move {
                 let env = env;
@@ -91,41 +93,42 @@ fn load_directory<'load, P: AsRef<Path>>(
                     &sexprs,
                     &env,
                     &span,
-                ).await.unwrap();
+                ).await.map_err(|e| format!("{:?}", e))?;
 
                 SchemeEnvs::put_environment(path, env).await;
 
                 let compiled = base.compile_top_level();
                 let proc = runtime.compile_expr(compiled).await;
-                proc.call(&[]).await.unwrap();
+                proc.call(&[]).await?;
+                Ok(())
             });
 
             futures.push(future);
             loaded_file = true;
         }
     }
-    loaded_file
+    Ok(loaded_file)
 }
 
-pub async fn load_user_config() -> bool {
+pub async fn load_user_config() -> Result<bool, Box<dyn Error>> {
     let path = Path::new(KORU_USER_PATH);
-    let path = path.canonicalize().unwrap();
+    let path = path.canonicalize()?;
     if !path.exists() {
-        return false;
+        return Ok(false);
     }
     let runtime = SCHEME_RUNTIME.lock().await.take().unwrap();
 
     let mut futures = Vec::new();
 
-    if !load_directory(path, &runtime, &mut futures, true) {
+    if !load_directory(path, &runtime, &mut futures, true)? {
         drop(futures);
         *SCHEME_RUNTIME.lock().await = Some(runtime);
-        return false;
+        return Ok(false);
     }
 
     for f in futures {
-        f.await;
+        f.await?;
     }
 
-    true
+    Ok(true)
 }

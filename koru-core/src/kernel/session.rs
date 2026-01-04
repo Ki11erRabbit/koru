@@ -1,4 +1,5 @@
 use std::error::Error;
+use log::error;
 use scheme_rs::gc::Gc;
 use scheme_rs::runtime::Runtime;
 use scheme_rs::value::Value;
@@ -93,17 +94,6 @@ impl Session {
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
 
         hooks.read().await.execute_hook("buffer-open", args).await.unwrap();
-
-        /*let file_open_hooks = self.lua.globals().get::<Table>("__file_open_hooks").unwrap();
-        for hook in file_open_hooks.pairs::<mlua::String, mlua::Function>() {
-            let (_, function) = hook.unwrap();
-            match function.call::<()>((file_name.clone(), file_ext.to_string())) {
-                Ok(_) => {}
-                Err(e) => {
-                    self.write_warning(e.to_string()).unwrap()
-                }
-            }
-        }*/
     }
 
     async fn send_draw(&mut self, buffer_name: &str) -> Result<(), Box<dyn Error>> {
@@ -127,17 +117,10 @@ impl Session {
 
     
     pub async fn run(&mut self, client_id: usize) {
-        /*match self.lua.load(session_code).exec_async().await {
-            Ok(_) => {}
-            Err(e) => {
-                self.write_error(e.to_string()).unwrap();
-            }
-        }*/
         match self.new_client_connection(client_id).await {
             Ok(_) => {}
             Err(e) => {
-                eprintln!("{}", e);
-                self.write_error(e.to_string()).unwrap();
+                error!("Failure connecting to client: {}", e);
             }
         }
 
@@ -146,7 +129,12 @@ impl Session {
             SessionState::set_current_buffer(buffer_name.to_string()).await;
             SessionState::current_focused_buffer().await.unwrap().0
         };
-        self.send_draw(&focused_buffer).await.unwrap();
+        match self.send_draw(&focused_buffer).await {
+            Ok(_) => {}
+            Err(e) => {
+                error!("Failure sending draw: {}", e);
+            }
+        }
         loop {
             let message = self.broker_client.recv_async().await;
             match message {
@@ -166,6 +154,13 @@ impl Session {
                             continue
                         };
                         buffer.get_main_cursor().await
+                    };
+                    let main_cursor = match main_cursor {
+                        Ok(cursor) => cursor,
+                        Err(err) => {
+                            error!("{}", err);
+                            continue;
+                        }
                     };
 
                     self.notify_clients(MessageKind::General(GeneralMessage::MainCursorPosition(main_cursor.line(), main_cursor.column()))).await;

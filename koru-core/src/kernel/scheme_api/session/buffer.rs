@@ -1,9 +1,9 @@
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::{Condition, Exception};
 use scheme_rs::gc::Gc;
 use scheme_rs::value::{Value};
 use crate::kernel::buffer::{BufferHandle, Cursor};
 use crate::kernel::scheme_api::major_mode::MajorMode;
-use crate::kernel::scheme_api::minor_mode::{MinorMode, MinorModeManager};
+use crate::kernel::scheme_api::minor_mode::{MinorModeManager};
 use crate::styled_text::StyledFile;
 
 #[derive(Clone)]
@@ -67,10 +67,11 @@ impl Buffer {
         self.major_mode.clone()
     }
 
-    pub async fn get_main_cursor(&self) -> Cursor {
-        let major_mode: Gc<MajorMode> = self.major_mode.clone().try_into_rust_type().unwrap();
-        let data = crate::kernel::scheme_api::major_mode::text_edit::get_data(&major_mode).await.unwrap();
-
-        data.get_main_cursor().await
+    pub async fn get_main_cursor(&self) -> Result<Cursor, Exception> {
+        let mm_value = self.major_mode.clone();
+        let major_mode: Gc<MajorMode> = self.major_mode.clone()
+            .try_into_rust_type()
+            .expect("Somehow a non-MajorMode is in the spot of a MajorMode");
+        major_mode.get_main_cursor(mm_value).await
     }
 }

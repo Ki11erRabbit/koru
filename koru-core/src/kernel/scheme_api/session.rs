@@ -7,6 +7,7 @@ pub use buffer::*;
 
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
+use log::{error, info};
 use scheme_rs::exceptions::Condition;
 use scheme_rs::gc::Gc;
 use scheme_rs::lists;
@@ -16,7 +17,6 @@ use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::{RwLock};
 use keypress_localize::KeyboardRegion;
-use crate::args::Args;
 use crate::kernel::broker::{BackendMessage, BrokerClient, MessageKind};
 use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress, KeyValue};
@@ -253,18 +253,34 @@ impl SessionState {
         if let Some(current_buffer) = current_buffer.read().await.as_ref() {
             if current_buffer.as_str() != buffer_name.as_str() {
                 let buffer = {
-                    buffers.read().await.get(&buffer_name).cloned().unwrap()
+                    buffers.read().await.get(&buffer_name).cloned()
+                        .expect("current buffer somehow not not in the editor")
                 };
                 let major_mode_value = buffer.get_major_mode();
-                let major_mode: Gc<MajorMode> = major_mode_value.clone().try_into_rust_type().unwrap();
+                let major_mode: Gc<MajorMode> = major_mode_value.clone()
+                    .try_into_rust_type()
+                    .expect("Somehow a non-major mode is in the place of a major mode");
                 let lost_focus = major_mode.lose_focus();
-                lost_focus.call(&[major_mode_value]).await.unwrap();
+                let result = lost_focus.call(&[major_mode_value]).await;
+                match result {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!("{}", err);
+                    }
+                }
 
                 let minor_modes = buffer.get_minor_modes();
                 for mode in minor_modes {
-                    let minor_mode: Gc<MinorMode> = mode.try_into_rust_type().unwrap();
+                    let minor_mode: Gc<MinorMode> = mode.try_into_rust_type()
+                        .expect("Somehow a non-minor mode is in the place of a minor mode");
                     let lost_focus = minor_mode.lose_focus();
-                    lost_focus.call(&[mode]).await.unwrap();
+                    let result = lost_focus.call(&[mode]).await;
+                    match result {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!("{}", err);
+                        }
+                    }
                 }
             } else {
                 different_buffer = false;
@@ -273,20 +289,45 @@ impl SessionState {
         *current_buffer.write().await = Some(buffer_name.clone());
         if different_buffer {
             let buffer = {
-                buffers.read().await.get(&buffer_name).cloned().unwrap()
+                let result = buffers.read().await.get(&buffer_name).cloned();
+                match result {
+                    Some(buffer) => buffer,
+                    None => {
+                        error!("Buffer '{}' not found", buffer_name);
+                        return;
+                    }
+                }
             };
             let major_mode_value = buffer.get_major_mode();
-            let Ok(major_mode): Result<Gc<MajorMode>, Condition> = major_mode_value.clone().try_into_rust_type() else {
-                return
+            match major_mode_value.clone().try_into_rust_type() {
+                Ok(major_mode) => {
+                    let major_mode: Gc<MajorMode> = major_mode;
+                    let gain_focus = major_mode.gain_focus();
+                    let result = gain_focus.call(&[major_mode_value]).await;
+                    match result {
+                        Ok(_) => {}
+                        Err(err) => {
+                            error!("{}", err);
+                        }
+                    }
+                },
+                Err(err) => {
+                    error!("{}", err);
+                }
             };
-            let gain_focus = major_mode.gain_focus();
-            gain_focus.call(&[major_mode_value]).await.unwrap();
 
             let minor_modes = buffer.get_minor_modes();
             for mode in minor_modes {
-                let minor_mode: Gc<MinorMode> = mode.try_into_rust_type().unwrap();
+                let minor_mode: Gc<MinorMode> = mode.try_into_rust_type()
+                    .expect("Somehow a non-minor mode is in the place of a minor mode");
                 let gain_focus = minor_mode.gain_focus();
-                gain_focus.call(&[mode]).await.unwrap();
+                let result = gain_focus.call(&[mode]).await;
+                match result {
+                    Ok(_) => {}
+                    Err(err) => {
+                        error!("{}", err);
+                    }
+                }
             }
         }
     }
@@ -382,7 +423,7 @@ impl SessionState {
                     }
                 },
                 Err(e) => {
-                    println!("{}", e);
+                    error!("{}", e);
                 }
             }
         } else {
