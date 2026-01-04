@@ -458,9 +458,11 @@ This communicates with all sessions to tell their frontends to display the comma
 
 ### `command-bar-update`
 Notifies the sessions that the command-bar has changed and needs to be updated.
+It can also take in strings for added context in the command bar.
 
 ###### Inputs
-None
+- prefix: Optional String, what to display in front of the command bar.
+- suffix: Optional String, what to display after the command bar.
 
 ###### Outputs
 None
@@ -473,5 +475,5 @@ This communicates with all sessions that their frontends should update the comma
 
 ###### Example
 ```scheme
-(command-bar-update)
+(command-bar-update "Enter a command: ")
 ```
