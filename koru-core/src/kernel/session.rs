@@ -7,6 +7,7 @@ use crate::kernel::broker::{BackendMessage, BrokerClient, GeneralMessage, Messag
 use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
+use crate::KoruArgs;
 use crate::styled_text::StyledFile;
 
 
@@ -57,10 +58,21 @@ impl Session {
         
         Ok(())
     }
+
+    async fn open_files(&self, name: &str) -> Result<String, Box<dyn Error>> {
+        let out = name.to_string();
+        let handle = TextBufferTable::open(name.to_string()).await?;
+        {
+            let state = SessionState::get_state();
+            let mut guard = state.write().await;
+            guard.add_buffer(name, handle).await;
+        }
+        Ok(out)
+    }
     
     async fn create_buffer(&self, name: &str) -> Result<String, Box<dyn Error>> {
         let out = name.to_string();
-        let handle = TextBufferTable::create(name.to_string(), "arstarstarst").await?;
+        let handle = TextBufferTable::create(name.to_string(), "").await?;
         {
             let state = SessionState::get_state();
             let mut guard = state.write().await;
@@ -124,12 +136,42 @@ impl Session {
             }
         }
 
-        let buffer_name = self.create_buffer("temp").await.unwrap();
-        let focused_buffer = {
-            SessionState::set_current_buffer(buffer_name.to_string()).await;
+        let files = KoruArgs::get_files();
+
+        let buffer = if let Some(files) = files {
+            let buffer_name = if !files.is_empty() {
+                let first_file = files[0].clone();
+                let files = &files[1..];
+
+                let buffer = self.open_files(&first_file).await.unwrap_or_else(|e| {
+                    error!("Error opening file: {}", e);
+                    String::new()
+                });
+
+                for files in files {
+                    self.open_files(&files).await.unwrap_or_else(|e| {
+                        error!("Error opening files: {}", e);
+                        String::new()
+                    });
+                }
+                buffer
+            } else {
+                self.create_buffer("").await.unwrap_or_else(|err| {
+                    error!("Error creating buffer: {}", err);
+                    String::new()
+                })
+            };
+            let focused_buffer = {
+                SessionState::set_current_buffer(buffer_name).await;
+                SessionState::current_focused_buffer().await.unwrap().0
+            };
+            focused_buffer
+        } else {
             SessionState::current_focused_buffer().await.unwrap().0
         };
-        match self.send_draw(&focused_buffer).await {
+
+
+        match self.send_draw(&buffer).await {
             Ok(_) => {}
             Err(e) => {
                 error!("Failure sending draw: {}", e);
