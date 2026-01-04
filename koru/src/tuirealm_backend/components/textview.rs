@@ -1,6 +1,5 @@
 use tuirealm::{AttrValue, Attribute, Component, Event, Frame, MockComponent, Props, State, StateValue};
 use tuirealm::command::{Cmd, CmdResult, Direction};
-use tuirealm::event::Key;
 use tuirealm::ratatui::layout::Rect;
 use koru_core::styled_text::{StyledFile, StyledText};
 use tuirealm::props::{Color, TextSpan};

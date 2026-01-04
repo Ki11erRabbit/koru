@@ -1,6 +1,4 @@
-use std::sync::{Arc, Mutex};
 use koru_core::styled_text::StyledFile;
-use scrollable_rich::rich::VisibleTextMetrics;
 
 /// Stores the ui's state for individual buffers.
 #[derive(Clone, Default)]

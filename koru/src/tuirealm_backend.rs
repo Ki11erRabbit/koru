@@ -6,6 +6,7 @@ mod buffer_state;
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
+use tabled::Table;
 use tuirealm::{Application, AttrValue, Attribute, EventListenerCfg, PollStrategy, Sub, SubClause, SubEventClause, Update};
 use tuirealm::ratatui::style::Styled;
 use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalBridge};
@@ -15,6 +16,8 @@ use koru_core::kernel::input::{KeyBuffer, KeyPress};
 use crate::tuirealm_backend::components::TextView;
 use crate::tuirealm_backend::events::BrokerPort;
 use buffer_state::BufferState;
+use koru_core::KoruLogger;
+use crate::crash_logs::CrashLog;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {
@@ -33,6 +36,7 @@ enum Id {
 
 struct App {
     quit: bool,
+    crashed: bool,
     redraw: bool,
     terminal: TerminalBridge<CrosstermTerminalAdapter>,
     pub broker_client: BrokerClient,
@@ -118,6 +122,11 @@ impl App {
                 self.message_bar = commandbar;
                 Ok(())
             }
+            MessageKind::Broker(BrokerMessage::Crash) => {
+                self.crashed = true;
+                self.quit = true;
+                Ok(())
+            }
             _ => Ok(())
         }
     }
@@ -195,7 +204,7 @@ pub async fn real_main(
             Sub::new(SubEventClause::User(UiMessage::BrokerMessage(Message::new(0, 0, MessageKind::Broker(BrokerMessage::Shutdown)))), SubClause::Always),
             Sub::new(SubEventClause::Any, SubClause::Always),
         ]
-    ).unwrap();
+    )?;
     
     application.mount(
         Id::Buffer,
@@ -209,12 +218,13 @@ pub async fn real_main(
         vec![
             Sub::new(SubEventClause::Any, SubClause::Always),
         ]
-    ).expect("Failed to mount textview");
+    ).expect("Failed to mount messsagebar");
     
     let mut app = App {
+        crashed: false,
         quit: false,
         redraw: true,
-        terminal: TerminalBridge::new_crossterm().unwrap(),
+        terminal: TerminalBridge::new_crossterm()?,
         broker_client: client,
         session_address: None,
         message_bar: String::new(),
@@ -228,9 +238,8 @@ pub async fn real_main(
     while !app.quit {
         match application.tick(PollStrategy::TryFor(Duration::from_millis(16))) {
             Err(err) => {
-                app.terminal.disable_raw_mode()?;
-                app.terminal.leave_alternate_screen()?;
-                eprintln!("{}", err);
+                app.quit = true;
+                app.crashed = true;
             }
             Ok(messages) => {
                 if messages.len() != 0 {
@@ -249,5 +258,19 @@ pub async fn real_main(
 
     app.terminal.disable_raw_mode()?;
     app.terminal.leave_alternate_screen()?;
+
+    if app.crashed {
+        let logs = KoruLogger::all_logs_async().await;
+        let logs = logs.into_iter().map(|log| {
+            let (level, timestamp, module_path, file, message) = log.format("%H:%M:%S").expect("invalid format string");
+            CrashLog::new(level, timestamp, module_path, file, message)
+        }).collect::<Vec<_>>();
+        let logs: Vec<CrashLog> = logs.iter().rev().take(100).cloned().collect();
+        let table = Table::new(logs);
+        let table = table.to_string();
+        println!("Koru has crashed. Here are the last 100 logs\n");
+        println!("{}", table);
+    }
+
     Ok(())
 }
