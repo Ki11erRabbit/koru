@@ -150,6 +150,7 @@
       (lambda (keys)
         (let ((emacs-mode (minor-mode-get "emacs-mode")))
           (emacs-mode-prefix-set! emacs-mode "Enter a command: ")
+          (command-bar-show)
           (command-bar-update "Enter a command: ")
           (emacs-mode-callback-set!
             emacs-mode
@@ -251,6 +252,7 @@
     (let ((emacs-mode (minor-mode-get "emacs-mode")))
       (emacs-change-state emacs-mode "command" #f)
       (emacs-mode-prefix-set! emacs-mode "Enter a file path: ")
+      (command-bar-show)
       (command-bar-update "Enter a file path: ")
       (emacs-mode-callback-set!
         emacs-mode

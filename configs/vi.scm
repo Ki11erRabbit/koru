@@ -98,7 +98,7 @@
       "command-insert-text"
       "Inserts text into the command bar from a key sequence"
       (lambda (keys) (command-bar-insert-key keys)
-                     (command-bar-update))
+                     (command-bar-update ": "))
       "key-sequence"))
 
   (define command-insert-space
@@ -106,7 +106,7 @@
       "command-insert-text"
       "Inserts text into the command bar from a key sequence"
       (lambda (keys) (command-bar-insert " ")
-                     (command-bar-update))
+                     (command-bar-update) ": ")
       "key-sequence"))
 
   (define command-activate
@@ -125,7 +125,7 @@
       "Deletes backwards in the command bar"
       (lambda (keys)
         (command-bar-delete-back)
-        (command-bar-update))
+        (command-bar-update ": "))
       "key-sequence"))
 
   (define command-delete-forward
@@ -134,7 +134,7 @@
       "Deletes forwards in the command bar"
       (lambda (keys)
         (command-bar-delete-forward)
-        (command-bar-update))
+        (command-bar-update ": "))
       "key-sequence"))
 
   (define command-cursor-left
@@ -169,7 +169,10 @@
     (command-create
       "vi-enter-command"
       "Enters into command mode"
-      (lambda (keys) (vi-change-mode "Command"))
+      (lambda (keys)
+        (command-bar-show)
+        (command-bar-update ": ")
+        (vi-change-mode "Command"))
       "key-sequence"))
 
   (define (vi-normal-mode-keymap)
