@@ -13,3 +13,5 @@ inventory = { workspace = true }
 hashbrown = { workspace = true }
 keypress-localize = { workspace = true }
 clap = { version = "4.5.54", features = ["derive"] }
+log = { version = "0.4", features = ["std", "serde"] }
+time-format = "1.2.1"
