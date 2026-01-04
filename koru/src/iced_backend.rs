@@ -270,7 +270,7 @@ impl App {
                         Task::future(async {
                             let logs = KoruLogger::all_logs_async().await;
                             let logs = logs.into_iter().map(|log| {
-                                let (level, timestamp, module_path, file, message) = log.format("").expect("invalid format string");
+                                let (level, timestamp, module_path, file, message) = log.format("%H:%M:%S").expect("invalid format string");
                                 CrashLog::new(level, timestamp, module_path, file, message)
                             }).collect::<Vec<_>>();
                             UiMessage::CrashLog(logs)

@@ -10,6 +10,7 @@ Creates a new major mode.
 ###### Inputs
 - name: String, the name of the major mode.
 - draw: Procedure, A function that takes in the major mode and draws the buffer.
+- get-main-cursor: Procedure, A function that takes in the major mode and fetches the primary cursor.
 - gain-focus: Procedure, A function that takes in the major mode and is used to restore state to the major mode when the current buffer changes.
 - lose-focus: Procedure, A function that takes in the major mode and is used to save state when the current buffer changes.
 - data: Optional Any, state for the major mode instance.
