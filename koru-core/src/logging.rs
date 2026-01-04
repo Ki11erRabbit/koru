@@ -13,6 +13,7 @@ mod ring_buffer;
 #[derive(Debug, Clone)]
 pub struct LogEntry {
     timestamp: SystemTime,
+    log_level: Level,
     target: String,
     message: String,
     module_path: Option<String>,
@@ -21,12 +22,11 @@ pub struct LogEntry {
 }
 
 impl LogEntry {
-    pub fn builder() -> LogEntryBuilder {
-        LogEntryBuilder::new()
-    }
-
     pub fn timestamp(&self) -> SystemTime {
         self.timestamp.clone()
+    }
+    pub fn log_level(&self) -> Level {
+        self.log_level
     }
     pub fn target(&self) -> &str {
         &self.target
@@ -79,69 +79,12 @@ impl From<&Record<'_>> for LogEntry {
         let line = record.line();
         LogEntry {
             timestamp,
+            log_level: record.level(),
             target,
             message,
             module_path,
             file,
             line,
-        }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LogEntryBuilder {
-    pub timestamp: SystemTime,
-    pub target: Option<String>,
-    pub message: Option<String>,
-    pub module_path: Option<String>,
-    pub file: Option<String>,
-    pub line: Option<u32>,
-}
-
-impl LogEntryBuilder {
-    pub fn new() -> Self {
-        let timestamp = SystemTime::now();
-        LogEntryBuilder {
-            timestamp,
-            ..Default::default()
-        }
-    }
-    pub fn build(self) -> LogEntry {
-        LogEntry {
-            timestamp: self.timestamp,
-            target: self.target.unwrap_or_default(),
-            message: self.message.unwrap_or_default(),
-            module_path: self.module_path,
-            file: self.file,
-            line: self.line,
-        }
-    }
-
-    pub fn module_path(mut self, module_path: String) -> Self {
-        self.module_path = Some(module_path);
-        self
-    }
-
-    pub fn file(mut self, file: String) -> Self {
-        self.file = Some(file);
-        self
-    }
-
-    pub fn line(mut self, line: u32) -> Self {
-        self.line = Some(line);
-        self
-    }
-}
-
-impl Default for LogEntryBuilder {
-    fn default() -> Self {
-        LogEntryBuilder {
-            timestamp: SystemTime::now(),
-            target: None,
-            message: None,
-            module_path: None,
-            file: None,
-            line: None,
         }
     }
 }
@@ -157,11 +100,11 @@ impl LogKind {
             buffer: Arc::new(Mutex::new(RingBuffer::new(capacity)))
         }
     }
-    
+
     pub fn buffer(&self) -> impl DerefMut<Target = RingBuffer> + '_ {
         self.buffer.blocking_lock()
     }
-    
+
     pub async fn buffer_async(&self) -> impl DerefMut<Target = RingBuffer> + '_ {
         self.buffer.lock().await
     }
@@ -196,9 +139,9 @@ impl Logger {
     }
 
     /// Creates a new Rust logger and installs it.
-    /// 
+    ///
     /// `capacity` is the max size of stored logs for each kind of log.
-    /// 
+    ///
     /// `panics` when the logger has already been installed.
     pub fn install_logger(capacity: usize) {
         let logger = Logger::new(capacity);
@@ -228,7 +171,7 @@ impl Logger {
     fn get_logger() -> Logger {
         LOGGER.get().expect("logger was not initialized").clone()
     }
-    
+
     pub fn log_trace(record: &Record) {
         let logger = Logger::get_logger();
         logger.trace().buffer().push(LogEntry::from(record));
@@ -269,7 +212,7 @@ impl Logger {
         let logger = Logger::get_logger();
         logger.error().buffer_async().await.push(LogEntry::from(record));
     }
-    
+
     pub fn trace_logs() -> Vec<LogEntry> {
         let logger = Logger::get_logger();
         logger.trace().buffer.blocking_lock().to_vec()
@@ -310,10 +253,10 @@ impl Logger {
         let logger = Logger::get_logger();
         logger.error().buffer.lock().await.to_vec()
     }
-    
+
     /// Fetches all logs from the logger.
-    /// 
-    /// There is no distinction between log types
+    ///
+    /// There is no ordering between log types
     pub fn all_logs() -> Vec<LogEntry> {
         let mut output = Vec::new();
         let logger = Logger::get_logger();
@@ -322,9 +265,9 @@ impl Logger {
         output.append(&mut logger.info().buffer().to_vec());
         output.append(&mut logger.warn().buffer().to_vec());
         output.append(&mut logger.error().buffer().to_vec());
-        
+
         output.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-        
+
         output
     }
 }
