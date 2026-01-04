@@ -4,13 +4,14 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::Mutex;
 use std::time::SystemTime;
 use log::{Level, Log, Metadata, Record};
+use tokio::runtime::Handle;
 use crate::logging::ring_buffer::RingBuffer;
 
 mod ring_buffer;
 
 
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct LogEntry {
     timestamp: SystemTime,
     log_level: Level,
@@ -151,6 +152,7 @@ impl Logger {
             Err(_) => panic!("Logger already initialized"),
         }
         log::set_boxed_logger(Box::new(logger)).unwrap();
+        log::set_max_level(log::LevelFilter::Debug);
     }
 
     fn trace(&self) -> LogKind {
@@ -179,7 +181,7 @@ impl Logger {
     }
     pub async fn log_trace_async(record: &Record<'_>) {
         let logger = Logger::get_logger();
-        logger.error().buffer_async().await.push(LogEntry::from(record));
+        logger.trace().buffer_async().await.push(LogEntry::from(record));
     }
     pub fn log_debug(record: &Record) {
         let logger = Logger::get_logger();
@@ -271,6 +273,23 @@ impl Logger {
 
         output
     }
+
+    /// Fetches all logs from the logger.
+    ///
+    /// There is no ordering between log types
+    pub async fn all_logs_async() -> Vec<LogEntry> {
+        let mut output = Vec::new();
+        let logger = Logger::get_logger();
+        output.append(&mut logger.trace().buffer_async().await.to_vec());
+        output.append(&mut logger.debug().buffer_async().await.to_vec());
+        output.append(&mut logger.info().buffer_async().await.to_vec());
+        output.append(&mut logger.warn().buffer_async().await.to_vec());
+        output.append(&mut logger.error().buffer_async().await.to_vec());
+
+        output.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+        output
+    }
 }
 
 impl Log for Logger {
@@ -286,8 +305,17 @@ impl Log for Logger {
             Level::Warn => self.warn(),
             Level::Error => self.error(),
         };
-        loop {
-            log_kind.buffer().push(LogEntry::from(record));
+        let log_entry = LogEntry::from(record);
+        let handle = Handle::try_current();
+        match handle {
+            Ok(_) => {
+                tokio::spawn(async move {
+                    log_kind.buffer_async().await.push(log_entry);
+                });
+            }
+            Err(_) => {
+                log_kind.buffer().push(log_entry);
+            }
         }
     }
 

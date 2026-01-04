@@ -53,3 +53,17 @@ where
     }
     Rich::with_spans(spans, line_starts.into_boxed_slice(), line_offset, column_offset, line_count_callback)
 }
+
+pub fn rich_simple<'a, Theme, Renderer>(
+    text: Vec<String>,
+) -> iced::widget::text::Rich<'a, UiMessage, Theme, Renderer>
+where
+    Theme: iced::widget::text::Catalog,
+    Renderer: iced::advanced::text::Renderer + 'a,
+{
+    let mut spans = Vec::new();
+    for line in text {
+        spans.push(Span::new(line));
+    }
+    iced::widget::text::Rich::with_spans(spans)
+}

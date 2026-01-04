@@ -14,3 +14,4 @@ scheme-rs = { git = "https://github.com/maplant/scheme-rs", rev = "135f22e", fea
 hashbrown = "0.16.1" # included for scheme-rs
 inventory = "0.3.21" # include for scheme-rs
 keypress-localize = { path = "./keypress-localize" }
+log = { version = "0.4", features = ["std", "serde"] }

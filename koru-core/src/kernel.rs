@@ -9,12 +9,16 @@ pub(crate) mod buffer;
 pub mod scheme_api;
 
 use std::error::Error;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::mpsc::{Receiver, Sender};
 use futures::future::BoxFuture;
+use futures::FutureExt;
 use log::{error, info};
-use crate::kernel::broker::Broker;
+use tokio::runtime::Handle;
+use crate::kernel::broker::{BackendMessage, Broker, BrokerMessage, MessageKind};
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse, ClientConnector};
 use crate::kernel::scheme_api::SCHEME_RUNTIME;
+use crate::kernel::scheme_api::session::SessionState;
 
 struct ChannelPair {
     sender: Sender<ClientConnectingResponse>,
@@ -83,7 +87,17 @@ where F: FnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingRespon
 
     // This is needed to initialize the LazyLock to prevent deadlock
     let _ = SCHEME_RUNTIME.blocking_lock();
-    let runtime = start_runtime(channel_pair);
+    let runtime = async {
+        // We catch the unwind so that we can report to the user that the editor crashed;
+        let result = AssertUnwindSafe(start_runtime(channel_pair)).catch_unwind().await;
+        match result {
+            Ok(_) => {}
+            Err(_) => {
+                SessionState::send_message(MessageKind::Broker(BrokerMessage::Crash)).await
+                    .expect("Unable to send message back to frontend");
+            }
+        }
+    };
 
     func(send_message, recv_response, Box::pin(runtime))
 }

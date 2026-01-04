@@ -8,9 +8,10 @@ use futures::SinkExt;
 use iced::{Element, Task};
 use iced::keyboard::Key;
 use iced::keyboard::key::Named;
-use iced::widget::{column, text};
+use iced::widget::{column, scrollable, text};
 use iced_core::keyboard::Modifiers;
-use iced_core::Length;
+use iced_core::{Alignment, Length};
+use iced_core::text::{Fragment, Span, Wrapping};
 use iced_futures::Subscription;
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
@@ -18,6 +19,9 @@ use koru_core::kernel::input::{ControlKey, KeyBuffer, KeyPress, KeyValue, Modifi
 use buffer_state::BufferState;
 
 use iced_core::window::Id as WindowId;
+use tabled::Table;
+use koru_core::{KoruLogger, LogEntry};
+use crate::crash_logs::CrashLog;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {
@@ -30,6 +34,7 @@ pub enum UiMessage {
     KeyPress(KeyPress),
     CloseEvent(WindowId),
     CloseRequest(WindowId),
+    CrashLog(Vec<CrashLog>)
 }
 
 
@@ -62,6 +67,7 @@ enum AppInitializationState {
     ConnectingToSession(BrokerClient),
     Initialized(BrokerClient),
     Blank,
+    Crashed(Option<Vec<CrashLog>>),
 }
 
 
@@ -202,6 +208,15 @@ impl App {
                     MessageKind::Broker(BrokerMessage::Shutdown)
                 ]).chain(iced::window::close(window_id))
             }
+            UiMessage::CrashLog(logs) => {
+                match &mut self.initialization_state {
+                    AppInitializationState::Crashed(_) => {
+                        self.initialization_state = AppInitializationState::Crashed(Some(logs));
+                    }
+                    _ => unreachable!("We shouldn't in any other state at this point."),
+                }
+                Task::done(UiMessage::Nop)
+            }
         }
     }
 
@@ -248,6 +263,22 @@ impl App {
                 self.message_bar = commandbar;
                 Task::none()
             }
+            MessageKind::Broker(BrokerMessage::Crash) => {
+                match &mut self.initialization_state {
+                    AppInitializationState::Initialized(_) => {
+                        self.initialization_state = AppInitializationState::Crashed(None);
+                        Task::future(async {
+                            let logs = KoruLogger::all_logs_async().await;
+                            let logs = logs.into_iter().map(|log| {
+                                let (level, timestamp, module_path, file, message) = log.format("").expect("invalid format string");
+                                CrashLog::new(level, timestamp, module_path, file, message)
+                            }).collect::<Vec<_>>();
+                            UiMessage::CrashLog(logs)
+                        })
+                    }
+                    _ => unreachable!("We shouldn't in any other state at this point."),
+                }
+            }
             _ => Task::none()
         }
     }
@@ -260,6 +291,27 @@ impl App {
                         .font(iced::font::Font::MONOSPACE)
                         .height(Length::Fill),
                     text(&self.message_bar)
+                ).into()
+            }
+            AppInitializationState::Crashed(None) => {
+                text("Waiting for crash log").size(20).into()
+            }
+            AppInitializationState::Crashed(Some(logs)) => {
+                let logs: Vec<CrashLog> = logs.iter().rev().take(100).cloned().collect();
+                let table = Table::new(logs);
+                let table = table.to_string();
+
+                let lines = table.lines().map(|text| text.to_string() + "\n").collect();
+                let title: Element<_> = text("Koru has crashed. Here are the last 100 logs").size(20).align_x(Alignment::Center).into();
+                let body: Element<_> = styled_text::rich_simple(lines)
+                    .font(iced::font::Font::MONOSPACE)
+                    .wrapping(Wrapping::None)
+                    .into();
+                column!(
+                    title,
+                    scrollable(body).direction(scrollable::Direction::Both {
+
+                    vertical: Default::default(),horizontal: Default::default(),})
                 ).into()
             }
             _ => {

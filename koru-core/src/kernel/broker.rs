@@ -1,7 +1,10 @@
 use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use futures::FutureExt;
 use log::error;
+use tokio::runtime::Handle;
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::attr_set::AttrSet;
 use crate::kernel::input::KeyPress;
@@ -70,6 +73,7 @@ pub enum BrokerMessage {
     CreateClientResponse(BrokerClient),
     ConnectToSession,
     ConnectedToSession(usize),
+    Crash,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -249,6 +253,13 @@ impl Broker {
                 MessageKind::BackEnd(_) => {
                     self.send(message).await?;
                 }
+                MessageKind::Broker(BrokerMessage::Crash) => {
+                    for client in &mut self.clients.iter() {
+                        if let Some(sender) = client {
+                            sender.send(message.clone()).await?;
+                        }
+                    }
+                }
                 _ => {}
             }
         }
@@ -273,7 +284,18 @@ impl Broker {
     async fn create_editor_session(&mut self, message: Message) -> Result<(), Box<dyn Error>> {
         let session_client = self.create_client();
         let response = MessageKind::Broker(BrokerMessage::ConnectedToSession(session_client.id()));
-        tokio::spawn(Session::run_session(session_client, message.source));
+        let source = message.source;
+        tokio::spawn(async move {
+            // We catch the unwind so that we can report to the user that the editor crashed;
+            let result = AssertUnwindSafe(Session::run_session(session_client, source)).catch_unwind().await;
+            match result {
+                Ok(_) => {}
+                Err(_) => {
+                    SessionState::send_message(MessageKind::Broker(BrokerMessage::Crash)).await
+                        .expect("Unable to send message back to frontend");
+                }
+            }
+        });
         self.send_response(message, response).await
     }
 }
