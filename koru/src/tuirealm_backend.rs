@@ -118,8 +118,12 @@ impl App {
             MessageKind::General(GeneralMessage::ShowCommandBar) => {
                 Ok(())
             }
-            MessageKind::General(GeneralMessage::UpdateCommandBar(commandbar)) => {
-                self.message_bar = commandbar;
+            MessageKind::General(GeneralMessage::UpdateCommandBar {
+                prefix,
+                body,
+                suffix,
+                                 }) => {
+                self.message_bar = prefix + body.as_str() + suffix.as_str();
                 Ok(())
             }
             MessageKind::Broker(BrokerMessage::Crash) => {

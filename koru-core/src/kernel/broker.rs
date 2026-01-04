@@ -56,7 +56,11 @@ pub enum GeneralMessage {
     MainCursorPosition(usize, usize),
     ShowCommandBar,
     HideCommandBar,
-    UpdateCommandBar(String),
+    UpdateCommandBar {
+        prefix: String,
+        body: String,
+        suffix: String,
+    },
 }
 
 impl Hash for GeneralMessage {
@@ -80,7 +84,11 @@ pub enum BrokerMessage {
 pub enum BackendMessage {
     ShowCommandBar,
     HideCommandBar,
-    UpdateCommandBar(String),
+    UpdateCommandBar {
+        prefix: String,
+        body: String,
+        suffix: String,
+    },
 }
 
 

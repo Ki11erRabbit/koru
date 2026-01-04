@@ -947,9 +947,38 @@ pub async fn command_bar_hide() -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "command-bar-update", lib = "(koru-session)")]
-pub async fn command_bar_update() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Condition> {
+    let Some((prefix, rest)) = args.split_first() else {
+        let command_buffer = SessionState::get_command_bar().await;
+        let string = command_buffer.read().await.get();
+        SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar {
+            body: string,
+            prefix: String::new(),
+            suffix: String::new(),
+        })).await?;
+        return Ok(Vec::new());
+    };
+    let prefix: String = prefix.clone().try_into()?;
+    let Some((suffix, rest)) = rest.split_first() else {
+        let command_buffer = SessionState::get_command_bar().await;
+        let string = command_buffer.read().await.get();
+        SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar {
+            prefix,
+            body: string,
+            suffix: String::new(),
+            
+        })).await?;
+        return Ok(Vec::new());
+    };
+    let suffix: String = suffix.clone().try_into()?;
+
     let command_buffer = SessionState::get_command_bar().await;
     let string = command_buffer.read().await.get();
-    SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
+    SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar {
+        prefix,
+        body: string,
+        suffix,
+    })).await?;
+    
     Ok(Vec::new())
 }
