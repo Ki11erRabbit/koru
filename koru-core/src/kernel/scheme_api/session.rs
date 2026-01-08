@@ -982,3 +982,9 @@ pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Condition>
     
     Ok(Vec::new())
 }
+
+#[bridge(name = "crash", lib = "(koru-session)")]
+pub fn crash() -> Result<Vec<Value>, Condition> {
+    error!("Crash");
+    panic!("crash");
+}

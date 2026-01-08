@@ -29,6 +29,13 @@
   (define (emacs-data-command-callback-set data value)
     (cons (car data) (cons (car (cdr data)) (cons (car (cdr (cdr data))) (cons value (cdr (cdr (cdr (cdr data)))))))))
 
+  (define editor-crash
+    (command-create
+      "editor-crash"
+      "Crashes the editor"
+      (lambda (keys) (crash))
+      "key-sequence"))
+
   (define editor-cursor-up
     (command-create
       "editor-cursor-up"
@@ -155,9 +162,7 @@
           (emacs-mode-callback-set!
             emacs-mode
               (lambda ()
-                (command-bar-take)
-                (command-bar-update)
-                (command-bar-hide)))
+                (command-bar-take)))
             (emacs-change-state (minor-mode-get "emacs-mode") "command" #f)))
       "key-sequence"))
 
@@ -182,12 +187,14 @@
       "command-activate"
       "Activates the command"
       (lambda (keys)
-        (letrec ((emacs-mode (minor-mode-get "emacs-mode"))
-               (callback (emacs-mode-callback emacs-mode)))
-          (callback)
-          (emacs-mode-prefix-set! emacs-mode "")
-          (emacs-mode-suffix-set! emacs-mode "")
-          (emacs-change-state (minor-mode-get "emacs-mode") "edit" #f)))
+        (let ((emacs-mode (minor-mode-get "emacs-mode")))
+          (let ((callback (emacs-mode-callback emacs-mode)))
+            (callback)
+            (command-bar-update)
+            (command-bar-hide)
+            (emacs-mode-prefix-set! emacs-mode "")
+            (emacs-mode-suffix-set! emacs-mode "")
+            (emacs-change-state (minor-mode-get "emacs-mode") "edit" #f))))
       "key-sequence"))
 
   (define command-delete-back
@@ -244,8 +251,6 @@
 
   (define (emacs-save-as-callback)
     (let ((bar-text (command-bar-take)))
-      (command-bar-update)
-      (command-bar-hide)
       (buffer-save-as (current-buffer-name) bar-text)))
 
   (define (emacs-save-as)
@@ -281,6 +286,7 @@
       (key-map-insert emacs-editor-key-map "A-x" emacs-enter-command)
       (key-map-insert emacs-editor-key-map "C-x C-s" editor-save)
       (key-map-insert emacs-editor-key-map "C-x C-w" editor-save-as)
+      (key-map-insert emacs-editor-key-map "C-x C-c" editor-crash)
       emacs-editor-key-map))
 
   (define (emacs-command)
