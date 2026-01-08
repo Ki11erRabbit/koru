@@ -273,14 +273,12 @@ pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
 #[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub struct StyledFile {
     #[trace(skip)]
-    rope: Rope,
     lines: Vec<Vec<StyledText>>,
 }
 
 impl StyledFile {
-    pub fn new(rope: Rope) -> Self {
+    pub fn new() -> Self {
         Self {
-            rope,
             lines: Vec::new(),
         }
     }
@@ -345,7 +343,7 @@ impl StyledFile {
                                     && line_index == cursors[cursor_index].line() {
                                     found_cursor = true;
                                     if !found_mark {
-                                        current_line.push(StyledText::None { text: TextChunk::new(self.rope.clone(), start, end) });
+                                        current_line.push(StyledText::None { text: TextChunk::new(text.rope.clone(), start, end) });
                                         start = end;
                                     }
 
@@ -354,14 +352,14 @@ impl StyledFile {
                                     && line_index == cursors[cursor_index].mark_line().unwrap() {
                                     found_mark = true;
                                     if !found_cursor {
-                                        current_line.push(StyledText::None { text: TextChunk::new(self.rope.clone(), start, end) });
+                                        current_line.push(StyledText::None { text: TextChunk::new(text.rope.clone(), start, end) });
                                         start = end;
                                     } else if column_index != cursors[cursor_index].column() + 1 {
                                         current_line.push(StyledText::Style {
                                             bg_color: ColorType::Selection,
                                             fg_color: ColorType::Text,
                                             attribute: TextAttribute::empty(),
-                                            text: TextChunk::new(self.rope.clone(), start, end),
+                                            text: TextChunk::new(text.rope.clone(), start, end),
                                         });
                                         start = end;
                                         end += ch.len_utf8();
@@ -393,7 +391,7 @@ impl StyledFile {
                                                 bg_color: ColorType::Selection,
                                                 fg_color: ColorType::Text,
                                                 attribute: TextAttribute::empty(),
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
 
@@ -408,14 +406,14 @@ impl StyledFile {
                                                 bg_color: ColorType::Selection,
                                                 fg_color: ColorType::Text,
                                                 attribute: TextAttribute::empty(),
-                                                text: TextChunk::new(self.rope.clone(), start, end - ch.len_utf8()),
+                                                text: TextChunk::new(text.rope.clone(), start, end - ch.len_utf8()),
                                             });
                                             start = end - ch.len_utf8();
                                             current_line.push(StyledText::Style {
                                                 bg_color: ColorType::Cursor,
                                                 fg_color: ColorType::Text,
                                                 attribute: TextAttribute::empty(),
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
                                         }
@@ -427,7 +425,7 @@ impl StyledFile {
                                                 bg_color: ColorType::Selection,
                                                 fg_color: ColorType::Text,
                                                 attribute: TextAttribute::empty(),
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
 
@@ -442,7 +440,7 @@ impl StyledFile {
                                                 bg_color: ColorType::Cursor,
                                                 fg_color: ColorType::Text,
                                                 attribute: TextAttribute::empty(),
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
                                         }
@@ -457,7 +455,7 @@ impl StyledFile {
                                         bg_color: ColorType::Selection,
                                         fg_color: ColorType::Text,
                                         attribute: TextAttribute::empty(),
-                                        text: TextChunk::new(self.rope.clone(), start, end),
+                                        text: TextChunk::new(text.rope.clone(), start, end),
                                     });
                                     start = end;
                                 }
@@ -470,7 +468,7 @@ impl StyledFile {
                                 bg_color: ColorType::Selection,
                                 fg_color: ColorType::Text,
                                 attribute: TextAttribute::empty(),
-                                text: TextChunk::new(self.rope.clone(), start, end),
+                                text: TextChunk::new(text.rope.clone(), start, end),
                             });
                             start = end;
                         } else if found_cursor && (!found_mark && cursor_index < cursors.len() && cursors[cursor_index].is_mark_set() && !cursors[cursor_index].is_mark_and_cursor_same()) {
@@ -478,12 +476,12 @@ impl StyledFile {
                                 bg_color: ColorType::Selection,
                                 fg_color: ColorType::Text,
                                 attribute: TextAttribute::empty(),
-                                text: TextChunk::new(self.rope.clone(), start, end),
+                                text: TextChunk::new(text.rope.clone(), start, end),
                             });
                             start = end;
                         } else {
                             current_line.push(StyledText::None {
-                                text: TextChunk::new(self.rope.clone(), start, end),
+                                text: TextChunk::new(text.rope.clone(), start, end),
                             });
                             start = end;
                         }
@@ -506,7 +504,7 @@ impl StyledFile {
                                             fg_color,
                                             bg_color,
                                             attribute,
-                                            text: TextChunk::new(self.rope.clone(), start, end)
+                                            text: TextChunk::new(text.rope.clone(), start, end)
                                         });
                                         start = end;
                                     }
@@ -520,7 +518,7 @@ impl StyledFile {
                                             fg_color,
                                             bg_color,
                                             attribute,
-                                            text: TextChunk::new(self.rope.clone(), start, end)
+                                            text: TextChunk::new(text.rope.clone(), start, end)
                                         });
                                         start = end;
                                     } else if column_index != cursors[cursor_index].column() + 1  {
@@ -528,7 +526,7 @@ impl StyledFile {
                                             bg_color: ColorType::Selection,
                                             fg_color,
                                             attribute,
-                                            text: TextChunk::new(self.rope.clone(), start, end),
+                                            text: TextChunk::new(text.rope.clone(), start, end),
                                         });
                                         start = end;
                                         end += ch.len_utf8();
@@ -560,7 +558,7 @@ impl StyledFile {
                                                 bg_color: ColorType::Selection,
                                                 fg_color,
                                                 attribute,
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
 
@@ -575,14 +573,14 @@ impl StyledFile {
                                                 bg_color: ColorType::Selection,
                                                 fg_color,
                                                 attribute,
-                                                text: TextChunk::new(self.rope.clone(), start, end - ch.len_utf8()),
+                                                text: TextChunk::new(text.rope.clone(), start, end - ch.len_utf8()),
                                             });
                                             start = end - ch.len_utf8();
                                             current_line.push(StyledText::Style {
                                                 bg_color: ColorType::Cursor,
                                                 fg_color,
                                                 attribute,
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
                                         }
@@ -594,7 +592,7 @@ impl StyledFile {
                                                 bg_color: ColorType::Selection,
                                                 fg_color,
                                                 attribute,
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
 
@@ -609,7 +607,7 @@ impl StyledFile {
                                                 bg_color: ColorType::Cursor,
                                                 fg_color,
                                                 attribute,
-                                                text: TextChunk::new(self.rope.clone(), start, end),
+                                                text: TextChunk::new(text.rope.clone(), start, end),
                                             });
                                             start = end;
                                         }
@@ -624,7 +622,7 @@ impl StyledFile {
                                         bg_color: ColorType::Selection,
                                         fg_color,
                                         attribute,
-                                        text: TextChunk::new(self.rope.clone(), start, end),
+                                        text: TextChunk::new(text.rope.clone(), start, end),
                                     });
                                     start = end;
                                 }
@@ -637,7 +635,7 @@ impl StyledFile {
                                 bg_color: ColorType::Selection,
                                 fg_color,
                                 attribute,
-                                text: TextChunk::new(self.rope.clone(), start, end),
+                                text: TextChunk::new(text.rope.clone(), start, end),
                             });
                             start = end;
                         } else if found_cursor && (!found_mark && cursor_index < cursors.len() && cursors[cursor_index].is_mark_set() && !cursors[cursor_index].is_mark_and_cursor_same()) {
@@ -645,7 +643,7 @@ impl StyledFile {
                                 bg_color: ColorType::Selection,
                                 fg_color,
                                 attribute,
-                                text: TextChunk::new(self.rope.clone(), start, end),
+                                text: TextChunk::new(text.rope.clone(), start, end),
                             });
                             start = end;
                         } else {
@@ -653,7 +651,7 @@ impl StyledFile {
                                 fg_color,
                                 bg_color,
                                 attribute,
-                                text: TextChunk::new(self.rope.clone(), start, end)
+                                text: TextChunk::new(text.rope.clone(), start, end)
                             });
                             start = end;
                         }
@@ -674,7 +672,6 @@ impl StyledFile {
             lines.push(current_line);
         }
         Self {
-            rope: self.rope,
             lines,
         }
     }
@@ -706,7 +703,6 @@ impl From<Rope> for StyledFile {
         }]);
 
         Self {
-            rope: text,
             lines
         }
     }
