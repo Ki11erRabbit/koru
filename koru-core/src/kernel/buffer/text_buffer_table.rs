@@ -59,12 +59,16 @@ impl TextBufferTable {
         let path_buf = PathBuf::from(path);
         let path = path_buf.canonicalize()?;
 
-        let contents = {
+        let mut contents = {
             let mut file = tokio::fs::File::open(&path).await?;
             let mut contents = Vec::new();
             file.read_to_end(&mut contents).await?;
             String::from_utf8(contents)?
         };
+
+        if !contents.ends_with("\n") {
+            contents.push('\n');
+        }
 
         let name = path.into_os_string().into_string().expect("String is not convertable");
         let buffer = TextBuffer::new(contents, name.clone());
