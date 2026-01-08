@@ -10,6 +10,9 @@ pub struct ArgsInternal {
     /// Indicates to use the tui version rather than the iced frontend.
     #[clap(short, long)]
     tui: bool,
+    /// Indicates to use the iced frontend rather than the tui frontend. This will override the tui option.
+    #[clap(short, long)]
+    gui: bool,
     /// A numeric value indicating how many of a particular kind of log should be stored.
     #[clap(short, long, default_value = "1000")]
     log_capacity: String,
@@ -31,9 +34,16 @@ impl Args {
     /// This should be called before starting the kernel
     pub fn parse_args() -> Result<(), Box<dyn Error>> {
         let args = ArgsInternal::parse();
+
+        let tui = if args.gui {
+            false
+        } else {
+            args.tui
+        };
+
         let args = Args {
             files: RwLock::new(Some(args.files)),
-            tui: args.tui,
+            tui,
             log_capacity: args.log_capacity.parse()?,
         };
         COMMAND_LINE_ARGUMENTS.set(args).expect("Args::parse_args() was called twice");

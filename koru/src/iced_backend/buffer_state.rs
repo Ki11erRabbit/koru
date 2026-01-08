@@ -35,7 +35,7 @@ impl BufferState {
         while self.line < self.line_offset {
             self.line_offset -= 1;
         }
-        while self.line > self.line_offset + text_metrics.line_count - 1{
+        while self.line > self.line_offset + text_metrics.line_count - 3 {
             self.line_offset += 1;
         }
     }
