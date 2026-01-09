@@ -423,7 +423,11 @@ impl SessionState {
                     }
                 },
                 Err(e) => {
-                    error!("{}", e);
+                    let key_string = keys.iter()
+                        .map(|press| press.to_string())
+                        .collect::<Vec<String>>();
+                    let key_string = key_string.join(" ");
+                    error!("{key_string}:\n{e}");
                 }
             }
         } else {

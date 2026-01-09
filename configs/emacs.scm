@@ -350,7 +350,7 @@
     (remove-special-key-binding "C-g"))
 
   (define (emacs-edit-mode)
-    (let ((emacs-mode (minor-mode-create "emacs-mode" emacs-mode-gain-focus emacs-mode-gain-focus (emacs-data-default))))
+    (let ((emacs-mode (minor-mode-create "emacs-mode" emacs-mode-gain-focus emacs-mode-lose-focus (emacs-data-default))))
       (emacs-editor-state-keymap)
       emacs-mode))
 
