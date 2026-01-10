@@ -44,9 +44,22 @@ where
 {
     pub fn visible_line_count(&self, viewport_height: f32, renderer: &Renderer) -> usize {
         let line_height_px = self.calculate_line_height(renderer);
-        // Add small epsilon to account for floating-point precision across machines
-        // This ensures we don't lose a line due to rounding errors
-        let count = ((viewport_height + 0.5) / line_height_px).floor() as usize;
+
+        // Calculate how many complete lines definitely fit
+        let complete_lines = (viewport_height / line_height_px).floor();
+
+        // Calculate the remaining space after those complete lines
+        let used_space = complete_lines * line_height_px;
+        let remaining_space = viewport_height - used_space;
+
+        // If the remaining space is very close to a full line height (within 1 pixel),
+        // count it as having room for another line (accounts for floating-point rounding)
+        let count = if remaining_space >= line_height_px - 1.0 {
+            (complete_lines + 1.0) as usize
+        } else {
+            complete_lines as usize
+        };
+
         count.min(self.line_starts.len().saturating_sub(self.line_offset))
     }
 
@@ -59,8 +72,21 @@ where
         }
 
         let line_height_px = self.calculate_line_height(renderer);
-        // Add small epsilon to account for floating-point precision across machines
-        let lines_that_fit = ((viewport_height + 0.5) / line_height_px).floor() as usize;
+
+        // Calculate how many complete lines definitely fit
+        let complete_lines = (viewport_height / line_height_px).floor();
+
+        // Calculate the remaining space after those complete lines
+        let used_space = complete_lines * line_height_px;
+        let remaining_space = viewport_height - used_space;
+
+        // If the remaining space is very close to a full line height (within 1 pixel),
+        // count it as having room for another line
+        let lines_that_fit = if remaining_space >= line_height_px - 1.0 {
+            (complete_lines + 1.0) as usize
+        } else {
+            complete_lines as usize
+        };
 
         let start = self.line_offset;
         let end = (start + lines_that_fit).min(total_lines);
