@@ -44,6 +44,14 @@ where
 {
     pub fn visible_line_count(&self, viewport_height: f32, renderer: &Renderer) -> usize {
         let line_height_px = self.calculate_line_height(renderer);
+        let line_height_fract = line_height_px.fract();
+        // We need to correct the line height to be either the fractional part or 0.5 if it is zero
+        // This ensures that we don't think we draw an extra line than we think we have
+        let line_height_fract = if line_height_fract == 0.0 {
+            0.5
+        } else {
+            line_height_fract
+        };
 
         // The number of available lines from the current offset
         let available_lines = if self.line_offset < self.line_starts.len() {
@@ -61,10 +69,7 @@ where
         let calculated = exact.floor() as usize;
 
         // Check if there's a fractional remainder (incomplete line space)
-        // For some reason if we are above 0.7 then we draw one less line visibly
-        // If we are below or equal to 0.7 then we draw one extra line visibly
-        // This is a jank hack doesn't make much sense but is very much needed
-        let has_remainder = (exact - exact.floor()) <= 0.7;
+        let has_remainder = (exact - exact.floor()) <= line_height_fract;
 
         // If there's extra space that doesn't fit a complete line, subtract 1
         let lines_that_fit = if has_remainder {
@@ -84,6 +89,14 @@ where
         }
 
         let line_height_px = self.calculate_line_height(renderer);
+        let line_height_fract = line_height_px.fract();
+        // We need to correct the line height to be either the fractional part or 0.5 if it is zero
+        // This ensures that we don't think we draw an extra line than we think we have
+        let line_height_fract = if line_height_fract == 0.0 {
+            0.5
+        } else {
+            line_height_fract
+        };
 
         if line_height_px <= 0.0 || viewport_height <= 0.0 {
             return self.line_offset..self.line_offset;
@@ -97,10 +110,7 @@ where
         let calculated = exact.floor() as usize;
 
         // Check if there's a fractional remainder (incomplete line space)
-        // For some reason if we are above 0.7 then we draw one less line visibly
-        // If we are below or equal to 0.7 then we draw one extra line visibly
-        // This is a jank hack doesn't make much sense but is very much needed
-        let has_remainder = (exact - exact.floor()) <= 0.7;
+        let has_remainder = (exact - exact.floor()) <= line_height_fract;
 
         // If there's extra space that doesn't fit a complete line, subtract 1
         let lines_that_fit = if has_remainder {
