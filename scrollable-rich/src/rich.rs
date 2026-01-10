@@ -59,17 +59,15 @@ where
         // Calculate how many lines fit
         let exact = viewport_height / line_height_px;
         let calculated = exact.floor() as usize;
-        println!("exact: {exact}");
 
         // Check if there's a fractional remainder (incomplete line space)
-        // For some reason if we are above 0.5 then we draw one less line visibly
-        // If we are bellow 0.5 then we draw one extra line visibly
+        // For some reason if we are above 0.7 then we draw one less line visibly
+        // If we are below or equal to 0.7 then we draw one extra line visibly
         // This is a jank hack doesn't make much sense but is very much needed
-        let has_remainder = (exact - exact.floor()) < 0.5;
+        let has_remainder = (exact - exact.floor()) <= 0.7;
 
         // If there's extra space that doesn't fit a complete line, subtract 1
         let lines_that_fit = if has_remainder {
-            println!("has remainder 1");
             calculated.saturating_sub(1)
         } else {
             calculated
@@ -99,14 +97,13 @@ where
         let calculated = exact.floor() as usize;
 
         // Check if there's a fractional remainder (incomplete line space)
-        // For some reason if we are above 0.5 then we draw one less line visibly
-        // If we are bellow 0.5 then we draw one extra line visibly
+        // For some reason if we are above 0.7 then we draw one less line visibly
+        // If we are below or equal to 0.7 then we draw one extra line visibly
         // This is a jank hack doesn't make much sense but is very much needed
-        let has_remainder = (exact - exact.floor()).abs() < 0.5;
+        let has_remainder = (exact - exact.floor()) <= 0.7;
 
         // If there's extra space that doesn't fit a complete line, subtract 1
         let lines_that_fit = if has_remainder {
-            println!("has remainder 2");
             calculated.saturating_sub(1)
         } else {
             calculated
