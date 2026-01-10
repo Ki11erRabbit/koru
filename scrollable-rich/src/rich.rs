@@ -45,27 +45,77 @@ where
     pub fn visible_line_count(&self, viewport_height: f32, renderer: &Renderer) -> usize {
         let line_height_px = self.calculate_line_height(renderer);
 
-        // Simply calculate how many complete lines fit - no tolerance for partial lines
-        let count = (viewport_height / line_height_px).floor() as usize;
+        // The number of available lines from the current offset
+        let available_lines = if self.line_offset < self.line_starts.len() {
+            self.line_starts.len() - self.line_offset
+        } else {
+            0
+        };
 
-        count.min(self.line_starts.len().saturating_sub(self.line_offset))
+        if line_height_px <= 0.0 || viewport_height <= 0.0 {
+            return 0;
+        }
+
+        // Calculate how many lines fit
+        let exact = viewport_height / line_height_px;
+        let calculated = exact.floor() as usize;
+        println!("exact: {exact}");
+
+        // Check if there's a fractional remainder (incomplete line space)
+        // For some reason if we are above 0.5 then we draw one less line visibly
+        // If we are bellow 0.5 then we draw one extra line visibly
+        // This is a jank hack doesn't make much sense but is very much needed
+        let has_remainder = (exact - exact.floor()) < 0.5;
+
+        // If there's extra space that doesn't fit a complete line, subtract 1
+        let lines_that_fit = if has_remainder {
+            println!("has remainder 1");
+            calculated.saturating_sub(1)
+        } else {
+            calculated
+        };
+
+        // Return the minimum of what fits and what's available
+        lines_that_fit.min(available_lines)
     }
 
     /// Get the range of lines that will actually be rendered
     pub fn visible_line_range(&self, viewport_height: f32, renderer: &Renderer) -> std::ops::Range<usize> {
-        let total_lines = self.line_starts.len();
-
-        if self.line_offset >= total_lines {
+        if self.line_offset >= self.line_starts.len() {
             return 0..0; // Empty range if offset is beyond content
         }
 
         let line_height_px = self.calculate_line_height(renderer);
 
-        // Simply calculate how many complete lines fit - no tolerance for partial lines
-        let lines_that_fit = (viewport_height / line_height_px).floor() as usize;
+        if line_height_px <= 0.0 || viewport_height <= 0.0 {
+            return self.line_offset..self.line_offset;
+        }
+
+        // The number of available lines from the current offset
+        let available_lines = self.line_starts.len() - self.line_offset;
+
+        // Calculate how many lines fit
+        let exact = viewport_height / line_height_px;
+        let calculated = exact.floor() as usize;
+
+        // Check if there's a fractional remainder (incomplete line space)
+        // For some reason if we are above 0.5 then we draw one less line visibly
+        // If we are bellow 0.5 then we draw one extra line visibly
+        // This is a jank hack doesn't make much sense but is very much needed
+        let has_remainder = (exact - exact.floor()).abs() < 0.5;
+
+        // If there's extra space that doesn't fit a complete line, subtract 1
+        let lines_that_fit = if has_remainder {
+            println!("has remainder 2");
+            calculated.saturating_sub(1)
+        } else {
+            calculated
+        };
+
+        let lines_that_fit = lines_that_fit.min(available_lines);
 
         let start = self.line_offset;
-        let end = (start + lines_that_fit).min(total_lines);
+        let end = start + lines_that_fit;
 
         start..end
     }
@@ -177,7 +227,7 @@ where
 
     /// Calculate visible text metrics including line count and column count
     fn calculate_metrics(&self, viewport: &Rectangle, renderer: &Renderer) -> VisibleTextMetrics {
-        let line_count = self.visible_line_range(viewport.height, renderer).count();
+        let line_count = self.visible_line_count(viewport.height, renderer);
         let max_columns = self.calculate_max_columns(viewport.width, renderer);
 
         VisibleTextMetrics {
