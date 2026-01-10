@@ -83,50 +83,91 @@ where
         let default_font = renderer.default_font();
         let font = self.font.as_ref().unwrap_or(&default_font);
 
-        // Try to measure a monospace character width
-        // We'll use 'M' as it's typically the widest character in monospace fonts
-        let char_width = self.measure_char_width('M', font_size, font, renderer)?;
+        // Measure using a string of characters to get more accurate average width
+        // This accounts for kerning and character spacing better than single character
+        let char_width = self.measure_char_width(font_size, font, renderer)?;
 
         if char_width > 0.0 {
-            Some((viewport_width / char_width).floor() as usize)
+            // Use floor to be conservative - we want to ensure characters fit
+            // Add a small epsilon to account for floating point errors
+            let columns = (viewport_width / char_width).floor() as usize;
+            // Return at least 1 column if viewport has any width
+            if columns > 0 || viewport_width > 0.0 {
+                Some(columns.max(1))
+            } else {
+                Some(0)
+            }
         } else {
             None
         }
     }
 
-    /// Measure the width of a single character
+    /// Measure the average width of characters for this font
     /// Returns None if measurement fails or font is not monospaced
     fn measure_char_width(
         &self,
-        ch: char,
         size: Pixels,
         font: &Renderer::Font,
         renderer: &Renderer,
     ) -> Option<f32> {
-        // Create a simple paragraph with a single character to measure
-        let ch = ch.to_string();
+        // Test with multiple characters to verify monospace and get accurate width
+        // Use a representative string that includes common characters
+        let test_chars = "MWiI0O";
+
         let test_text = iced_core::Text {
-            content: ch.as_str(),
+            content: test_chars,
             bounds: Size::new(f32::INFINITY, f32::INFINITY),
             size,
             line_height: self.line_height,
             font: font.clone(),
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Top,
-            shaping: Shaping::Advanced,
+            shaping: Shaping::Basic, // Use Basic shaping for more predictable monospace behavior
             wrapping: Wrapping::None,
         };
 
         let paragraph = Renderer::Paragraph::with_text(test_text);
-        let bounds = paragraph.min_bounds();
+        let total_bounds = paragraph.min_bounds();
 
-        // Verify it's monospaced by checking multiple characters
-        // (Optional: you could add more sophisticated monospace detection)
-        if bounds.width > 0.0 {
-            Some(bounds.width)
-        } else {
-            None
+        if total_bounds.width <= 0.0 {
+            return None;
         }
+
+        // Calculate average character width
+        let char_count = test_chars.chars().count() as f32;
+        let avg_width = total_bounds.width / char_count;
+
+        // Verify this is actually monospaced by testing individual characters
+        // For a monospaced font, each character should have roughly the same width
+        let tolerance = 0.1; // 10% tolerance for rounding errors
+
+        for test_char in ['M', 'i', '0'].iter() {
+            let single_char = test_char.to_string();
+            let single_text = iced_core::Text {
+                content: single_char.as_str(),
+                bounds: Size::new(f32::INFINITY, f32::INFINITY),
+                size,
+                line_height: self.line_height,
+                font: font.clone(),
+                horizontal_alignment: alignment::Horizontal::Left,
+                vertical_alignment: alignment::Vertical::Top,
+                shaping: Shaping::Basic,
+                wrapping: Wrapping::None,
+            };
+
+            let single_paragraph = Renderer::Paragraph::with_text(single_text);
+            let single_bounds = single_paragraph.min_bounds();
+
+            if single_bounds.width > 0.0 {
+                let ratio = (single_bounds.width - avg_width).abs() / avg_width;
+                if ratio > tolerance {
+                    // Not monospaced enough
+                    return None;
+                }
+            }
+        }
+
+        Some(avg_width)
     }
 
     /// Calculate visible text metrics including line count and column count
