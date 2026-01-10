@@ -44,7 +44,7 @@ where
 {
     pub fn visible_line_count(&self, viewport_height: f32, renderer: &Renderer) -> usize {
         let line_height_px = self.calculate_line_height(renderer);
-        let count = (viewport_height / line_height_px).ceil() as usize;
+        let count = (viewport_height / line_height_px).floor() as usize;
         count.min(self.line_starts.len().saturating_sub(self.line_offset))
     }
 
