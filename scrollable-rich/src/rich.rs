@@ -57,7 +57,7 @@ where
         }
 
         let line_height_px = self.calculate_line_height(renderer);
-        let lines_that_fit = (viewport_height / line_height_px).ceil() as usize;
+        let lines_that_fit = (viewport_height / line_height_px).floor() as usize;
 
         let start = self.line_offset;
         let end = (start + lines_that_fit).min(total_lines);
