@@ -608,3 +608,21 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     Ok(vec![Value::from(true)])
 }
+
+#[bridge(name = "text-edit-start-transaction", lib = "(text-edit)")]
+pub async fn start_transaction(major_mode: &Value) -> Result<Vec<Value>, Condition> {
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let handle: BufferHandle = data.get_buffer_handle().await?;
+    handle.start_transaction().await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-end-transaction", lib = "(text-edit)")]
+pub async fn end_transaction(major_mode: &Value) -> Result<Vec<Value>, Condition> {
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let handle: BufferHandle = data.get_buffer_handle().await?;
+    handle.end_transaction().await;
+    Ok(Vec::new())
+}

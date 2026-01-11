@@ -148,6 +148,18 @@
       "Redoes a text modification action"
       (lambda () (text-edit-redo (current-major-mode)))))
 
+  (define text-edit-mode-start-transaction
+    (command-create
+      "text-edit-mode-start-transaction"
+      "Starts an undo/redo transaction"
+      (lambda () (text-edit-start-transaction (current-major-mode)))))
+
+  (define text-edit-mode-end-transaction
+    (command-create
+      "text-edit-mode-end-transaction"
+      "Ends an undo/redo transaction"
+      (lambda () (text-edit-end-transaction (current-major-mode)))))
+
   (define text-edit-mode-insert-key
     (command-create
       "text-edit-mode-insert-key"

@@ -265,6 +265,14 @@ impl TextBuffer {
         }
     }
 
+    pub async fn start_transaction(&mut self) {
+        self.undo_tree.start_transaction().await;
+    }
+
+    pub async fn end_transaction(&mut self) {
+        self.undo_tree.end_transaction().await;
+    }
+
     pub fn apply_edit_info(&mut self, edit_info: EditOperation) {
         match edit_info.value {
             EditValue::Insert {
@@ -283,6 +291,11 @@ impl TextBuffer {
             } => {
                 self.buffer.delete(edit_info.byte_offset..(edit_info.byte_offset + count));
                 self.buffer.insert(edit_info.byte_offset, text);
+            }
+            EditValue::Bulk(ops) => {
+                for op in ops {
+                    self.apply_edit_info(op);
+                }
             }
         }
     }

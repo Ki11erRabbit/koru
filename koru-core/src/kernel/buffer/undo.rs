@@ -1,6 +1,7 @@
+use std::ops::Deref;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, MutexGuard};
 
 static EDIT_DELAY: Duration = Duration::from_millis(1000);
 
@@ -14,7 +15,8 @@ pub enum EditValue {
     Replace {
         count: usize,
         text: String,
-    }
+    },
+    Bulk(Vec<EditOperation>),
 }
 
 pub struct EditOperation {
@@ -45,6 +47,10 @@ enum UndoValue {
         old_value: String,
         new_value: String,
     },
+    Transaction {
+        values: Vec<UndoNode>,
+        completed: bool,
+    },
     Root
 }
 
@@ -71,6 +77,14 @@ impl UndoNode {
             children: Vec::new(),
         };
         Arc::new(Mutex::new(node))
+    }
+
+    pub fn new_transaction(byte_offset: usize, value: UndoValue) -> UndoNode {
+        Self {
+            byte_offset,
+            value,
+            children: Vec::new(),
+        }
     }
 
     pub fn add_child(&mut self, child: Arc<Mutex<UndoNode>>) -> usize {
@@ -123,6 +137,48 @@ impl UndoTree {
         }
     }
 
+    async fn undo_match(value: &UndoValue, byte_offset: usize) -> EditOperation {
+        match value {
+            UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
+            UndoValue::InsertString { value, .. } => {
+                let value = EditValue::Delete {
+                    count: value.chars().count(),
+                };
+                EditOperation::new(byte_offset, value)
+            }
+            UndoValue::DeleteString { value, .. } => {
+                let value = EditValue::Insert {
+                    text: value.clone(),
+                };
+                EditOperation::new(byte_offset, value)
+            }
+            UndoValue::ReplaceString { old_value, new_value, .. } => {
+                let value = EditValue::Replace {
+                    count: new_value.chars().count(),
+                    text: old_value.clone(),
+                };
+                EditOperation::new(byte_offset, value)
+            }
+            _ => panic!("We should not be able to reach a transaction from here")
+        }
+    }
+
+    async fn undo_match_base(guard: impl Deref<Target = UndoNode>) -> EditOperation {
+        match &guard.value {
+            UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
+            UndoValue::Transaction { values, .. } => {
+                let mut output = Vec::new();
+
+                for value in values.iter() {
+                    let result = Self::undo_match(&value.value, value.byte_offset).await;
+                    output.push(result);
+                }
+                EditOperation::new(0, EditValue::Bulk(output))
+            }
+            x => Self::undo_match(x, guard.byte_offset).await,
+        }
+    }
+
     pub async fn undo(&mut self) -> Option<EditOperation> {
         let Some(current) = self.current_node.clone() else {
             return None;
@@ -130,33 +186,53 @@ impl UndoTree {
 
         let edit_value = {
             let guard = current.lock().await;
-            match &guard.value {
-                UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
-                UndoValue::InsertString { value, .. } => {
-                    let value = EditValue::Delete {
-                        count: value.chars().count(),
-                    };
-                    EditOperation::new(guard.byte_offset, value)
-                }
-                UndoValue::DeleteString { value, .. } => {
-                    let value = EditValue::Insert {
-                        text: value.clone(),
-                    };
-                    EditOperation::new(guard.byte_offset, value)
-                }
-                UndoValue::ReplaceString { old_value, new_value, .. } => {
-                    let value = EditValue::Replace {
-                        count: new_value.chars().count(),
-                        text: old_value.clone(),
-                    };
-                    EditOperation::new(guard.byte_offset, value)
-                }
-            }
+            Self::undo_match_base(guard).await
         };
 
         self.descent.pop();
         self.change_current_node().await;
         Some(edit_value)
+    }
+
+    async fn redo_match(value: &UndoValue, byte_offset: usize) -> EditOperation {
+        match value {
+            UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
+            UndoValue::InsertString { value, .. } => {
+                let value = EditValue::Insert {
+                    text: value.clone(),
+                };
+                EditOperation::new(byte_offset, value)
+            }
+            UndoValue::DeleteString { value, .. } => {
+                let value = EditValue::Delete {
+                    count: value.chars().count(),
+                };
+                EditOperation::new(byte_offset, value)
+            }
+            UndoValue::ReplaceString { old_value, new_value, .. } => {
+                let value = EditValue::Replace {
+                    count: old_value.chars().count(),
+                    text: new_value.clone(),
+                };
+                EditOperation::new(byte_offset, value)
+            }
+            _ => panic!("We should not be able to reach a transaction from here")
+        }
+    }
+
+    async fn redo_match_base(guard: impl Deref<Target = UndoNode>) -> EditOperation {
+        match &guard.value {
+            UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
+            UndoValue::Transaction { values, .. } => {
+                let mut output = Vec::new();
+                for value in values.iter() {
+                    let result = Self::redo_match(&value.value, value.byte_offset).await;
+                    output.push(result);
+                }
+                EditOperation::new(0, EditValue::Bulk(output))
+            }
+            x => Self::redo_match(x, guard.byte_offset).await,
+        }
     }
 
     async fn redo_internal(&mut self) -> Option<EditOperation> {
@@ -166,28 +242,7 @@ impl UndoTree {
 
         let edit_value = {
             let guard = current.lock().await;
-            match &guard.value {
-                UndoValue::Root => unreachable!("We should never be able to reach the root from current node"),
-                UndoValue::InsertString { value, .. } => {
-                    let value = EditValue::Insert {
-                        text: value.clone(),
-                    };
-                    EditOperation::new(guard.byte_offset, value)
-                }
-                UndoValue::DeleteString { value, .. } => {
-                    let value = EditValue::Delete {
-                        count: value.chars().count(),
-                    };
-                    EditOperation::new(guard.byte_offset, value)
-                }
-                UndoValue::ReplaceString { old_value, new_value, .. } => {
-                    let value = EditValue::Replace {
-                        count: old_value.chars().count(),
-                        text: new_value.clone(),
-                    };
-                    EditOperation::new(guard.byte_offset, value)
-                }
-            }
+            Self::redo_match_base(guard).await
         };
         Some(edit_value)
     }
@@ -230,6 +285,46 @@ impl UndoTree {
         self.redo_internal().await
     }
 
+    pub async fn start_transaction(&mut self) {
+        let Some(current_node) = self.current_node.clone() else {
+            let value = UndoValue::Transaction {
+                values: Vec::new(),
+                completed: false,
+            };
+            let node = UndoNode::new(0, value);
+            self.current_node = Some(node.clone());
+            let index = self.root.lock().await.add_child(node);
+            self.descent.push(index);
+            return;
+        };
+
+        let mut guard = current_node.lock().await;
+
+        let value = UndoValue::Transaction {
+            values: Vec::new(),
+            completed: false,
+        };
+        let new_node = UndoNode::new(0, value);
+        let index = guard.add_child(new_node.clone());
+        self.descent.push(index);
+        self.current_node = Some(new_node.clone());
+    }
+
+    pub async fn end_transaction(&mut self) {
+        let Some(current_node) = self.current_node.clone() else {
+            panic!("A transaction should have been started before ending it.")
+        };
+
+        let mut guard = current_node.lock().await;
+
+        match &mut guard.value {
+            UndoValue::Transaction { completed, .. } => {
+                *completed = true;
+            }
+            _ => panic!("We can only complete a transaction if the last node was a transaction")
+        }
+    }
+
     pub async fn insert(&mut self, byte_offset: usize, value: String) {
         let timestamp = SystemTime::now();
 
@@ -249,6 +344,29 @@ impl UndoTree {
         let guard_byte_offset = guard.byte_offset;
         match &mut guard.value {
             UndoValue::Root => unreachable!("we should never match a root node"),
+            UndoValue::Transaction { completed, values} => {
+                if *completed {
+                    let value = UndoValue::InsertString {
+                        value,
+                        timestamp,
+                    };
+                    let new_node = UndoNode::new(byte_offset, value);
+                    let index = guard.add_child(new_node.clone());
+                    self.descent.push(index);
+                    self.current_node = Some(new_node.clone());
+                    return;
+                }
+
+                // It doesn't matter that we don't merge insert strings because
+                // they will get all undone/redone at the same time anyway.
+                let value = UndoValue::InsertString {
+                    value,
+                    timestamp,
+                };
+                let new_node = UndoNode::new_transaction(byte_offset, value);
+
+                values.push(new_node);
+            }
             UndoValue::InsertString { value: ins_value, timestamp: ins_timestamp} => {
                 let duration = timestamp.duration_since(*ins_timestamp).unwrap();
                 if duration > EDIT_DELAY {
@@ -310,6 +428,30 @@ impl UndoTree {
         let mut guard = current_node.lock().await;
         let guard_byte_offset = guard.byte_offset;
         let new_offset = match &mut guard.value {
+            UndoValue::Root => unreachable!("we should never match a root node"),
+            UndoValue::Transaction { completed, values} => {
+                if *completed {
+                    let value = UndoValue::DeleteString {
+                        value,
+                        timestamp,
+                    };
+                    let new_node = UndoNode::new(byte_offset, value);
+                    let index = guard.add_child(new_node.clone());
+                    self.descent.push(index);
+                    self.current_node = Some(new_node.clone());
+                    return;
+                }
+                // It doesn't matter that we don't merge delete strings because
+                // they will get all undone/redone at the same time anyway.
+                let value = UndoValue::DeleteString {
+                    value,
+                    timestamp,
+                };
+                let new_node = UndoNode::new_transaction(byte_offset, value);
+                values.push(new_node);
+
+                return
+            }
             UndoValue::DeleteString { value: del_value, timestamp: del_timestamp} => {
                 let duration = timestamp.duration_since(*del_timestamp).unwrap();
                 if duration > EDIT_DELAY {
@@ -372,6 +514,32 @@ impl UndoTree {
         };
 
         let mut guard = current_node.lock().await;
+        match &mut guard.value {
+            UndoValue::Root => unreachable!("we should never match a root node"),
+            UndoValue::Transaction { completed, values } => {
+                if *completed {
+                    let value = UndoValue::ReplaceString {
+                        old_value,
+                        new_value,
+                    };
+                    let new_node = UndoNode::new(byte_offset, value);
+                    let index = guard.add_child(new_node.clone());
+                    self.descent.push(index);
+                    self.current_node = Some(new_node.clone());
+                    return;
+                }
+
+                let value = UndoValue::ReplaceString {
+                    old_value,
+                    new_value,
+                };
+                let new_node = UndoNode::new_transaction(byte_offset, value);
+                values.push(new_node);
+                return;
+            }
+            _ => {}
+        }
+
         let value = UndoValue::ReplaceString {
             old_value,
             new_value,
