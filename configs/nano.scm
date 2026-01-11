@@ -10,37 +10,23 @@
     (scheme text-edit-mode))
 
   (define (nano-state-default)
-    '("edit" "" '()))
+    (mode-state-create "edit" '()))
 
-  (define (nano-state-name state)
-    (car state))
-  (define (nano-state-name-change state new)
-    (cons new (cdr state)))
-
-  (define (nano-state-command-prefix state)
-    (car (cdr state)))
-  (define (nano-state-command-prefix-change state new)
-    (cons (car state) (cons new (cdr (cdr state)))))
-
-  (define (nano-state-command-callback state)
-    (car (cdr (cdr state))))
-  (define (nano-state-command-callback-change state new)
-    (cons (car state) (cons (car (cdr state)) (cons new (cdr (cdr (cdr state)))))))
 
   (define (nano-state nano-mode)
-    (nano-state-name (minor-mode-data nano-mode)))
+    (mode-state-state (minor-mode-data nano-mode)))
   (define (nano-state-set! nano-mode new)
-    (minor-mode-data-set! nano-mode (nano-state-name-change (minor-mode-data nano-mode) new)))
+    (minor-mode-data-set! nano-mode (mode-state-state-change (minor-mode-data nano-mode) new)))
 
   (define (nano-prefix nano-mode)
-    (nano-state-command-prefix (minor-mode-data nano-mode)))
+    (mode-state-command-prefix (minor-mode-data nano-mode)))
   (define (nano-prefix-set! nano-mode new)
-    (minor-mode-data-set! nano-mode (nano-state-command-prefix-change (minor-mode-data nano-mode) new)))
+    (minor-mode-data-set! nano-mode (mode-state-command-prefix-change (minor-mode-data nano-mode) new)))
 
   (define (nano-callback nano-mode)
-    (nano-state-command-callback (minor-mode-data nano-mode)))
+    (mode-state-command-callback (minor-mode-data nano-mode)))
   (define (nano-callback-set! nano-mode new)
-    (minor-mode-data-set! nano-mode (nano-state-command-callback-change (minor-mode-data nano-mode) new)))
+    (minor-mode-data-set! nano-mode (mode-state-command-callback-change (minor-mode-data nano-mode) new)))
 
   (define (nano-mode)
     (let ((nano-mode (minor-mode-create "nano-mode" nano-gain-focus nano-lose-focus (nano-state-default))))

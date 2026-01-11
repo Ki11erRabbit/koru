@@ -11,7 +11,18 @@
     editor-delete-forward
     editor-delete-region
     editor-undo
-    editor-redo)
+    editor-redo
+    mode-state-create
+    mode-state-state
+    mode-state-state-change
+    mode-state-command-prefix
+    mode-state-command-prefix-change
+    mode-state-command-suffix
+    mode-state-command-suffix-change
+    mode-state-command-callback
+    mode-state-command-callback-change
+    mode-state-data
+    mode-state-data-change)
   (import (rnrs)
     (koru-command)
     (koru-session)
@@ -113,4 +124,32 @@
       "editor-redo"
       "Redoes a text modification"
       (lambda (keys) (command-apply text-edit-mode-redo))
-      "key-sequence")))
+      "key-sequence"))
+
+  (define (mode-state-create initial-state data)
+    (list initial-state "" "" '() data))
+
+  (define (mode-state-state data)
+    (car data))
+  (define (mode-state-state-change data value)
+    (cons value (cdr data)))
+  (define (mode-state-command-prefix data)
+    (car (cdr data)))
+  (define (mode-state-command-prefix-change data value)
+    (cons (car data) (cons value (cdr (cdr data)))))
+  (define (mode-state-command-suffix data)
+    (car (cdr (cdr data))))
+  (define (mode-state-command-suffix-change data value)
+    (cons (car data) (cons (car (cdr data)) (cons value (cdr (cdr (cdr data)))))))
+  (define (mode-state-command-callback data)
+    (car (cdr (cdr (cdr data)))))
+  (define (mode-state-command-callback-change data value)
+    (cons (car data) (cons (car (cdr data)) (cons (car (cdr (cdr data))) (cons value (cdr (cdr (cdr (cdr data)))))))))
+  (define (mode-state-data data)
+    (car (cdr (cdr (cdr (cdr data))))))
+  (define (mode-state-data-change data value)
+    (cons (car data) (cons (car (cdr data)) (cons (car (cdr (cdr data))) (cons (car (cdr (cdr (cdr (cdr data))))) (cons value (cdr (cdr (cdr (cdr (cdr data)))))))))))
+
+
+
+  )
