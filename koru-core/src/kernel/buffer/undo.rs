@@ -169,7 +169,7 @@ impl UndoTree {
             UndoValue::Transaction { values, .. } => {
                 let mut output = Vec::new();
 
-                for value in values.iter() {
+                for value in values.iter().rev() {
                     let result = Self::undo_match(&value.value, value.byte_offset).await;
                     output.push(result);
                 }
