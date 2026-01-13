@@ -1,4 +1,4 @@
-use scheme_rs::exceptions::{Condition, Exception};
+use scheme_rs::exceptions::{Exception};
 use scheme_rs::gc::Gc;
 use scheme_rs::symbols::Symbol;
 use scheme_rs::value::{Value};
@@ -25,9 +25,9 @@ impl Buffer {
         }
     }
 
-    pub async fn set_major_mode(&mut self, major_mode: Value) -> Result<(), Condition> {
+    pub async fn set_major_mode(&mut self, major_mode: Value) -> Result<(), Exception> {
         {
-            let mm: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
+            let mm: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
             let gain_focus = mm.gain_focus();
             gain_focus.call(&[major_mode.clone()]).await?;
         }
@@ -35,7 +35,7 @@ impl Buffer {
         Ok(())
     }
 
-    pub async fn add_minor_mode(&mut self, minor_mode: Value) -> Result<(), Condition> {
+    pub async fn add_minor_mode(&mut self, minor_mode: Value) -> Result<(), Exception> {
         self.minor_modes.add_minor_mode(minor_mode).await
     }
 
@@ -71,7 +71,7 @@ impl Buffer {
     pub async fn get_main_cursor(&self) -> Result<Cursor, Exception> {
         let mm_value = self.major_mode.clone();
         let major_mode: Gc<MajorMode> = self.major_mode.clone()
-            .try_into_rust_type()?;
+            .try_to_rust_type()?;
         major_mode.get_main_cursor(mm_value).await
     }
 }

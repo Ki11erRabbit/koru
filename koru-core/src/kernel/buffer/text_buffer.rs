@@ -1,7 +1,7 @@
 use std::io::{ErrorKind, SeekFrom};
 use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder, RopeSlice};
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
@@ -316,9 +316,9 @@ impl TextBuffer {
         self.apply_edit_info(edit_info);
     }
 
-    pub async fn save(&mut self) -> Result<(), Condition> {
+    pub async fn save(&mut self) -> Result<(), Exception> {
         let path = self.path.clone()
-            .ok_or(Condition::error("Buffer has no associated path"))?;
+            .ok_or(Exception::error("Buffer has no associated path"))?;
         self.path = Some(path.clone());
         let mut file = loop {
             let file = tokio::fs::OpenOptions::new()
@@ -336,19 +336,19 @@ impl TextBuffer {
                         ErrorKind::Interrupted => {
                             continue;
                         }
-                        _ => return Err(Condition::error(err)),
+                        _ => return Err(Exception::error(err)),
                     }
                 }
             }
         };
         let string = self.buffer.to_string();
-        file.seek(SeekFrom::Start(0)).await.map_err(|err| Condition::error(err))?;
-        file.write_all(string.as_bytes()).await.map_err(|err| Condition::error(err))?;
-        file.flush().await.map_err(|err| Condition::error(err))?;
+        file.seek(SeekFrom::Start(0)).await.map_err(|err| Exception::error(err))?;
+        file.write_all(string.as_bytes()).await.map_err(|err| Exception::error(err))?;
+        file.flush().await.map_err(|err| Exception::error(err))?;
         Ok(())
     }
 
-    pub async fn save_as(&mut self, new_name: &str) -> Result<(), Condition> {
+    pub async fn save_as(&mut self, new_name: &str) -> Result<(), Exception> {
         let path = PathBuf::from(new_name);
         self.path = Some(path);
         self.save().await?;

@@ -93,14 +93,13 @@ fn load_directory<'load, P: AsRef<Path>>(
                     &runtime,
                     &sexprs,
                     &env,
-                    &span,
                 ).await.map_err(|e| format!("{:?}", e))?;
 
                 SchemeEnvs::put_environment(path, env).await;
 
                 let compiled = base.compile_top_level();
                 let proc = runtime.compile_expr(compiled).await;
-                proc.call(&[]).await?;
+                proc.call(&[]).await.unwrap();
                 Ok(())
             });
 

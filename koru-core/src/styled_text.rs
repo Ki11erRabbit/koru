@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc};
 use bitflags::bitflags;
 use crop::Rope;
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::num::Number;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
@@ -40,7 +40,7 @@ impl SchemeCompatible for TextChunk {
     where
         Self: Sized
     {
-        rtd!(name: "&TextChunk")
+        rtd!(name: "&TextChunk", sealed: true)
     }
 }
 
@@ -181,7 +181,7 @@ impl SchemeCompatible for ColorType {
     where
         Self: Sized
     {
-        rtd!(name: "&ColorType")
+        rtd!(name: "&ColorType", sealed: true)
     }
 }
 
@@ -207,32 +207,32 @@ impl SchemeCompatible for StyledText {
     where
         Self: Sized
     {
-        rtd!(name: "&StyledText")
+        rtd!(name: "&StyledText", sealed: true)
     }
 }
 
 #[bridge(name = "styled-text-create", lib = "(styled-text)")]
-pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((text, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(1, args.len()));
+        return Err(Exception::wrong_num_of_args(1, args.len()));
     };
     let text: String = text.clone().try_into()?;
     if let Some((fg_color, rest)) = rest.split_first() {
         let fg_color: String = fg_color.clone().try_into()?;
         let Some((bg_color, rest)) = rest.split_first() else {
-            return Err(Condition::wrong_num_of_args(3, args.len()));
+            return Err(Exception::wrong_num_of_args(3, args.len()));
         };
         let bg_color: String = bg_color.clone().try_into()?;
         let fg_color = match fg_color.as_str().try_into()  {
             Ok(color) => color,
             Err(msg) => {
-                return Err(Condition::error(msg));
+                return Err(Exception::error(msg));
             }
         };
         let bg_color = match bg_color.as_str().try_into()  {
             Ok(color) => color,
             Err(msg) => {
-                return Err(Condition::error(msg));
+                return Err(Exception::error(msg));
             }
         };
 
@@ -246,7 +246,7 @@ pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
                 "strikethrough" => attributes |= TextAttribute::Strikethrough,
                 "underline" => attributes |= TextAttribute::Underline,
                 _ => {
-                    return Err(Condition::error(String::from("attribute is not one of 'italic, 'bold, 'strikethrough, or 'underline")));
+                    return Err(Exception::error(String::from("attribute is not one of 'italic, 'bold, 'strikethrough, or 'underline")));
                 }
             }
         }
@@ -328,7 +328,7 @@ impl StyledFile {
                 ];
                 let value = proc.call(args).await.unwrap();
                 if value.len() != 0 {
-                    let text: Gc<StyledText> = value[0].clone().try_into_rust_type().unwrap();
+                    let text: Gc<StyledText> = value[0].clone().try_to_rust_type().unwrap();
                     current_line.push(text.read().clone());
                 }
             }*/
@@ -665,7 +665,7 @@ impl StyledFile {
                 ];
                 let value = proc.call(args).await.unwrap();
                 if value.len() != 0 {
-                    let text: Gc<StyledText> = value[0].clone().try_into_rust_type().unwrap();
+                    let text: Gc<StyledText> = value[0].clone().try_to_rust_type().unwrap();
                     current_line.push(text.read().clone());
                 }
             }*/
@@ -720,30 +720,30 @@ impl SchemeCompatible for StyledFile {
     where
         Self: Sized
     {
-        rtd!(name: "&StyledFile")
+        rtd!(name: "&StyledFile", sealed: true)
     }
 }
 
 #[bridge(name = "styled-file-prepend", lib = "(styled-text)")]
-pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((file, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let Some((line_no, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let Some((text, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
-    let file: Gc<StyledFile> = file.clone().try_into_rust_type()?;
+    let file: Gc<StyledFile> = file.clone().try_to_rust_type()?;
     let mut file = (*file).clone();
     let line_no: Arc<Number> = line_no.clone().try_into()?;
     let line_no: i64 = match line_no.as_ref() {
         Number::FixedInteger(line_no) => *line_no,
-        _ => return Err(Condition::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
+        _ => return Err(Exception::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
     };
     let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
-    let text: Gc<StyledText> = text.clone().try_into_rust_type()?;
+    let text: Gc<StyledText> = text.clone().try_to_rust_type()?;
     let text = (*text).clone();
 
     file.prepend_segment(line_no as usize, text);
@@ -751,25 +751,25 @@ pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Conditi
 }
 
 #[bridge(name = "styled-file-append", lib = "(styled-text)")]
-pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((file, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let Some((line_no, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let Some((text, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
-    let file: Gc<StyledFile> = file.clone().try_into_rust_type()?;
+    let file: Gc<StyledFile> = file.clone().try_to_rust_type()?;
     let mut file = (*file).clone();
     let line_no: Arc<Number> = line_no.clone().try_into()?;
     let line_no: i64 = match line_no.as_ref() {
         Number::FixedInteger(line_no) => *line_no,
-        _ => return Err(Condition::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
+        _ => return Err(Exception::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
     };
     let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
-    let text: Gc<StyledText> = text.clone().try_into_rust_type()?;
+    let text: Gc<StyledText> = text.clone().try_to_rust_type()?;
     let text = (*text).clone();
 
     file.append_segment(line_no as usize, text);

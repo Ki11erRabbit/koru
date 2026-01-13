@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
@@ -38,14 +38,14 @@ impl MinorModeManager {
         }
     }
 
-    pub async fn add_minor_mode(&mut self, minor_mode: Value) -> Result<(), Condition> {
-        let minor_mode_value: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+    pub async fn add_minor_mode(&mut self, minor_mode: Value) -> Result<(), Exception> {
+        let minor_mode_value: Gc<MinorMode> = minor_mode.try_to_rust_type()?;
         let mut guard = self.metadata.write().await;
         if guard.map.contains_key(&minor_mode_value.name) {
             return Ok(());
         }
         {
-            let mm: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+            let mm: Gc<MinorMode> = minor_mode.try_to_rust_type()?;
             let gain_focus = mm.gain_focus();
             gain_focus.call(&[minor_mode.clone()]).await?;
         }
@@ -128,21 +128,21 @@ impl SchemeCompatible for MinorMode {
     where
         Self: Sized
     {
-        rtd!(name: "Minor mode")
+        rtd!(name: "Minor mode", sealed: true)
     }
 }
 
 #[bridge(name = "minor-mode-create", lib = "(minor-mode)")]
-pub fn minor_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn minor_mode_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let name: Symbol = name.clone().try_into()?;
     let Some((gain_focus, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let Some((lose_focus, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let gain_focus: Procedure = gain_focus.clone().try_into()?;
     let lose_focus: Procedure = lose_focus.clone().try_into()?;
@@ -158,22 +158,22 @@ pub fn minor_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "minor-mode-data", lib = "(minor-mode)")]
-pub async fn minor_mode_data(minor_mode: &Value) -> Result<Vec<Value>, Condition> {
-    let minor_mode: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+pub async fn minor_mode_data(minor_mode: &Value) -> Result<Vec<Value>, Exception> {
+    let minor_mode: Gc<MinorMode> = minor_mode.try_to_rust_type()?;
     let data = minor_mode.data.read().await.clone();
 
     Ok(vec![data])
 }
 
 #[bridge(name = "minor-mode-data-set!", lib = "(minor-mode)")]
-pub async fn minor_mode_data_set(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn minor_mode_data_set(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((minor_mode, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
     let Some((data, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
-    let minor_mode: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+    let minor_mode: Gc<MinorMode> = minor_mode.try_to_rust_type()?;
     *minor_mode.data.write().await = data.clone();
 
     Ok(Vec::new())

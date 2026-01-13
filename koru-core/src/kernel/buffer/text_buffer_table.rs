@@ -3,7 +3,7 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use crop::Rope;
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::Gc;
 use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
@@ -170,11 +170,11 @@ impl BufferHandle {
         self.handle.lock().await.redo().await;
     }
 
-    pub async fn save(&self) -> Result<(), Condition> {
+    pub async fn save(&self) -> Result<(), Exception> {
         self.handle.lock().await.save().await
     }
 
-    pub async fn save_as(&self, path: &str) -> Result<(), Condition> {
+    pub async fn save_as(&self, path: &str) -> Result<(), Exception> {
         self.handle.lock().await.save_as(path).await
     }
 
@@ -185,20 +185,20 @@ impl BufferHandle {
 
 
 #[bridge(name = "buffer-from-path", lib = "(koru-buffer)")]
-pub async fn buffer_from_file(path: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn buffer_from_file(path: &Value) -> Result<Vec<Value>, Exception> {
     let path: String = path.clone().try_into()?;
 
     let handle = TextBufferTable::open(path).await
-        .map_err(|e| Condition::error(e))?;
+        .map_err(|e| Exception::error(e))?;
     let name = handle.get_name().await;
 
     Ok(vec![Value::from(name)])
 }
 
 #[bridge(name = "buffer-create", lib = "(koru-buffer)")]
-pub async fn buffer_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn buffer_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((path, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(1, args.len()));
+        return Err(Exception::wrong_num_of_args(1, args.len()));
     };
     let contents = if let Some((contents, _)) = rest.split_first() {
         let contents = contents.clone().try_into()?;
@@ -210,14 +210,14 @@ pub async fn buffer_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let buffer_name: String = path.clone().try_into()?;
 
     let handle = TextBufferTable::create(buffer_name, contents).await
-        .map_err(|e| Condition::error(e))?;
+        .map_err(|e| Exception::error(e))?;
 
     let name = handle.get_name().await;
     Ok(vec![Value::from(name)])
 }
 
 #[bridge(name = "buffer-save", lib = "(koru-buffer)")]
-pub async fn save_buffer(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn save_buffer(buffer_name: &Value) -> Result<Vec<Value>, Exception> {
     let buffer_name: String = buffer_name.clone().try_into()?;
     let buffer = {
         let state = SessionState::get_state();
@@ -226,21 +226,21 @@ pub async fn save_buffer(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
         buffers.get(buffer_name.as_str()).cloned()
     };
     let Some(buffer) = buffer else {
-        return Err(Condition::error(String::from("Buffer not found")))
+        return Err(Exception::error(String::from("Buffer not found")))
     };
 
     let handle = buffer.get_handle();
-    handle.save().await.map_err(|e| Condition::error(e))?;
+    handle.save().await.map_err(|e| Exception::error(e))?;
     Ok(vec![])
 }
 
 #[bridge(name = "buffer-save-as", lib = "(koru-buffer)")]
-pub async fn save_buffer_as(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn save_buffer_as(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((buffer_name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
     let Some((new_name, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
     let buffer_name: String = buffer_name.clone().try_into()?;
     let new_name: String = new_name.clone().try_into()?;
@@ -251,16 +251,16 @@ pub async fn save_buffer_as(args: &[Value]) -> Result<Vec<Value>, Condition> {
         buffers.get(buffer_name.as_str()).cloned()
     };
     let Some(buffer) = buffer else {
-        return Err(Condition::error(String::from("Buffer not found")))
+        return Err(Exception::error(String::from("Buffer not found")))
     };
 
     let handle = buffer.get_handle();
-    handle.save_as(&new_name).await.map_err(|e| Condition::error(e))?;
+    handle.save_as(&new_name).await.map_err(|e| Exception::error(e))?;
     Ok(vec![])
 }
 
 #[bridge(name = "buffer-get-path", lib = "(koru-buffer)")]
-pub async fn get_path(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn get_path(buffer_name: &Value) -> Result<Vec<Value>, Exception> {
     let buffer_name: String = buffer_name.clone().try_into()?;
     let buffer = {
         let state = SessionState::get_state();
@@ -269,7 +269,7 @@ pub async fn get_path(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
         buffers.get(buffer_name.as_str()).cloned()
     };
     let Some(buffer) = buffer else {
-        return Err(Condition::error(String::from("Buffer not found")))
+        return Err(Exception::error(String::from("Buffer not found")))
     };
 
     let handle = buffer.get_handle();
@@ -278,12 +278,12 @@ pub async fn get_path(buffer_name: &Value) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "plain-draw", lib = "(koru-buffer)")]
-pub async fn text_edit_draw(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn text_edit_draw(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((buffer_name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
     let Some((cursors, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
     let buffer = {
         let buffer_name: String = buffer_name.clone().try_into()?;
@@ -294,7 +294,7 @@ pub async fn text_edit_draw(args: &[Value]) -> Result<Vec<Value>, Condition> {
         buffer.render_styled_text().await;
         buffer.clone()
     };
-    let cursors: Gc<Cursors> = cursors.try_into_rust_type()?;
+    let cursors: Gc<Cursors> = cursors.try_to_rust_type()?;
 
     let styled_text = buffer.get_styled_text(&cursors.cursors);
 

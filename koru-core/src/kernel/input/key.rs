@@ -1,7 +1,7 @@
 use scheme_rs::records::Record;
 use std::sync::{Arc};
 use bitflags::{bitflags, Flags};
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{OpaqueGcPtr, Trace};
 use scheme_rs::lists;
 use scheme_rs::records::{rtd, RecordTypeDescriptor, SchemeCompatible};
@@ -31,7 +31,7 @@ impl SchemeCompatible for ModifierKey {
     where
         Self: Sized
     {
-        rtd!(name: "&ModifierKey")
+        rtd!(name: "&ModifierKey", sealed: true)
     }
 }
 
@@ -379,7 +379,7 @@ impl SchemeCompatible for KeyPress {
     where
         Self: Sized
     {
-        rtd!(name: "&KeyPress")
+        rtd!(name: "&KeyPress", sealed: true)
     }
 }
 
@@ -396,17 +396,17 @@ impl std::fmt::Display for KeyPress {
 }
 
 #[bridge(name = "string->keypress", lib = "(koru-key)")]
-pub fn string_to_keypress(string: &Value) -> Result<Vec<Value>, Condition> {
+pub fn string_to_keypress(string: &Value) -> Result<Vec<Value>, Exception> {
     let string: String = string.clone().try_into()?;
     let Some(keypress) = KeyPress::from_string(&string) else {
-        return Err(Condition::error(string.to_string()));
+        return Err(Exception::error(string.to_string()));
     };
 
     Ok(vec![Value::from(Record::from_rust_type(keypress))])
 }
 
 #[bridge(name = "string->key-sequence", lib = "(koru-key)")]
-pub fn string_to_key_list(string: &Value) -> Result<Vec<Value>, Condition> {
+pub fn string_to_key_list(string: &Value) -> Result<Vec<Value>, Exception> {
     let string: String = string.clone().try_into()?;
     let vec = string.split_whitespace()
         .map(|s| {
@@ -414,7 +414,7 @@ pub fn string_to_key_list(string: &Value) -> Result<Vec<Value>, Condition> {
         })
         .collect::<Option<Vec<Value>>>();
     let Some(vec) = vec else {
-        return Err(Condition::error(String::from("Invalid key sequence.")));
+        return Err(Exception::error(String::from("Invalid key sequence.")));
     };
     
     let value = lists::slice_to_list(&vec);

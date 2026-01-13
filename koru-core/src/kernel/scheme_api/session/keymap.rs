@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
@@ -58,48 +58,48 @@ impl SchemeCompatible for SchemeKeyMap {
     where
         Self: Sized
     {
-        rtd!(name: "&KeyMap")
+        rtd!(name: "&KeyMap", sealed: true)
     }
 }
 
 #[bridge(name = "key-map-create", lib = "(koru-key)")]
-pub fn create_keymap(default: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn create_keymap(default: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((default, _)) = default.split_first() else {
         return Ok(vec![Value::from(Record::from_rust_type(SchemeKeyMap::new(None)))])
     };
-    let default: Gc<Command> = default.clone().try_into_rust_type()?;
+    let default: Gc<Command> = default.clone().try_to_rust_type()?;
 
     Ok(vec![Value::from(Record::from_rust_type(SchemeKeyMap::new(Some(default))))])
 }
 
 #[bridge(name = "key-map-insert", lib = "(koru-key)")]
-pub async fn keymap_insert(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn keymap_insert(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((keymap, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let Some((key_sequence, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let Some((command, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()));
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
-    let keymap: Gc<SchemeKeyMap> = keymap.clone().try_into_rust_type()?;
+    let keymap: Gc<SchemeKeyMap> = keymap.clone().try_to_rust_type()?;
     let key_sequence: String = key_sequence.clone().try_into()?;
-    let command: Gc<Command> = command.clone().try_into_rust_type()?;
+    let command: Gc<Command> = command.clone().try_to_rust_type()?;
 
     keymap.add_binding(&key_sequence, command).await;
     Ok(vec![])
 }
 
 #[bridge(name = "key-map-delete", lib = "(koru-key)")]
-pub async fn keymap_delete(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn keymap_delete(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((keymap, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
     let Some((key_sequence, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()));
+        return Err(Exception::wrong_num_of_args(2, args.len()));
     };
-    let keymap: Gc<SchemeKeyMap> = keymap.clone().try_into_rust_type()?;
+    let keymap: Gc<SchemeKeyMap> = keymap.clone().try_to_rust_type()?;
     let key_sequence: String = key_sequence.clone().try_into()?;
 
     keymap.remove_binding(&key_sequence).await;

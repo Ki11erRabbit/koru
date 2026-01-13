@@ -8,7 +8,7 @@ pub use buffer::*;
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
 use log::{error, info};
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::Gc;
 use scheme_rs::lists;
 use scheme_rs::proc::Procedure;
@@ -59,7 +59,7 @@ impl Hooks {
         }
     }
 
-    pub async fn execute_hook(&self, hook_name: &Symbol, args: &[Value]) -> Result<(), Condition> {
+    pub async fn execute_hook(&self, hook_name: &Symbol, args: &[Value]) -> Result<(), Exception> {
         let Some(hooks) = self.hooks.get(hook_name) else {
             panic!("Unknown hook {}", hook_name);
         };
@@ -207,7 +207,7 @@ impl SessionState {
         *client.write().await = broker_client;
     }
 
-    pub async fn send_message(message: MessageKind) -> Result<(), Condition> {
+    pub async fn send_message(message: MessageKind) -> Result<(), Exception> {
         let clients = SessionState::get_state().read().await.active_sessions.clone();
         let client = SessionState::get_state().read().await.broker_client.clone();
 
@@ -216,7 +216,7 @@ impl SessionState {
         for client in clients.read().await.iter() {
             broker_guard.send_async(message.clone(), *client)
                 .await
-                .map_err(|err| Condition::error(format!("{:?}", err)))?;
+                .map_err(|err| Exception::error(format!("{:?}", err)))?;
         }
         Ok(())
     }
@@ -259,7 +259,7 @@ impl SessionState {
                 };
                 let major_mode_value = buffer.get_major_mode();
                 let major_mode: Gc<MajorMode> = major_mode_value.clone()
-                    .try_into_rust_type()
+                    .try_to_rust_type()
                     .expect("Somehow a non-major mode is in the place of a major mode");
                 let lost_focus = major_mode.lose_focus();
                 let result = lost_focus.call(&[major_mode_value]).await;
@@ -272,7 +272,7 @@ impl SessionState {
 
                 let minor_modes = buffer.get_minor_modes();
                 for mode in minor_modes {
-                    let minor_mode: Gc<MinorMode> = mode.try_into_rust_type()
+                    let minor_mode: Gc<MinorMode> = mode.try_to_rust_type()
                         .expect("Somehow a non-minor mode is in the place of a minor mode");
                     let lost_focus = minor_mode.lose_focus();
                     let result = lost_focus.call(&[mode]).await;
@@ -300,7 +300,7 @@ impl SessionState {
                 }
             };
             let major_mode_value = buffer.get_major_mode();
-            match major_mode_value.clone().try_into_rust_type() {
+            match major_mode_value.clone().try_to_rust_type() {
                 Ok(major_mode) => {
                     let major_mode: Gc<MajorMode> = major_mode;
                     let gain_focus = major_mode.gain_focus();
@@ -319,7 +319,7 @@ impl SessionState {
 
             let minor_modes = buffer.get_minor_modes();
             for mode in minor_modes {
-                let minor_mode: Gc<MinorMode> = mode.try_into_rust_type()
+                let minor_mode: Gc<MinorMode> = mode.try_to_rust_type()
                     .expect("Somehow a non-minor mode is in the place of a minor mode");
                 let gain_focus = minor_mode.gain_focus();
                 let result = gain_focus.call(&[mode]).await;
@@ -493,7 +493,7 @@ impl SessionState {
         key_buffer.write().await.push(key_press);
     }
 
-    pub async fn emit_hook(hook_name: Symbol, args: &[Value]) -> Result<(), Condition> {
+    pub async fn emit_hook(hook_name: Symbol, args: &[Value]) -> Result<(), Exception> {
         let args = args.to_vec();
         tokio::task::spawn(async move {
             let state = SessionState::get_state();
@@ -511,7 +511,7 @@ impl SessionState {
         Ok(())
     }
 
-    pub async fn emit_hook_blocking(hook_name: Symbol, args: &[Value]) -> Result<(), Condition> {
+    pub async fn emit_hook_blocking(hook_name: Symbol, args: &[Value]) -> Result<(), Exception> {
         let state = SessionState::get_state();
 
         let hooks = state.read().await.hooks.clone();
@@ -525,7 +525,7 @@ impl SessionState {
         Ok(())
     }
 
-    pub async fn emit_hook_self(&mut self, hook_name: Symbol, args: &[Value]) -> Result<(), Condition> {
+    pub async fn emit_hook_self(&mut self, hook_name: Symbol, args: &[Value]) -> Result<(), Exception> {
         let hooks = self.hooks.read().await;
         hooks.execute_hook(&hook_name, args).await?;
         Ok(())
@@ -553,9 +553,9 @@ static STATE: LazyLock<Arc<RwLock<SessionState>>> = LazyLock::new(|| Arc::new(Rw
 static mut KEYBOARD_REGION: KeyboardRegion = KeyboardRegion::EnglishUS;
 
 #[bridge(name = "create-hook", lib = "(koru-session)")]
-pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((hook_name, _)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(1, args.len()))
+        return Err(Exception::wrong_num_of_args(1, args.len()))
     };
     let hook_name: Symbol = hook_name.clone().try_into()?;
 
@@ -568,9 +568,9 @@ pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "destroy-hook", lib = "(koru-session)")]
-pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((hook_name, _)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(1, args.len()))
+        return Err(Exception::wrong_num_of_args(1, args.len()))
     };
     let hook_name: Symbol = hook_name.clone().try_into()?;
 
@@ -583,15 +583,15 @@ pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "add-hook", lib = "(koru-session)")]
-pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((hook_name_kind, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Exception::wrong_num_of_args(3, args.len()))
     };
     let Some((hook_name, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Exception::wrong_num_of_args(3, args.len()))
     };
     let Some((procedure, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Exception::wrong_num_of_args(3, args.len()))
     };
     let hook_name_kind: Symbol = hook_name_kind.clone().try_into()?;
     let hook_name: Symbol = hook_name.clone().try_into()?;
@@ -606,12 +606,12 @@ pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 
 #[bridge(name = "remove-hook", lib = "(koru-session)")]
-pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((hook_name_kind, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((hook_name, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let hook_name_kind: Symbol = hook_name_kind.clone().try_into()?;
     let hook_name: Symbol = hook_name.clone().try_into()?;
@@ -624,9 +624,9 @@ pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "emit-hook", lib = "(koru-session)")]
-pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((hook_name_kind, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(1, args.len()))
+        return Err(Exception::wrong_num_of_args(1, args.len()))
     };
     let hook_name: Symbol = hook_name_kind.clone().try_into()?;
 
@@ -635,21 +635,21 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "major-mode-set!", lib = "(koru-buffer)")]
-pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((buffer_name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((major_mode, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let buffer_name: String = buffer_name.clone().try_into()?;
-    let _: Gc<MajorMode> = major_mode.try_into_rust_type()?;
+    let _: Gc<MajorMode> = major_mode.try_to_rust_type()?;
 
     let state = SessionState::get_state();
     let guard = state.read().await;
     let mut buffer_guard = guard.buffers.write().await;
     let Some(buffer) = buffer_guard.get_mut(&buffer_name) else {
-        return Err(Condition::error(format!("Buffer not found: {buffer_name}")));
+        return Err(Exception::error(format!("Buffer not found: {buffer_name}")));
     };
     
     buffer.set_major_mode(major_mode.clone()).await?;
@@ -658,21 +658,21 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "minor-mode-add", lib = "(koru-buffer)")]
-pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((buffer_name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((minor_mode, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let buffer_name: String = buffer_name.clone().try_into()?;
-    let _: Gc<MinorMode> = minor_mode.try_into_rust_type()?;
+    let _: Gc<MinorMode> = minor_mode.try_to_rust_type()?;
 
     let state = SessionState::get_state();
     let guard = state.read().await;
     let mut buffer_guard = guard.buffers.write().await;
     let Some(buffer) = buffer_guard.get_mut(&buffer_name) else {
-        return Err(Condition::error(format!("Buffer not found: {buffer_name}")));
+        return Err(Exception::error(format!("Buffer not found: {buffer_name}")));
     };
 
     buffer.add_minor_mode(minor_mode.clone()).await?;
@@ -681,28 +681,28 @@ pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "minor-mode-get", lib = "(koru-buffer)")]
-pub async fn get_minor_mode(minor_mode_name: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn get_minor_mode(minor_mode_name: &Value) -> Result<Vec<Value>, Exception> {
     let minor_mode_name: Symbol = minor_mode_name.clone().try_into()?;
     let current_buffer = SessionState::get_current_buffer().await
-        .ok_or(Condition::error(String::from("No buffer currently focused")))?;
+        .ok_or(Exception::error(String::from("No buffer currently focused")))?;
 
     let minor_mode = current_buffer.get_minor_mode(minor_mode_name).await
-        .ok_or(Condition::error(String::from("minor mode not found")))?;
+        .ok_or(Exception::error(String::from("minor mode not found")))?;
 
     Ok(vec![minor_mode])
 }
 
 #[bridge(name = "current-major-mode", lib = "(koru-buffer)")]
-pub async fn get_current_major_mode() -> Result<Vec<Value>, Condition> {
+pub async fn get_current_major_mode() -> Result<Vec<Value>, Exception> {
     let Some(buffer) = SessionState::get_current_buffer().await else {
-        return Err(Condition::error(String::from("No buffer currently focused")));
+        return Err(Exception::error(String::from("No buffer currently focused")));
     };
 
     Ok(vec![buffer.get_major_mode()])
 }
 
 #[bridge(name = "current-buffer-name", lib = "(koru-buffer)")]
-pub async fn get_current_buffer_name() -> Result<Vec<Value>, Condition> {
+pub async fn get_current_buffer_name() -> Result<Vec<Value>, Exception> {
     let Some((name, _)) = SessionState::current_focused_buffer().await else {
         return Ok(vec![Value::null()])
     };
@@ -711,7 +711,7 @@ pub async fn get_current_buffer_name() -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "is-current-buffer-set?", lib = "(koru-buffer)")]
-pub async fn is_current_buffer_set() -> Result<Vec<Value>, Condition> {
+pub async fn is_current_buffer_set() -> Result<Vec<Value>, Exception> {
     let Some((_, _)) = SessionState::current_focused_buffer().await else {
         return Ok(vec![Value::from(false)])
     };
@@ -720,16 +720,16 @@ pub async fn is_current_buffer_set() -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "add-key-binding", lib = "(koru-session)")]
-pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((key_string, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((command, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
 
     let key_string: String = key_string.clone().try_into()?;
-    let command: Gc<Command> = command.try_into_rust_type()?;
+    let command: Gc<Command> = command.try_to_rust_type()?;
 
     let key_seq = key_string.split_whitespace()
         .map(|s| {
@@ -740,7 +740,7 @@ pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let key_seq = match key_seq {
         Some(key_seq) => key_seq,
         None => {
-            return Err(Condition::error(String::from("Invalid key in sequence")))
+            return Err(Exception::error(String::from("Invalid key in sequence")))
         }
     };
 
@@ -752,9 +752,9 @@ pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "remove-key-binding", lib = "(koru-session)")]
-pub async fn remove_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn remove_keymaping(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((key_string, _)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(1, args.len()))
+        return Err(Exception::wrong_num_of_args(1, args.len()))
     };
 
     let key_string: String = key_string.clone().try_into()?;
@@ -768,7 +768,7 @@ pub async fn remove_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let key_seq = match key_seq {
         Some(key_seq) => key_seq,
         None => {
-            return Err(Condition::error(String::from("Invalid key in sequence")))
+            return Err(Exception::error(String::from("Invalid key in sequence")))
         }
     };
 
@@ -780,16 +780,16 @@ pub async fn remove_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "add-special-key-binding", lib = "(koru-session)")]
-pub async fn add_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn add_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((key_string, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((command, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
 
     let key_string: String = key_string.clone().try_into()?;
-    let command: Gc<Command> = command.try_into_rust_type()?;
+    let command: Gc<Command> = command.try_to_rust_type()?;
 
     let key_seq = key_string.split_whitespace()
         .map(|s| {
@@ -800,7 +800,7 @@ pub async fn add_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Conditi
     let key_seq = match key_seq {
         Some(key_seq) => key_seq,
         None => {
-            return Err(Condition::error(String::from("Invalid key in sequence")))
+            return Err(Exception::error(String::from("Invalid key in sequence")))
         }
     };
 
@@ -812,9 +812,9 @@ pub async fn add_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Conditi
 }
 
 #[bridge(name = "remove-special-key-binding", lib = "(koru-session)")]
-pub async fn remove_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn remove_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((key_string, _)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(1, args.len()))
+        return Err(Exception::wrong_num_of_args(1, args.len()))
     };
 
     let key_string: String = key_string.clone().try_into()?;
@@ -828,7 +828,7 @@ pub async fn remove_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Cond
     let key_seq = match key_seq {
         Some(key_seq) => key_seq,
         None => {
-            return Err(Condition::error(String::from("Invalid key in sequence")))
+            return Err(Exception::error(String::from("Invalid key in sequence")))
         }
     };
 
@@ -840,25 +840,25 @@ pub async fn remove_special_keymaping(args: &[Value]) -> Result<Vec<Value>, Cond
 }
 
 #[bridge(name = "add-key-map", lib = "(koru-session)")]
-pub async fn add_keymap(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn add_keymap(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((keymap_name, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((keymap, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let keymap_name: Symbol = keymap_name.clone().try_into()?;
-    let keymap: Gc<SchemeKeyMap> = keymap.try_into_rust_type()?;
+    let keymap: Gc<SchemeKeyMap> = keymap.try_to_rust_type()?;
     let state = SessionState::get_state();
     let guard = state.read().await;
     match guard.add_keymap(keymap_name, keymap).await {
-        Err(msg) => Err(Condition::error(msg)),
+        Err(msg) => Err(Exception::error(msg)),
         Ok(()) => Ok(Vec::new())
     }
 }
 
 #[bridge(name = "remove-key-map", lib = "(koru-session)")]
-pub async fn remove_keymap(keymap_name: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn remove_keymap(keymap_name: &Value) -> Result<Vec<Value>, Exception> {
     let keymap_name: Symbol = keymap_name.clone().try_into()?;
     let state = SessionState::get_state();
     let guard = state.read().await;
@@ -867,7 +867,7 @@ pub async fn remove_keymap(keymap_name: &Value) -> Result<Vec<Value>, Condition>
 }
 
 #[bridge(name = "flush-key-buffer", lib = "(koru-session)")]
-pub async fn flush_keybuffer() -> Result<Vec<Value>, Condition> {
+pub async fn flush_keybuffer() -> Result<Vec<Value>, Exception> {
     let keybuffer = {
         let state = SessionState::get_state();
         let guard = state.read().await;
@@ -879,56 +879,56 @@ pub async fn flush_keybuffer() -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "buffer-change-focus", lib = "(koru-buffer)")]
-pub async fn change_current_buffer(name: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn change_current_buffer(name: &Value) -> Result<Vec<Value>, Exception> {
     let name: String = name.clone().try_into()?;
     SessionState::set_current_buffer(name).await;
     Ok(Vec::new())
 }
 
 #[bridge(name = "command-bar-left", lib = "(koru-session)")]
-pub async fn command_bar_left() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_left() -> Result<Vec<Value>, Exception> {
     let command_buffer = SessionState::get_command_bar().await;
     command_buffer.write().await.cursor_left();
     Ok(Vec::new())
 }
 
 #[bridge(name = "command-bar-right", lib = "(koru-session)")]
-pub async fn command_bar_right() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_right() -> Result<Vec<Value>, Exception> {
     let command_buffer = SessionState::get_command_bar().await;
     command_buffer.write().await.cursor_right();
     Ok(Vec::new())
 }
 
 #[bridge(name = "command-bar-delete-back", lib = "(koru-session)")]
-pub async fn command_bar_delete_backward() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_delete_backward() -> Result<Vec<Value>, Exception> {
     let command_buffer = SessionState::get_command_bar().await;
     command_buffer.write().await.delete_backward();
     Ok(Vec::new())
 }
 
 #[bridge(name = "command-bar-delete-forward", lib = "(koru-session)")]
-pub async fn command_bar_delete_forward() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_delete_forward() -> Result<Vec<Value>, Exception> {
     let command_buffer = SessionState::get_command_bar().await;
     command_buffer.write().await.delete_forward();
     Ok(Vec::new())
 }
 
 #[bridge(name = "command-bar-take", lib = "(koru-session)")]
-pub async fn command_bar_take() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_take() -> Result<Vec<Value>, Exception> {
     let command_buffer = SessionState::get_command_bar().await;
     let string = command_buffer.write().await.take();
     Ok(vec![Value::from(string)])
 }
 
 #[bridge(name = "command-bar-get", lib = "(koru-session)")]
-pub async fn command_bar_get() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_get() -> Result<Vec<Value>, Exception> {
     let command_buffer = SessionState::get_command_bar().await;
     let string = command_buffer.read().await.get();
     Ok(vec![Value::from(string)])
 }
 
 #[bridge(name = "command-bar-insert", lib = "(koru-session)")]
-pub async fn command_bar_insert(string: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_insert(string: &Value) -> Result<Vec<Value>, Exception> {
     let string: String = string.clone().try_into()?;
     let command_buffer = SessionState::get_command_bar().await;
     command_buffer.write().await.insert(&string);
@@ -936,7 +936,7 @@ pub async fn command_bar_insert(string: &Value) -> Result<Vec<Value>, Condition>
 }
 
 #[bridge(name = "command-bar-insert-key", lib = "(koru-session)")]
-pub async fn command_bar_insert_key(key_seq: &Value) -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_insert_key(key_seq: &Value) -> Result<Vec<Value>, Exception> {
     let key_press = {
         let key_sequence = key_seq.clone().unpack();
         match key_sequence {
@@ -947,11 +947,11 @@ pub async fn command_bar_insert_key(key_seq: &Value) -> Result<Vec<Value>, Condi
                     return Ok(vec![Value::from(false)]);
                 }
                 let key = pair.car().clone();
-                let key: Gc<KeyPress> = key.try_into_rust_type()?;
+                let key: Gc<KeyPress> = key.try_to_rust_type()?;
                 (*key).clone()
             }
             _ => {
-                return Err(Condition::type_error("List", key_sequence.type_name()))
+                return Err(Exception::type_error("List", key_sequence.type_name()))
             }
         }
     };
@@ -972,19 +972,19 @@ pub async fn command_bar_insert_key(key_seq: &Value) -> Result<Vec<Value>, Condi
 }
 
 #[bridge(name = "command-bar-show", lib = "(koru-session)")]
-pub async fn command_bar_show() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_show() -> Result<Vec<Value>, Exception> {
     SessionState::send_message(MessageKind::BackEnd(BackendMessage::ShowCommandBar)).await?;
     Ok(Vec::new())
 }
 
 #[bridge(name = "command-bar-hide", lib = "(koru-session)")]
-pub async fn command_bar_hide() -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_hide() -> Result<Vec<Value>, Exception> {
     SessionState::send_message(MessageKind::BackEnd(BackendMessage::HideCommandBar)).await?;
     Ok(Vec::new())
 }
 
 #[bridge(name = "command-bar-update", lib = "(koru-session)")]
-pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((prefix, rest)) = args.split_first() else {
         let command_buffer = SessionState::get_command_bar().await;
         let string = command_buffer.read().await.get();
@@ -1021,7 +1021,7 @@ pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Condition>
 }
 
 #[bridge(name = "crash", lib = "(koru-session)")]
-pub fn crash() -> Result<Vec<Value>, Condition> {
+pub fn crash() -> Result<Vec<Value>, Exception> {
     error!("Crash");
     panic!("crash");
 }

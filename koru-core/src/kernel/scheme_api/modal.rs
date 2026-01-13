@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
@@ -60,7 +60,7 @@ impl Modal {
         }
     }
 
-    pub async fn change_state(&self, state: Symbol) -> Result<(), Condition> {
+    pub async fn change_state(&self, state: Symbol) -> Result<(), Exception> {
         let (old_state, hook_name, callback) = {
             let mut guard = self.internal.write().await;
             let old_state = guard.state;
@@ -122,20 +122,20 @@ impl SchemeCompatible for Modal {
     where
         Self: Sized
     {
-        rtd!(name: "&Modal")
+        rtd!(name: "&Modal", sealed: true)
     }
 }
 
 #[bridge(name = "modal-create", lib = "(koru-modal)")]
-pub async fn modal_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn modal_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((initial_state, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Exception::wrong_num_of_args(3, args.len()))
     };
     let Some((hook_name, rest)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Exception::wrong_num_of_args(3, args.len()))
     };
     let Some((callback, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(3, args.len()))
+        return Err(Exception::wrong_num_of_args(3, args.len()))
     };
     let initial_state: Symbol = initial_state.clone().try_into()?;
     let hook_name: Symbol = hook_name.clone().try_into()?;
@@ -148,14 +148,14 @@ pub async fn modal_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "modal-state-set!", lib = "(koru-modal)")]
-pub async fn modal_change_state(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn modal_change_state(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((modal, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((state, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
     let state: Symbol = state.clone().try_into()?;
 
     modal.change_state(state).await?;
@@ -164,21 +164,21 @@ pub async fn modal_change_state(args: &[Value]) -> Result<Vec<Value>, Condition>
 }
 
 #[bridge(name = "modal-state", lib = "(koru-modal)")]
-pub async fn modal_state(modal: &Value) -> Result<Vec<Value>, Condition> {
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+pub async fn modal_state(modal: &Value) -> Result<Vec<Value>, Exception> {
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
     let output = modal.get_state().await;
     Ok(vec![Value::from(output)])
 }
 
 #[bridge(name = "modal-prefix-set!", lib = "(koru-modal)")]
-pub async fn modal_change_prefix(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn modal_change_prefix(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((modal, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((prefix, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
     let prefix: String = prefix.clone().try_into()?;
 
     modal.set_prefix(prefix).await;
@@ -187,21 +187,21 @@ pub async fn modal_change_prefix(args: &[Value]) -> Result<Vec<Value>, Condition
 }
 
 #[bridge(name = "modal-prefix", lib = "(koru-modal)")]
-pub async fn modal_prefix(modal: &Value) -> Result<Vec<Value>, Condition> {
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+pub async fn modal_prefix(modal: &Value) -> Result<Vec<Value>, Exception> {
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
     let output = modal.get_prefix().await;
     Ok(vec![Value::from(output)])
 }
 
 #[bridge(name = "modal-suffix-set!", lib = "(koru-modal)")]
-pub async fn modal_change_suffix(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn modal_change_suffix(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((modal, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((suffix, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
     let suffix: String = suffix.clone().try_into()?;
 
     modal.set_suffix(suffix).await;
@@ -210,21 +210,21 @@ pub async fn modal_change_suffix(args: &[Value]) -> Result<Vec<Value>, Condition
 }
 
 #[bridge(name = "modal-suffix", lib = "(koru-modal)")]
-pub async fn suffix(modal: &Value) -> Result<Vec<Value>, Condition> {
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+pub async fn suffix(modal: &Value) -> Result<Vec<Value>, Exception> {
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
     let output = modal.get_suffix().await;
     Ok(vec![Value::from(output)])
 }
 
 #[bridge(name = "modal-callback-set!", lib = "(koru-modal)")]
-pub async fn modal_change_callback(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn modal_change_callback(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((modal, rest)) = args.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
     let Some((callback, _)) = rest.split_first() else {
-        return Err(Condition::wrong_num_of_args(2, args.len()))
+        return Err(Exception::wrong_num_of_args(2, args.len()))
     };
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
 
     // We let the user null out the field if they want to
     // The if the value isn't null, then we ensure that it is a procedure.
@@ -238,8 +238,8 @@ pub async fn modal_change_callback(args: &[Value]) -> Result<Vec<Value>, Conditi
 }
 
 #[bridge(name = "modal-callback-apply", lib = "(koru-modal)")]
-pub async fn callback_apply(modal: &Value) -> Result<Vec<Value>, Condition> {
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
+pub async fn callback_apply(modal: &Value) -> Result<Vec<Value>, Exception> {
+    let modal: Gc<Modal> = modal.try_to_rust_type()?;
     let callback = modal.get_command_callback().await;
     if !callback.is_null() {
         let callback: Procedure = callback.clone().try_into()?;

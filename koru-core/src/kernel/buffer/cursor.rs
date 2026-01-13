@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::Trace;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
@@ -16,13 +16,13 @@ impl SchemeCompatible for Cursors {
     where
         Self: Sized
     {
-        rtd!(name: "&Cursors")
+        rtd!(name: "&Cursors", sealed: true)
     }
 }
 
 
 #[bridge(name = "cursors-create", lib = "(koru-cursor)")]
-pub fn cursors_create() -> Result<Vec<Value>, Condition> {
+pub fn cursors_create() -> Result<Vec<Value>, Exception> {
     let cursors = Cursors {
         cursors: Vec::new(),
     };
@@ -206,7 +206,7 @@ impl SchemeCompatible for Cursor {
     where
         Self: Sized
     {
-        rtd!(name: "&Cursor")
+        rtd!(name: "&Cursor", sealed: true)
     }
 }
 
@@ -246,7 +246,7 @@ impl SchemeCompatible for GridCursor {
     where
         Self: Sized
     {
-        rtd!(name: "&GridCursor")
+        rtd!(name: "&GridCursor", sealed: true)
     }
 }
 

@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, LazyLock};
-use scheme_rs::exceptions::Condition;
+use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
@@ -102,7 +102,7 @@ impl SchemeCompatible for ArgumentDef {
     where
         Self: Sized
     {
-        rtd!(name: "&ArgumentDef")
+        rtd!(name: "&ArgumentDef", sealed: true)
     }
 }
 
@@ -154,16 +154,16 @@ impl SchemeCompatible for Command {
     where
         Self: Sized
     {
-        rtd!(name: "&Command")
+        rtd!(name: "&Command", sealed: true)
     }
 }
 
 #[bridge(name = "command=", lib = "(koru-command)")]
-pub fn equal_command(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn equal_command(args: &[Value]) -> Result<Vec<Value>, Exception> {
     if let Some((first, rest)) = args.split_first() {
-        let first: Gc<Command> = first.clone().try_into_rust_type()?;
+        let first: Gc<Command> = first.clone().try_to_rust_type()?;
         for next in rest {
-            let next: Gc<Command> = next.clone().try_into_rust_type()?;
+            let next: Gc<Command> = next.clone().try_to_rust_type()?;
             if first != next {
                 return Ok(vec![Value::from(false)]);
             }
@@ -173,9 +173,9 @@ pub fn equal_command(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "command-apply", lib = "(koru-command)")]
-pub async fn command_apply(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub async fn command_apply(args: &[Value]) -> Result<Vec<Value>, Exception> {
     if let Some((first, rest)) = args.split_first() {
-        let command: Gc<Command> = first.clone().try_into_rust_type()?;
+        let command: Gc<Command> = first.clone().try_to_rust_type()?;
         let function = command.function.clone();
         let args = function.call(rest).await?;
         return Ok(args);
@@ -184,31 +184,31 @@ pub async fn command_apply(args: &[Value]) -> Result<Vec<Value>, Condition> {
 }
 
 #[bridge(name = "command-name", lib = "(koru-command)")]
-pub fn command_name(command: &Value) -> Result<Vec<Value>, Condition> {
-    let command: Gc<Command> = command.clone().try_into_rust_type()?;
+pub fn command_name(command: &Value) -> Result<Vec<Value>, Exception> {
+    let command: Gc<Command> = command.clone().try_to_rust_type()?;
 
     Ok(vec![Value::from(command.name.clone())])
 }
 
 #[bridge(name = "command-description", lib = "(koru-command)")]
-pub fn command_description(command: &Value) -> Result<Vec<Value>, Condition> {
-    let command: Gc<Command> = command.clone().try_into_rust_type()?;
+pub fn command_description(command: &Value) -> Result<Vec<Value>, Exception> {
+    let command: Gc<Command> = command.clone().try_to_rust_type()?;
 
     Ok(vec![Value::from(command.description.clone())])
 }
 
 #[bridge(name = "command-create", lib = "(koru-command)")]
-pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
+pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((first, rest)) = args.split_first() else {
-        return Err(Condition::type_error("String", "invalid"));
+        return Err(Exception::type_error("String", "invalid"));
     };
     let name: Symbol = first.clone().try_into()?;
     let Some((first, rest)) = rest.split_first() else {
-        return Err(Condition::type_error("String", "invalid"));
+        return Err(Exception::type_error("String", "invalid"));
     };
     let description: String = first.clone().try_into()?;
     let Some((first, rest)) = rest.split_first() else {
-        return Err(Condition::type_error("Procedure", "invalid"));
+        return Err(Exception::type_error("Procedure", "invalid"));
     };
     let function: Procedure = first.clone().try_into()?;
 
@@ -218,7 +218,7 @@ pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
         match ArgumentDef::try_from(arg.to_str().as_ref()) {
             Ok(x) => arguments.push(x),
             Err(msg) => {
-                return Err(Condition::error(msg))
+                return Err(Exception::error(msg))
             }
         }
     }
