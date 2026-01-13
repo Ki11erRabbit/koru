@@ -27,6 +27,24 @@ Simple constructor
 ```
 
 #### Accessors
+
+##### `modal-state`
+Returns the state of the modal
+###### Inputs
+- modal: Modal, the modal to fetch the state from.
+###### Outputs
+Symbol: The current state of the modal
+###### Errors
+None
+###### Behavior
+Simple Getter
+
+###### Example
+```scheme
+(modal-state modal)
+```
+
+
 ##### `modal-prefix-set!`
 Changes the prefix in the modal.
 ###### Inputs

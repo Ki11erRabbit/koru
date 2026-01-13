@@ -70,6 +70,10 @@ impl Modal {
             (old_state, state_change_hook_name, state_change_callback)
         };
 
+        if old_state == state {
+            return Ok(())
+        }
+
         let callback: Procedure = callback.try_into()?;
         callback.call(&[Value::from(old_state.clone()), Value::from(state.clone())]).await?;
 
