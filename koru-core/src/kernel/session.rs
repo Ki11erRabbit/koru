@@ -112,7 +112,12 @@ impl Session {
         };
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
 
-        hooks.read().await.execute_hook(&Symbol::intern("buffer-open"), args).await.unwrap();
+        match hooks.read().await.execute_hook(&Symbol::intern("buffer-open"), args).await {
+            Ok(_) => {}
+            Err(err) => {
+                error!("{}", err);
+            }
+        }
     }
 
     async fn send_draw(&mut self, buffer_name: &str) -> Result<(), Box<dyn Error>> {

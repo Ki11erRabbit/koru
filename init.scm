@@ -1,4 +1,4 @@
 (import (rnrs))
-(import (configs nano))
+(import (configs emacs))
 
-(init-nano-config)
+(init-emacs-config)
