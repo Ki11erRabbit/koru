@@ -1,5 +1,6 @@
 use scheme_rs::exceptions::{Condition, Exception};
 use scheme_rs::gc::Gc;
+use scheme_rs::symbols::Symbol;
 use scheme_rs::value::{Value};
 use crate::kernel::buffer::{BufferHandle, Cursor};
 use crate::kernel::scheme_api::major_mode::MajorMode;
@@ -38,7 +39,7 @@ impl Buffer {
         self.minor_modes.add_minor_mode(minor_mode).await
     }
 
-    pub async fn remove_minor_mode(&mut self, minor_mode: &str) -> Option<String> {
+    pub async fn remove_minor_mode(&mut self, minor_mode: Symbol) -> Option<String> {
         self.minor_modes.remove_minor_mode(minor_mode).await
     }
 
@@ -46,7 +47,7 @@ impl Buffer {
         self.minor_modes.get_minor_modes()
     }
 
-    pub async fn get_minor_mode(&self, minor_mode: &str) -> Option<Value> {
+    pub async fn get_minor_mode(&self, minor_mode: Symbol) -> Option<Value> {
         self.minor_modes.get_minor_mode(minor_mode).await.cloned()
     }
 

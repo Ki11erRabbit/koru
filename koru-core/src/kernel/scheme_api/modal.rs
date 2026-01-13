@@ -74,7 +74,7 @@ impl Modal {
         callback.call(&[Value::from(old_state.clone()), Value::from(state.clone())]).await?;
 
         SessionState::emit_hook(
-            &hook_name.to_str(),
+            hook_name,
             &[Value::from(old_state), Value::from(hook_name.clone())]
         ).await?;
 

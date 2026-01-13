@@ -8,13 +8,14 @@ use scheme_rs::gc::Trace;
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
+use scheme_rs::symbols::Symbol;
 use scheme_rs::value::Value;
 use tokio::sync::RwLock;
 use crate::kernel::buffer::Cursor;
 
 #[derive(Debug, Trace)]
 pub struct MajorMode {
-    name: String,
+    name: Symbol,
     data: RwLock<Value>,
     draw: Procedure,
     get_main_cursor: Procedure,
@@ -24,7 +25,7 @@ pub struct MajorMode {
 
 impl MajorMode {
     pub fn new(
-        name: String,
+        name: Symbol,
         data: Value,
         draw: Procedure,
         get_main_cursor: Procedure,
@@ -78,7 +79,7 @@ pub fn major_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(5, args.len()));
     };
-    let name: String = name.clone().try_into()?;
+    let name: Symbol = name.clone().try_into()?;
     let Some((draw, rest)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(5, args.len()));
     };
@@ -175,8 +176,3 @@ pub fn write_line_number(args: &[Value]) -> Result<Vec<Value>, Condition> {
     Ok(vec![Value::from(string)])
 }
 */
-#[bridge(name = "debug-print", lib = "(major-mode)")]
-pub fn debug_print() -> Result<Vec<Value>, Condition> {
-    println!("debug_print");
-    Ok(vec![])
-}

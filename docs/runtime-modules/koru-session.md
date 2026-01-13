@@ -7,7 +7,7 @@ These functions are for manipulating the state of the editor directly.
 Creates a new hook that can be subscribed to when activated.
 
 ###### Inputs
-- hook-name: String, the name of the new hook to be created.
+- hook-name: Symbol, the name of the new hook to be created.
 
 ###### Outputs
 None
@@ -19,14 +19,14 @@ If the hook already exists, it will destroy the previous callbacks.
 
 ###### Example
 ```scheme
-(create-hook "my-hook")
+(create-hook 'my-hook)
 ```
 
 ### `destroy-hook`
 Removes a hook from the runtime, removing callbacks.
 
 ###### Inputs
-- hook-name: String, the name of the hook to be destroyed.
+- hook-name: Symbol, the name of the hook to be destroyed.
 
 ###### Outputs
 None
@@ -38,15 +38,15 @@ It will also remove all subscribers to the hook.
 
 ###### Example
 ```scheme
-(destroy-hook "my-hook")
+(destroy-hook 'my-hook)
 ```
 
 ### `add-hook`
 Adds a new listener to a specified hook.
 
 ###### Inputs
-- hook-name: String, the name of the hook to respond to.
-- callback-name: String, the name of the callback (used for deregistration purposes).
+- hook-name: Symbol, the name of the hook to respond to.
+- callback-name: Symbol, the name of the callback (used for deregistration purposes).
 - callback: Procedure, a function that takes in the arguments of a hook and will be called when the hook activates.
 
 ###### Outputs
@@ -60,14 +60,14 @@ If the `callback-name` overlaps with another callback, then the old callback wil
 
 ###### Example
 ```scheme
-(add-hook "my-hook" "my-callback" (lambda () (something)))
+(add-hook 'my-hook 'my-callback (lambda () (something)))
 ```
 
 ### `remove-hook`
 Unregisters a callback from a given hook.
 
 ###### Inputs
-- hook-name: String, the name of the particular hook.
+- hook-name: Symbol, the name of the particular hook.
 - callback-name: String, the name of the callback to be removed.
 
 ###### Outputs
@@ -81,14 +81,14 @@ If the hook or callback does not exist, then this function does nothing.
 
 ###### Example
 ```scheme
-(remove-hook "my-hook" "my-callback")
+(remove-hook 'my-hook 'my-callback)
 ```
 
 ### `emit-hook`
 Triggers all callbacks with a particular hook.
 
 ###### Inputs
-- hook-name: String, the name of the hook to trigger.
+- hook-name: Symbol, the name of the hook to trigger.
 - rest: Argument List, the arguments to pass into the hook.
 
 ###### Outputs
@@ -102,7 +102,7 @@ Order is not guaranteed.
 
 ###### Example
 ```scheme
-(emit-hook "my-hook" 1 2 3 4)
+(emit-hook 'my-hook 1 2 3 4)
 ```
 
 
@@ -193,7 +193,7 @@ Adds a new keymap to the editor.
 This should be used generally to add new keybindings.
 
 ###### Inputs
-- keymap-name: String, an identifier for the keymap.
+- keymap-name: Symbol, an identifier for the keymap.
 - key-map: KeyMap, holds the key bindings to commands.
 
 ###### Outputs
@@ -207,14 +207,14 @@ This will overwrite any previous keymaps if there are any.
 
 ###### Example
 ```scheme
-(add-key-map "my-keymap" my-keymap)
+(add-key-map 'my-keymap my-keymap)
 ```
 
 ### `remove-key-map`
 Removes a new keymap to the editor.
 
 ###### Inputs
-- keymap-name: String, an identifier for the keymap.
+- keymap-name: Symbol, an identifier for the keymap.
 
 ###### Outputs
 None
@@ -227,7 +227,7 @@ This will overwrite any previous keymaps if there are any.
 
 ###### Example
 ```scheme
-(remove-key-map "my-keymap")
+(remove-key-map 'my-keymap)
 ```
 
 ### `flush-key-buffer`

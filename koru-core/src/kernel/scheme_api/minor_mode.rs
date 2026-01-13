@@ -5,12 +5,13 @@ use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
+use scheme_rs::symbols::Symbol;
 use scheme_rs::value::Value;
 use tokio::sync::RwLock;
 use crate::kernel::scheme_api::major_mode::MajorMode;
 
 struct MinorModeManagerMetadata {
-    map: HashMap<String, usize>,
+    map: HashMap<Symbol, usize>,
     free_list: VecDeque<usize>,
 }
 
@@ -59,9 +60,9 @@ impl MinorModeManager {
         Ok(())
     }
 
-    pub async fn remove_minor_mode(&mut self, minor_mode_name: &str) -> Option<String> {
+    pub async fn remove_minor_mode(&mut self, minor_mode_name: Symbol) -> Option<String> {
         let mut guard = self.metadata.write().await;
-        if let Some(index) = guard.map.remove(minor_mode_name) {
+        if let Some(index) = guard.map.remove(&minor_mode_name) {
             self.minor_modes[index] = None;
             guard.free_list.push_back(index);
             Some(minor_mode_name.to_string())
@@ -70,9 +71,9 @@ impl MinorModeManager {
         }
     }
 
-    pub async fn get_minor_mode(&self, minor_mode_name: &str) -> Option<&Value> {
+    pub async fn get_minor_mode(&self, minor_mode_name: Symbol) -> Option<&Value> {
         let guard = self.metadata.read().await;
-        if let Some(index) = guard.map.get(minor_mode_name) {
+        if let Some(index) = guard.map.get(&minor_mode_name) {
             self.minor_modes[*index].as_ref()
         } else {
             None
@@ -92,7 +93,7 @@ impl MinorModeManager {
 
 #[derive(Debug, Trace)]
 pub struct MinorMode {
-    name: String,
+    name: Symbol,
     data: RwLock<Value>,
     gain_focus: Procedure,
     lose_focus: Procedure,
@@ -100,7 +101,7 @@ pub struct MinorMode {
 
 impl MinorMode {
     pub fn new(
-        name: String,
+        name: Symbol,
         data: Value,
         gain_focus: Procedure,
         lose_focus: Procedure,
@@ -136,7 +137,7 @@ pub fn minor_mode_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((name, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(3, args.len()));
     };
-    let name: String = name.clone().try_into()?;
+    let name: Symbol = name.clone().try_into()?;
     let Some((gain_focus, rest)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(3, args.len()));
     };

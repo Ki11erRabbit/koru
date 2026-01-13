@@ -5,6 +5,7 @@ use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
+use scheme_rs::symbols::Symbol;
 use scheme_rs::value::Value;
 
 #[derive(Clone, Debug, Trace)]
@@ -109,7 +110,7 @@ impl SchemeCompatible for ArgumentDef {
 
 #[derive(Clone, Debug, Trace)]
 pub struct Command {
-    name: String,
+    name: Symbol,
     function: Procedure,
     description: String,
     arguments: Vec<ArgumentDef>,
@@ -117,7 +118,12 @@ pub struct Command {
 
 impl Command {
 
-    pub fn new(name: String, function: Procedure, description: String, arguments: Vec<ArgumentDef>) -> Self {
+    pub fn new(
+        name: Symbol,
+        function: Procedure,
+        description: String,
+        arguments: Vec<ArgumentDef>
+    ) -> Self {
         Command {
             name,
             function,
@@ -125,8 +131,8 @@ impl Command {
             arguments,
         }
     }
-    pub fn name(&self) -> &str {
-        self.name.as_str()
+    pub fn name(&self) -> Arc<str> {
+        self.name.to_str()
     }
     
     pub fn command(&self) -> &Procedure {
@@ -196,7 +202,7 @@ pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((first, rest)) = args.split_first() else {
         return Err(Condition::type_error("String", "invalid"));
     };
-    let name: String = first.clone().try_into()?;
+    let name: Symbol = first.clone().try_into()?;
     let Some((first, rest)) = rest.split_first() else {
         return Err(Condition::type_error("String", "invalid"));
     };
@@ -208,8 +214,8 @@ pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
     let mut arguments: Vec<ArgumentDef> = Vec::new();
     for arg in rest {
-        let arg: String = arg.clone().try_into()?;
-        match ArgumentDef::try_from(arg.as_str()) {
+        let arg: Symbol = arg.clone().try_into()?;
+        match ArgumentDef::try_from(arg.to_str().as_ref()) {
             Ok(x) => arguments.push(x),
             Err(msg) => {
                 return Err(Condition::error(msg))

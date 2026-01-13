@@ -11,3 +11,4 @@
   * [major-mode](runtime-modules/major-mode.md)
   * [minor-mode](runtime-modules/minor-mode.md)
   * [koru-cursor](runtime-modules/koru-cursor.md)
+  * [koru-modal](runtime-modules/koru-modal.md)

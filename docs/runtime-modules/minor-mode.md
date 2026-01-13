@@ -8,7 +8,7 @@
 ##### `minor-mode-create`
 Creates a new minor mode.
 ###### Inputs
-- name: String, the name of the minor mode.
+- name: Symbol, the name of the minor mode.
 - gain-focus: Procedure, a function that takes the minor mode and is called when the buffer that has this minor mode gains focus.
 - lose-focus: Procedure, a function that takes the minor mode and is called when the buffer that contains the minor more loses focus.
 - data: Optional Any, an optional state parameter.
@@ -20,7 +20,7 @@ None
 Simple constructor
 ###### Example
 ```scheme
-(minor-mode-create "vi-mode" vi-gain-focus vi-lose-focus "Normal")
+(minor-mode-create 'vi-mode vi-gain-focus vi-lose-focus "Normal")
 ```
 
 #### Accessors

@@ -28,7 +28,7 @@ use crate::kernel::scheme_api::session::keymap::SchemeKeyMap;
 use crate::keymap::KeyMap;
 
 pub struct Hooks {
-    hooks: HashMap<String, HashMap<String, Procedure>>,
+    hooks: HashMap<Symbol, HashMap<Symbol, Procedure>>,
 }
 
 impl Hooks {
@@ -38,28 +38,28 @@ impl Hooks {
         }
     }
 
-    pub fn add_new_hook_kind(&mut self, name: String) {
+    pub fn add_new_hook_kind(&mut self, name: Symbol) {
         self.hooks.insert(name, HashMap::new());
     }
 
-    pub fn remove_hook_kind(&mut self, name: &str) {
+    pub fn remove_hook_kind(&mut self, name: &Symbol) {
         self.hooks.remove(name);
     }
 
-    pub fn add_new_hook(&mut self, hook_name: &str, name: String, procedure: Procedure) {
-        let Some(hooks) = self.hooks.get_mut(hook_name) else {
+    pub fn add_new_hook(&mut self, hook_name: Symbol, name: Symbol, procedure: Procedure) {
+        let Some(hooks) = self.hooks.get_mut(&hook_name) else {
             panic!("Unknown hook {}", hook_name);
         };
         hooks.insert(name, procedure);
     }
 
-    pub fn remove_hook(&mut self, hook_name: &str, name: &str) {
+    pub fn remove_hook(&mut self, hook_name: &Symbol, name: &Symbol) {
         if let Some(hooks) = self.hooks.get_mut(hook_name) {
             hooks.remove(name);
         }
     }
 
-    pub async fn execute_hook(&self, hook_name: &str, args: &[Value]) -> Result<(), Condition> {
+    pub async fn execute_hook(&self, hook_name: &Symbol, args: &[Value]) -> Result<(), Condition> {
         let Some(hooks) = self.hooks.get(hook_name) else {
             panic!("Unknown hook {}", hook_name);
         };
@@ -152,7 +152,7 @@ pub struct SessionState {
     /// This can only be a single key as only the current key will be checked.
     special_key_map: Arc<RwLock<KeyMap>>,
     main_key_map: Arc<RwLock<KeyMap>>,
-    key_maps: Arc<RwLock<HashMap<String, KeyMap>>>,
+    key_maps: Arc<RwLock<HashMap<Symbol, KeyMap>>>,
     broker_client: Arc<RwLock<BrokerClient>>,
     active_sessions: Arc<RwLock<Vec<usize>>>,
     command_bar: Arc<RwLock<CommandBar>>,
@@ -161,7 +161,7 @@ pub struct SessionState {
 impl SessionState {
     pub fn new() -> Self {
         let mut hooks = Hooks::new();
-        hooks.add_new_hook_kind(String::from("buffer-open"));
+        hooks.add_new_hook_kind(Symbol::intern("buffer-open"));
 
         let hooks = Arc::new(RwLock::new(hooks));
         let (sender, receiver) = tokio::sync::mpsc::channel(100);
@@ -376,15 +376,15 @@ impl SessionState {
         self.special_key_map.write().await.remove_binding(keys);
     }
 
-    pub async fn add_keymap(&self, keymap_name: String, keymap: Gc<SchemeKeyMap>) -> Result<(), String> {
+    pub async fn add_keymap(&self, keymap_name: Symbol, keymap: Gc<SchemeKeyMap>) -> Result<(), String> {
         let keymap = keymap.make_keymap().await?;
         self.key_maps.write().await.insert(keymap_name, keymap);
         Ok(())
     }
 
-    pub async fn remove_keymap(&self, keymap_name: &str) {
+    pub async fn remove_keymap(&self, keymap_name: Symbol) {
         let mut guard = self.key_maps.write().await;
-        guard.remove(keymap_name);
+        guard.remove(&keymap_name);
     }
 
     /// Returns: `true` if a mapping has been found, `false` if a mapping was not found
@@ -493,18 +493,27 @@ impl SessionState {
         key_buffer.write().await.push(key_press);
     }
 
-    pub async fn emit_hook(hook_name: &str, args: &[Value]) -> Result<(), Condition> {
-        let state = SessionState::get_state();
+    pub async fn emit_hook(hook_name: Symbol, args: &[Value]) -> Result<(), Condition> {
+        let args = args.to_vec();
+        tokio::task::spawn(async move {
+            let state = SessionState::get_state();
 
-        let hooks = state.read().await.hooks.clone();
-        let hooks = hooks.read().await;
-        hooks.execute_hook(hook_name, args).await?;
+            let hooks = state.read().await.hooks.clone();
+            let hooks = hooks.read().await;
+            match hooks.execute_hook(&hook_name, &args).await {
+                Err(err) => {
+                    error!("{err}");
+                }
+                _ => {}
+            }
+        });
+        
         Ok(())
     }
 
-    pub async fn emit_hook_self(&mut self, hook_name: &str, args: &[Value]) -> Result<(), Condition> {
+    pub async fn emit_hook_self(&mut self, hook_name: Symbol, args: &[Value]) -> Result<(), Condition> {
         let hooks = self.hooks.read().await;
-        hooks.execute_hook(hook_name, args).await?;
+        hooks.execute_hook(&hook_name, args).await?;
         Ok(())
     }
 
@@ -534,7 +543,7 @@ pub async fn create_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((hook_name, _)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(1, args.len()))
     };
-    let hook_name: String = hook_name.clone().try_into()?;
+    let hook_name: Symbol = hook_name.clone().try_into()?;
 
     let state = SessionState::get_state();
 
@@ -549,7 +558,7 @@ pub async fn destroy_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((hook_name, _)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(1, args.len()))
     };
-    let hook_name: String = hook_name.clone().try_into()?;
+    let hook_name: Symbol = hook_name.clone().try_into()?;
 
     let state = SessionState::get_state();
 
@@ -570,14 +579,14 @@ pub async fn add_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((procedure, _)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(3, args.len()))
     };
-    let hook_name_kind: String = hook_name_kind.clone().try_into()?;
-    let hook_name: String = hook_name.clone().try_into()?;
+    let hook_name_kind: Symbol = hook_name_kind.clone().try_into()?;
+    let hook_name: Symbol = hook_name.clone().try_into()?;
     let hook: Procedure = procedure.clone().try_into()?;
 
     let state = SessionState::get_state();
 
     let hooks = state.read().await.hooks.clone();
-    hooks.write().await.add_new_hook(&hook_name_kind, hook_name, hook);
+    hooks.write().await.add_new_hook(hook_name_kind, hook_name, hook);
     Ok(Vec::new())
 }
 
@@ -590,8 +599,8 @@ pub async fn remove_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((hook_name, _)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
-    let hook_name_kind: String = hook_name_kind.clone().try_into()?;
-    let hook_name: String = hook_name.clone().try_into()?;
+    let hook_name_kind: Symbol = hook_name_kind.clone().try_into()?;
+    let hook_name: Symbol = hook_name.clone().try_into()?;
 
     let state = SessionState::get_state();
 
@@ -607,7 +616,7 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     };
     let hook_name: Symbol = hook_name_kind.clone().try_into()?;
 
-    SessionState::emit_hook(&hook_name.to_str(), rest).await?;
+    SessionState::emit_hook(hook_name, rest).await?;
     Ok(Vec::new())
 }
 
@@ -659,11 +668,11 @@ pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "minor-mode-get", lib = "(koru-buffer)")]
 pub async fn get_minor_mode(minor_mode_name: &Value) -> Result<Vec<Value>, Condition> {
-    let minor_mode_name: String = minor_mode_name.clone().try_into()?;
+    let minor_mode_name: Symbol = minor_mode_name.clone().try_into()?;
     let current_buffer = SessionState::get_current_buffer().await
         .ok_or(Condition::error(String::from("no buffer currently focused")))?;
 
-    let minor_mode = current_buffer.get_minor_mode(&minor_mode_name).await
+    let minor_mode = current_buffer.get_minor_mode(minor_mode_name).await
         .ok_or(Condition::error(String::from("minor mode not found")))?;
 
     Ok(vec![minor_mode])
@@ -721,7 +730,7 @@ pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "remove-key-binding", lib = "(koru-session)")]
 pub async fn remove_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
-    let Some((key_string, rest)) = args.split_first() else {
+    let Some((key_string, _)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(1, args.len()))
     };
 
@@ -815,7 +824,7 @@ pub async fn add_keymap(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((keymap, _)) = rest.split_first() else {
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
-    let keymap_name: String = keymap_name.clone().try_into()?;
+    let keymap_name: Symbol = keymap_name.clone().try_into()?;
     let keymap: Gc<SchemeKeyMap> = keymap.try_into_rust_type()?;
     let state = SessionState::get_state();
     let guard = state.read().await;
@@ -827,10 +836,10 @@ pub async fn add_keymap(args: &[Value]) -> Result<Vec<Value>, Condition> {
 
 #[bridge(name = "remove-key-map", lib = "(koru-session)")]
 pub async fn remove_keymap(keymap_name: &Value) -> Result<Vec<Value>, Condition> {
-    let keymap_name: String = keymap_name.clone().try_into()?;
+    let keymap_name: Symbol = keymap_name.clone().try_into()?;
     let state = SessionState::get_state();
     let guard = state.read().await;
-    guard.remove_keymap(&keymap_name).await;
+    guard.remove_keymap(keymap_name).await;
     Ok(Vec::new())
 }
 

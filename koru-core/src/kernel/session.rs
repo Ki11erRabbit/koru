@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use log::error;
 use scheme_rs::gc::Gc;
 use scheme_rs::runtime::Runtime;
+use scheme_rs::symbols::Symbol;
 use scheme_rs::value::Value;
 use crate::kernel::broker::{BackendMessage, BrokerClient, GeneralMessage, Message, MessageKind};
 use crate::kernel::buffer::TextBufferTable;
@@ -111,7 +112,7 @@ impl Session {
         };
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
 
-        hooks.read().await.execute_hook("buffer-open", args).await.unwrap();
+        hooks.read().await.execute_hook(&Symbol::intern("buffer-open"), args).await.unwrap();
     }
 
     async fn send_draw(&mut self, buffer_name: &str) -> Result<(), Box<dyn Error>> {

@@ -133,7 +133,7 @@ This will add a new minor mode to a buffer if it is found.
 Gets a minor mode from the current buffer if it exists.
 
 ###### Inputs
-- buffer-name: String, the name of a minor mode in the current buffer that exists.
+- mode-name: Symbol, the name of a minor mode in the current buffer that exists.
 
 ###### Outputs
 None
@@ -145,7 +145,7 @@ This searches the current buffer for the minor mode.
 
 ###### Example
 ```scheme
-(minor-mode-get "vi-mode")
+(minor-mode-get 'vi-mode)
 ```
 
 ### `current-buffer-name`
