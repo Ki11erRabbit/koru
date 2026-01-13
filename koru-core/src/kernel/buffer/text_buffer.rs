@@ -243,7 +243,8 @@ impl TextBuffer {
 
     pub async fn delete_forward(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
-        let line = self.buffer.line(cursors[cursor_index].line());
+        let line_no = cursors[cursor_index].line();
+        let line = self.buffer.line_slice(line_no..(line_no + 1));
         let character_offset = byte_offset + line.chars()
             .skip(cursors[cursor_index].column())
             .take(1)
