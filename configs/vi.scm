@@ -152,6 +152,8 @@
       (key-map-insert vi-key-map "i" vi-enter-insert)
       (key-map-insert vi-key-map "v" vi-enter-visual)
       (key-map-insert vi-key-map ":" vi-enter-command)
+      (key-map-insert vi-key-map "u" editor-undo)
+      (key-map-insert vi-key-map "C-r" editor-redo)
       vi-key-map))
 
   (define (vi-visual-mode-keymap)
@@ -189,18 +191,26 @@
       vi-key-map))
 
   (define (enter-normal-mode)
+    (when (is-current-buffer-set?)
+      (command-apply text-edit-mode-end-transaction))
     (add-key-map 'vi-edit (vi-normal-mode-keymap)))
 
   (define (enter-normal-mode-first-time)
     (add-key-map 'vi-edit (vi-normal-mode-keymap)))
 
   (define (enter-insert-mode)
+    (when (is-current-buffer-set?)
+      (command-apply text-edit-mode-start-transaction))
     (add-key-map 'vi-edit (vi-insert-mode-keymap)))
 
   (define (enter-visual-mode)
+    (when (is-current-buffer-set?)
+      (command-apply text-edit-mode-start-transaction))
     (add-key-map 'vi-edit (vi-visual-mode-keymap)))
 
   (define (enter-command-mode)
+    (when (is-current-buffer-set?)
+      (command-apply text-edit-mode-start-transaction))
     (add-key-map 'vi-edit (vi-command-mode-keymap)))
 
   (define (vi-enter-mode vi-mode mode)

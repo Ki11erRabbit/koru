@@ -710,6 +710,15 @@ pub async fn get_current_buffer_name() -> Result<Vec<Value>, Condition> {
     Ok(vec![Value::from(name)])
 }
 
+#[bridge(name = "is-current-buffer-set?", lib = "(koru-buffer)")]
+pub async fn is_current_buffer_set() -> Result<Vec<Value>, Condition> {
+    let Some((_, _)) = SessionState::current_focused_buffer().await else {
+        return Ok(vec![Value::from(false)])
+    };
+
+    Ok(vec![Value::from(true)])
+}
+
 #[bridge(name = "add-key-binding", lib = "(koru-session)")]
 pub async fn add_keymaping(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((key_string, rest)) = args.split_first() else {

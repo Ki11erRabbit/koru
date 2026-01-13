@@ -226,6 +226,28 @@ This returns null if there is no file path associated with the buffer.
 (buffer-get-path "my-buffer.txt")
 ```
 
+
+### `is-current-buffer-set?`
+Checks if the current buffer is set or not.
+
+###### Inputs
+None
+
+###### Outputs
+Boolean: `#t` if the current buffer is set, `#f` if the current buffer isn't set.
+###### Errors
+None
+###### Behavior
+This checks for the existence of a focused buffer.
+The only time this should return false is at the very beginning of initialization.
+
+###### Example
+```scheme
+(if (is-current-buffer-set?)
+  (display "we have a current buffer!\n")
+  (display "we don't have a current buffer yet!\n"))
+```
+
 ### `plain-draw`
 Draws a buffer by name with cursors
 

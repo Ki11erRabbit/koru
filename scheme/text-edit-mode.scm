@@ -16,6 +16,8 @@
     text-edit-mode-replace-at-cursor
     text-edit-mode-undo
     text-edit-mode-redo
+    text-edit-mode-start-transaction
+    text-edit-mode-end-transaction
     text-edit-mode-insert-key
     text-edit-mode-file-open-hook)
   (import (rnrs)

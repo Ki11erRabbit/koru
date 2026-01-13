@@ -312,16 +312,38 @@ impl UndoTree {
 
     pub async fn end_transaction(&mut self) {
         let Some(current_node) = self.current_node.clone() else {
-            panic!("A transaction should have been started before ending it.")
+            return;
         };
-
-        let mut guard = current_node.lock().await;
-
-        match &mut guard.value {
-            UndoValue::Transaction { completed, .. } => {
-                *completed = true;
+        let mut remove_transaction = false;
+        {
+            let mut guard = current_node.lock().await;
+            match &mut guard.value {
+                UndoValue::Transaction { completed, values } => {
+                    if !values.is_empty() {
+                        *completed = true;
+                    } else {
+                        // We need to remove the transaction node since it is empty
+                        // Otherwise the user experience will not be good
+                        remove_transaction = true;
+                    }
+                }
+                _ => {}
             }
-            _ => panic!("We can only complete a transaction if the last node was a transaction")
+        }
+
+        if remove_transaction {
+            let Some(_) = self.descent.pop() else {
+                self.current_node = None;
+                self.root.lock().await.children.pop();
+                return
+            };
+            self.change_current_node().await;
+            let Some(current_node) = self.current_node.clone() else {
+                return;
+            };
+            let mut guard = current_node.lock().await;
+            guard.children.pop();
+
         }
     }
 
