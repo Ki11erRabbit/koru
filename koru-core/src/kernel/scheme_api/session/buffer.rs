@@ -25,7 +25,7 @@ impl Buffer {
         }
     }
 
-    pub async fn set_major_mode(&mut self, major_mode: Value) -> Result<(), Condition>{
+    pub async fn set_major_mode(&mut self, major_mode: Value) -> Result<(), Condition> {
         {
             let mm: Gc<MajorMode> = major_mode.clone().try_into_rust_type()?;
             let gain_focus = mm.gain_focus();

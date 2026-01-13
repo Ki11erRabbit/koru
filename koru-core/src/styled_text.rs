@@ -290,25 +290,25 @@ impl StyledFile {
     pub fn push_line(&mut self, line: Vec<StyledText>) {
         self.lines.push(line);
     }
-    
+
     pub fn line_count(&self) -> usize {
         self.lines.len()
     }
-    
+
     pub fn prepend_segment(&mut self, line: usize, text: StyledText) {
         while self.lines.len() <= line {
             self.lines.push(Vec::new());
         }
         self.lines[line].insert(0, text);
     }
-    
+
     pub fn append_segment(&mut self, line: usize, text: StyledText) {
         while self.lines.len() <= line {
             self.lines.push(Vec::new());
         }
         self.lines[line].push(text);
     }
-    
+
     /// Cursors must be in order they are logically in the file
     pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
         let total_lines = self.lines.len();
@@ -745,7 +745,7 @@ pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Conditi
     let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
     let text: Gc<StyledText> = text.clone().try_into_rust_type()?;
     let text = (*text).clone();
-    
+
     file.prepend_segment(line_no as usize, text);
     Ok(vec![Value::from(Record::from_rust_type(file))])
 }

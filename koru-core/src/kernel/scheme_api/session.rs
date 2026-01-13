@@ -507,7 +507,21 @@ impl SessionState {
                 _ => {}
             }
         });
-        
+
+        Ok(())
+    }
+
+    pub async fn emit_hook_blocking(hook_name: Symbol, args: &[Value]) -> Result<(), Condition> {
+        let state = SessionState::get_state();
+
+        let hooks = state.read().await.hooks.clone();
+        let hooks = hooks.read().await;
+        match hooks.execute_hook(&hook_name, &args).await {
+            Err(err) => {
+                error!("{err}");
+            }
+            _ => {}
+        }
         Ok(())
     }
 

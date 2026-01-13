@@ -105,14 +105,11 @@ impl Session {
     }
 
     async fn buffer_opened_hook(&self, file_name: &str, file_ext: &str) {
-
-        let hooks = {
-            let state = SessionState::get_state();
-            state.read().await.get_hooks().clone()
-        };
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
+        
+        let result = SessionState::emit_hook_blocking(Symbol::intern("buffer-open"), args).await;
 
-        match hooks.read().await.execute_hook(&Symbol::intern("buffer-open"), args).await {
+        match result {
             Ok(_) => {}
             Err(err) => {
                 error!("{}", err);
