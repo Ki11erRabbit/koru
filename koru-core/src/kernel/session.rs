@@ -62,16 +62,16 @@ impl Session {
     }
 
     async fn open_files(&self, name: &str) -> Result<String, Box<dyn Error>> {
-        let out = name.to_string();
         let handle = TextBufferTable::open(name.to_string()).await?;
+        let out = handle.get_name().await;
         {
             let state = SessionState::get_state();
             let mut guard = state.write().await;
-            guard.add_buffer(name, handle).await;
+            guard.add_buffer(&out, handle).await;
         }
         let path = PathBuf::from(&out);
         let file_ext = path.extension().unwrap().to_string_lossy().to_string();
-        self.buffer_opened_hook(name, &file_ext).await;
+        self.buffer_opened_hook(&out, &file_ext).await;
         Ok(out)
     }
     
@@ -106,7 +106,7 @@ impl Session {
 
     async fn buffer_opened_hook(&self, file_name: &str, file_ext: &str) {
         let args = &[Value::from(file_name.to_string()), Value::from(file_ext.to_string())];
-        
+
         let result = SessionState::emit_hook_blocking(Symbol::intern("buffer-open"), args).await;
 
         match result {

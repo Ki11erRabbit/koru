@@ -649,7 +649,7 @@ pub async fn set_major_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let guard = state.read().await;
     let mut buffer_guard = guard.buffers.write().await;
     let Some(buffer) = buffer_guard.get_mut(&buffer_name) else {
-        return Err(Condition::error(String::from("Buffer not found")));
+        return Err(Condition::error(format!("Buffer not found: {buffer_name}")));
     };
     
     buffer.set_major_mode(major_mode.clone()).await?;
@@ -672,7 +672,7 @@ pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let guard = state.read().await;
     let mut buffer_guard = guard.buffers.write().await;
     let Some(buffer) = buffer_guard.get_mut(&buffer_name) else {
-        return Err(Condition::error(String::from("Buffer not found")));
+        return Err(Condition::error(format!("Buffer not found: {buffer_name}")));
     };
 
     buffer.add_minor_mode(minor_mode.clone()).await?;
@@ -684,7 +684,7 @@ pub async fn add_minor_mode(args: &[Value]) -> Result<Vec<Value>, Condition> {
 pub async fn get_minor_mode(minor_mode_name: &Value) -> Result<Vec<Value>, Condition> {
     let minor_mode_name: Symbol = minor_mode_name.clone().try_into()?;
     let current_buffer = SessionState::get_current_buffer().await
-        .ok_or(Condition::error(String::from("no buffer currently focused")))?;
+        .ok_or(Condition::error(String::from("No buffer currently focused")))?;
 
     let minor_mode = current_buffer.get_minor_mode(minor_mode_name).await
         .ok_or(Condition::error(String::from("minor mode not found")))?;
@@ -695,7 +695,7 @@ pub async fn get_minor_mode(minor_mode_name: &Value) -> Result<Vec<Value>, Condi
 #[bridge(name = "current-major-mode", lib = "(koru-buffer)")]
 pub async fn get_current_major_mode() -> Result<Vec<Value>, Condition> {
     let Some(buffer) = SessionState::get_current_buffer().await else {
-        return Err(Condition::error(String::from("Buffer not found")));
+        return Err(Condition::error(String::from("No buffer currently focused")));
     };
 
     Ok(vec![buffer.get_major_mode()])

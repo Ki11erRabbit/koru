@@ -42,6 +42,7 @@
         (command-bar-take)
         (command-bar-update)
         (command-bar-hide)
+        (command-apply text-edit-mode-remove-mark 0)
         (vi-state-set! (minor-mode-get 'vi-mode) 'Normal))
       'key-sequence))
 
@@ -119,7 +120,9 @@
     (command-create
       'vi-enter-visual
       "Enters into visual mode"
-      (lambda (keys) (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
+      (lambda (keys)
+        (command-apply text-edit-mode-place-point-mark 0)
+        (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
       'key-sequence))
 
   (define vi-enter-command
@@ -149,7 +152,6 @@
       (key-map-insert vi-key-map "i" vi-enter-insert)
       (key-map-insert vi-key-map "v" vi-enter-visual)
       (key-map-insert vi-key-map ":" vi-enter-command)
-      (key-map-insert vi-key-map "C-c" editor-crash)
       vi-key-map))
 
   (define (vi-visual-mode-keymap)
@@ -187,8 +189,6 @@
       vi-key-map))
 
   (define (enter-normal-mode)
-    (display "entering normal mode\n")
-    (command-apply text-edit-mode-remove-mark 0)
     (add-key-map 'vi-edit (vi-normal-mode-keymap)))
 
   (define (enter-normal-mode-first-time)
@@ -198,16 +198,13 @@
     (add-key-map 'vi-edit (vi-insert-mode-keymap)))
 
   (define (enter-visual-mode)
-    (command-apply text-edit-mode-place-point-mark 0)
     (add-key-map 'vi-edit (vi-visual-mode-keymap)))
 
   (define (enter-command-mode)
-    (command-bar-show)
     (add-key-map 'vi-edit (vi-command-mode-keymap)))
 
-  (define (vi-enter-mode mode)
+  (define (vi-enter-mode vi-mode mode)
     (remove-key-map 'vi-edit)
-    (display mode)
     (cond
       ((equal? mode 'Normal) (enter-normal-mode))
       ((equal? mode 'Insert) (enter-insert-mode))
@@ -216,7 +213,7 @@
 
 
   (define (vi-gain-focus vi-mode)
-    (vi-enter-mode (vi-state (minor-mode-data vi-mode)))
+    (vi-enter-mode vi-mode (vi-state vi-mode))
     (add-special-key-binding "ESC" vi-escape))
   (define (vi-lose-focus vi-mode)
     (remove-key-map 'vi-edit)
@@ -224,15 +221,16 @@
 
   (define (vi-mode)
     (let ((vi-mode (minor-mode-create 'vi-mode vi-gain-focus vi-lose-focus)))
-      (let ((vi-modal (modal-create 'Normal 'vi-mode-change (lambda (old new) (display "mode change hook\n") (vi-enter-mode vi-mode new)))))
+      (let ((vi-modal (modal-create 'Normal 'vi-mode-change (lambda (old new) (vi-enter-mode vi-mode new)))))
         (minor-mode-data-set! vi-mode vi-modal)
         vi-mode)))
 
   (define (vi-config-hook buffer-name file-ext)
     (minor-mode-add buffer-name (vi-mode))
-    ((enter-normal-mode-first-time)))
+    (enter-normal-mode-first-time))
 
   (define (init-vi-config)
+    (add-special-key-binding "C-c" editor-crash)
     (create-hook 'vi-mode-change)
     (add-hook 'buffer-open 'text-edit-mode text-edit-mode-file-open-hook)
     (add-hook 'buffer-open 'vi-mode vi-config-hook)))
