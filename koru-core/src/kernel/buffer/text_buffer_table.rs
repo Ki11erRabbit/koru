@@ -134,24 +134,24 @@ impl BufferHandle {
         self.handle.lock().await.remove_mark(cursor)
     }
 
-    pub async fn insert(&self, cursor: Cursor, text: String) {
-        self.handle.lock().await.insert(cursor, text).await;
+    pub async fn insert(&self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.insert(text, cursor_index, cursors).await
     }
 
-    pub async fn delete_back(&self, cursor: Cursor) {
-        self.handle.lock().await.delete_back(cursor).await;
+    pub async fn delete_back(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.delete_back(cursor_index, cursors).await
     }
 
-    pub async fn delete_forward(&self, cursor: Cursor) {
-        self.handle.lock().await.delete_forward(cursor).await;
+    pub async fn delete_forward(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.delete_forward(cursor_index, cursors).await
     }
 
-    pub async fn delete_region(&self, cursor: Cursor) {
-        self.handle.lock().await.delete_region(cursor).await;
+    pub async fn delete_region(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.delete_region(cursor_index, cursors).await
     }
 
-    pub async fn replace(&self, cursor: Cursor, text: String) {
-        self.handle.lock().await.replace(cursor, text).await;
+    pub async fn replace(&self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.replace(text, cursor_index, cursors).await
     }
     
     pub async fn start_transaction(&self) {

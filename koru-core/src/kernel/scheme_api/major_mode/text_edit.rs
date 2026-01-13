@@ -122,6 +122,16 @@ impl TextEditData {
     pub async fn get_cursor(&self, index: usize) -> Cursor {
         self.internal.lock().await.cursors[index].clone()
     }
+    
+    pub async fn get_cursors(&self) -> Vec<Cursor> {
+        let guard = self.internal.lock().await;
+        guard.cursors.clone()
+    }
+    
+    pub async fn set_cursors(&self, cursors: Vec<Cursor>) {
+        let mut guard = self.internal.lock().await;
+        guard.cursors = cursors;
+    }
 }
 
 impl SchemeCompatible for TextEditData {
@@ -403,9 +413,10 @@ pub async fn insert_text_at_cursor(
     text: String
 ) -> Result<(), Exception> {
     let data = get_data(&major_mode).await?;
-    let cursor = data.get_cursor(cursor_index).await;
+    let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    handle.insert(cursor, text).await;
+    let new_cursors = handle.insert(text, cursor_index, cursors).await;
+    data.set_cursors(new_cursors).await;
     Ok(())
 }
 
@@ -457,9 +468,10 @@ pub async fn delete_text_back(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index: usize = cursor_index.as_ref().try_into()?;
     let data = get_data(&major_mode).await?;
-    let cursor = data.get_cursor(cursor_index).await;
+    let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    handle.delete_back(cursor).await;
+    let new_cursors = handle.delete_back(cursor_index, cursors).await;
+    data.set_cursors(new_cursors).await;
     Ok(Vec::new())
 }
 
@@ -476,9 +488,10 @@ pub async fn delete_text_forward(args: &[Value]) -> Result<Vec<Value>, Exception
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index: usize = cursor_index.as_ref().try_into()?;
     let data = get_data(&major_mode).await?;
-    let cursor = data.get_cursor(cursor_index).await;
+    let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    handle.delete_forward(cursor).await;
+    let new_cursors = handle.delete_forward(cursor_index, cursors).await;
+    data.set_cursors(new_cursors).await;
     Ok(Vec::new())
 }
 
@@ -495,9 +508,10 @@ pub async fn delete_text_region(args: &[Value]) -> Result<Vec<Value>, Exception>
     let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
     let cursor_index: usize = cursor_index.as_ref().try_into()?;
     let data = get_data(&major_mode).await?;
-    let cursor = data.get_cursor(cursor_index).await;
+    let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    handle.delete_region(cursor).await;
+    let new_cursors = handle.delete_region(cursor_index, cursors).await;
+    data.set_cursors(new_cursors).await;
     Ok(Vec::new())
 }
 
@@ -520,9 +534,10 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Exception> {
         Ok(text) => {
             let text: String = text;
             let data = get_data(&major_mode).await?;
-            let cursor = data.get_cursor(cursor_index).await;
+            let cursors = data.get_cursors().await;
             let handle: BufferHandle = data.get_buffer_handle().await?;
-            handle.replace(cursor, text).await;
+            let new_cursors = handle.replace(text, cursor_index, cursors).await;
+            data.set_cursors(new_cursors).await;
             return Ok(Vec::new());
         }
         _ => {}
@@ -531,9 +546,10 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Exception> {
         Ok(letter) => {
             let letter: char = letter;
             let data = get_data(&major_mode).await?;
-            let cursor = data.get_cursor(cursor_index).await;
+            let cursors = data.get_cursors().await;
             let handle: BufferHandle = data.get_buffer_handle().await?;
-            handle.replace(cursor, letter.to_string()).await;
+            let new_cursors = handle.replace(letter.to_string(), cursor_index, cursors).await;
+            data.set_cursors(new_cursors).await;
             Ok(Vec::new())
         }
         _ => {

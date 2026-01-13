@@ -1,10 +1,11 @@
 use std::io::{ErrorKind, SeekFrom};
+use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder, RopeSlice};
 use scheme_rs::exceptions::Exception;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
-use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
+use crate::kernel::buffer::{Cursors, EditOperation, EditValue, UndoTree};
 
 pub struct TextBuffer {
     buffer: Rope,
@@ -175,18 +176,60 @@ impl TextBuffer {
         byte_offset
     }
 
-    pub async fn insert(&mut self, cursor: Cursor, text: String)  {
-        let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+    fn insert_text(&mut self, byte_offset: usize, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut new_cursors = Vec::with_capacity(cursors.len());
+        let mut text_after_newline = 0;
+        let mut newline_count = 0;
 
+        for ch in text.chars() {
+            text_after_newline += 1;
+            if ch == '\n' {
+                newline_count += 1;
+                text_after_newline = 0;
+            }
+        }
         self.buffer.insert(byte_offset, &text);
-        self.undo_tree.insert(byte_offset, text).await;
+
+        let editor_cursor = cursors[cursor_index];
+
+        for (i, cursor) in cursors.into_iter().enumerate() {
+            if i <= cursor_index {
+                new_cursors.push(cursor);
+            } else if editor_cursor.line() == cursor.line() {
+                let mut cursor = cursor;
+                for _ in 0..newline_count {
+                    cursor = self.move_cursor(cursor, CursorDirection::Down);
+                }
+                for _ in 0..text_after_newline {
+                    cursor = self.move_cursor(cursor, CursorDirection::Right { wrap: false });
+                }
+                new_cursors.push(cursor);
+            } else {
+                let mut cursor = cursor;
+                for _ in 0..newline_count {
+                    cursor = self.move_cursor(cursor, CursorDirection::Down);
+                }
+                new_cursors.push(cursor);
+            }
+        }
+        new_cursors
     }
 
-    pub async fn delete_back(&mut self, cursor: Cursor) {
-        let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
-        let line = self.buffer.line(cursor.line());
+
+    pub async fn insert(&mut self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor>  {
+        let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
+
+        let new_cursors = self.insert_text(byte_offset, &text, cursor_index, cursors);
+
+        self.undo_tree.insert(byte_offset, text.clone()).await;
+        new_cursors
+    }
+
+    pub async fn delete_back(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
+        let line = self.buffer.line(cursors[cursor_index].line());
         let character_offset = byte_offset - line.chars()
-            .skip(cursor.column() - 1)
+            .skip(cursors[cursor_index].column() - 1)
             .take(1)
             .map(|ch| ch.len_utf8())
             .sum::<usize>();
@@ -194,14 +237,18 @@ impl TextBuffer {
         let text = self.buffer.byte_slice(character_offset..byte_offset);
         let text = text.to_string();
         self.buffer.delete(character_offset..byte_offset);
+
+        let new_cursors = self.delete_text(&text, cursor_index, cursors);
+
         self.undo_tree.delete(character_offset, text).await;
+        new_cursors
     }
 
-    pub async fn delete_forward(&mut self, cursor: Cursor) {
-        let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
-        let line = self.buffer.line(cursor.line());
+    pub async fn delete_forward(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
+        let line = self.buffer.line(cursors[cursor_index].line());
         let character_offset = byte_offset + line.chars()
-            .skip(cursor.column())
+            .skip(cursors[cursor_index].column())
             .take(1)
             .map(|ch| ch.len_utf8())
             .sum::<usize>();
@@ -211,31 +258,77 @@ impl TextBuffer {
         let text = self.buffer.byte_slice(range.clone());
         let text = text.to_string();
         self.buffer.delete(range);
+
+        let new_cursors = self.delete_text(&text, cursor_index, cursors);
+
         self.undo_tree.delete(byte_offset, text).await;
+        new_cursors
     }
 
-    pub async fn delete_region(&mut self, cursor: Cursor) {
-        if !cursor.is_mark_set() {
-            return
+    pub async fn delete_region(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        if !cursors[cursor_index].is_mark_set() {
+            return cursors;
         }
-        let mark_offset = self.calculate_byte_offset(cursor.mark_line().unwrap(), cursor.mark_column().unwrap());
-        let cursor_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+        let mark_offset = self.calculate_byte_offset(cursors[cursor_index].mark_line().unwrap(), cursors[cursor_index].mark_column().unwrap());
+        let cursor_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
 
         let (start, range) = if mark_offset < cursor_offset {
             (mark_offset, mark_offset..=cursor_offset)
         } else {
             (cursor_offset, cursor_offset..=(mark_offset - 1))
         };
-        let old_text = self.buffer.byte_slice(range.clone());
-        let old_text = old_text.to_string();
+        let text = self.buffer.byte_slice(range.clone());
+        let text = text.to_string();
         self.buffer.delete(range);
-        self.undo_tree.delete(start - 1, old_text).await;
+
+        let new_cursors = self.delete_text(&text, cursor_index, cursors);
+
+        self.undo_tree.delete(start - 1, text).await;
+        new_cursors
     }
 
-    pub async fn replace(&mut self, cursor: Cursor, text: String)  {
-        if cursor.is_mark_set() {
-            let mark_offset = self.calculate_byte_offset(cursor.mark_line().unwrap(), cursor.mark_column().unwrap());
-            let cursor_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
+    fn delete_text(&mut self, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut new_cursors = Vec::with_capacity(cursors.len());
+        let mut text_before_newline = 0;
+        let mut newline_count = 0;
+
+        for ch in text.chars().rev() {
+            text_before_newline += 1;
+            if ch == '\n' {
+                newline_count += 1;
+                text_before_newline = 0;
+            }
+        }
+
+        let editor_cursor = cursors[cursor_index];
+
+        for (i, cursor) in cursors.into_iter().enumerate() {
+            if i <= cursor_index {
+                new_cursors.push(editor_cursor);
+            } else if editor_cursor.line() == editor_cursor.line() {
+                let mut cursor = cursor;
+                for _ in 0..newline_count {
+                    cursor = self.move_cursor(cursor, CursorDirection::Up);
+                }
+                for _ in 0..text_before_newline {
+                    cursor = self.move_cursor(cursor, CursorDirection::Left { wrap: false });
+                }
+                new_cursors.push(cursor);
+            } else {
+                let mut cursor = cursor;
+                for _ in 0..newline_count {
+                    cursor = self.move_cursor(cursor, CursorDirection::Up);
+                }
+                new_cursors.push(cursor);
+            }
+        }
+        new_cursors
+    }
+
+    pub async fn replace(&mut self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor>  {
+        if cursors[cursor_index].is_mark_set() {
+            let mark_offset = self.calculate_byte_offset(cursors[cursor_index].mark_line().unwrap(), cursors[cursor_index].mark_column().unwrap());
+            let cursor_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
 
             let (start, range) = if mark_offset < cursor_offset {
                 (mark_offset, mark_offset..=cursor_offset)
@@ -245,13 +338,17 @@ impl TextBuffer {
             let old_text = self.buffer.byte_slice(range);
             let old_text = old_text.to_string();
             self.buffer.delete(mark_offset..cursor_offset);
-            self.buffer.insert(start, &text);
+
+            let cursors = self.delete_text(&old_text, cursor_index, cursors);
+            let cursors = self.insert_text(start, &text, cursor_index, cursors);
+
             self.undo_tree.replace(start - 1, old_text, text).await;
+            cursors
         } else {
-            let byte_offset = self.calculate_byte_offset(cursor.line(), cursor.column());
-            let line = self.buffer.line(cursor.line());
+            let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
+            let line = self.buffer.line(cursors[cursor_index].line());
             let character_offset = byte_offset + line.chars()
-                .skip(cursor.column())
+                .skip(cursors[cursor_index].column())
                 .take(1)
                 .map(|ch| ch.len_utf8())
                 .sum::<usize>();
@@ -260,8 +357,12 @@ impl TextBuffer {
 
             let old_text = self.buffer.byte_slice(range.clone());
             let old_text = old_text.to_string();
-            self.buffer.delete(range);
+
+            let cursors = self.delete_text(&old_text, cursor_index, cursors);
+            let cursors = self.insert_text(byte_offset, &old_text, cursor_index, cursors);
+
             self.undo_tree.replace(byte_offset - 1, old_text, text).await;
+            cursors
         }
     }
 
