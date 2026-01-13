@@ -18,9 +18,9 @@ struct ModalInternal {
     /// A function to be called when the state changes.
     state_change_callback: Value,
     /// The prefix to use with the `command-bar-update` function
-    prefix: Symbol,
+    prefix: String,
     /// The suffix to use with the `command-bar-update` function
-    suffix: Symbol,
+    suffix: String,
     /// The callback to use when leaving command entry
     command_callback: Value,
 }
@@ -35,8 +35,8 @@ impl ModalInternal {
             state,
             state_change_hook_name,
             state_change_callback,
-            prefix: Symbol::intern(""),
-            suffix: Symbol::intern(""),
+            prefix: String::new(),
+            suffix: String::new(),
             command_callback: Value::null(),
         }
     }
@@ -62,19 +62,16 @@ impl Modal {
 
     pub async fn change_state(&self, state: Symbol) -> Result<(), Condition> {
         let (old_state, hook_name, callback) = {
-            let guard = self.internal.read().await;
+            let mut guard = self.internal.write().await;
             let old_state = guard.state;
             let state_change_hook_name = guard.state_change_hook_name.clone();
             let state_change_callback = guard.state_change_callback.clone();
+            guard.state = state;
             (old_state, state_change_hook_name, state_change_callback)
         };
-        {
-            let mut guard = self.internal.write().await;
-            guard.state = state;
-        }
 
         let callback: Procedure = callback.try_into()?;
-        callback.call(&[]).await?;
+        callback.call(&[Value::from(old_state.clone()), Value::from(state.clone())]).await?;
 
         SessionState::emit_hook(
             &hook_name.to_str(),
@@ -97,21 +94,21 @@ impl Modal {
         self.internal.read().await.command_callback.clone()
     }
 
-    pub async fn set_prefix(&self, prefix: Symbol) {
+    pub async fn set_prefix(&self, prefix: String) {
         let mut guard = self.internal.write().await;
         guard.prefix = prefix;
     }
 
-    pub async fn get_prefix(&self) -> Symbol {
+    pub async fn get_prefix(&self) -> String {
         self.internal.read().await.prefix.clone()
     }
 
-    pub async fn set_suffix(&self, suffix: Symbol) {
+    pub async fn set_suffix(&self, suffix: String) {
         let mut guard = self.internal.write().await;
         guard.suffix = suffix;
     }
 
-    pub async fn get_suffix(&self) -> Symbol {
+    pub async fn get_suffix(&self) -> String {
         self.internal.read().await.suffix.clone()
     }
 }
@@ -178,7 +175,7 @@ pub async fn modal_change_prefix(args: &[Value]) -> Result<Vec<Value>, Condition
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let modal: Gc<Modal> = modal.try_into_rust_type()?;
-    let prefix: Symbol = prefix.clone().try_into()?;
+    let prefix: String = prefix.clone().try_into()?;
 
     modal.set_prefix(prefix).await;
 
@@ -201,7 +198,7 @@ pub async fn modal_change_suffix(args: &[Value]) -> Result<Vec<Value>, Condition
         return Err(Condition::wrong_num_of_args(2, args.len()))
     };
     let modal: Gc<Modal> = modal.try_into_rust_type()?;
-    let suffix: Symbol = suffix.clone().try_into()?;
+    let suffix: String = suffix.clone().try_into()?;
 
     modal.set_suffix(suffix).await;
 
@@ -234,13 +231,6 @@ pub async fn modal_change_callback(args: &[Value]) -> Result<Vec<Value>, Conditi
     modal.set_command_callback(callback.clone()).await;
 
     Ok(Vec::new())
-}
-
-#[bridge(name = "modal-callback", lib = "(koru-modal)")]
-pub async fn callback(modal: &Value) -> Result<Vec<Value>, Condition> {
-    let modal: Gc<Modal> = modal.try_into_rust_type()?;
-    let output = modal.get_command_callback().await;
-    Ok(vec![Value::from(output)])
 }
 
 #[bridge(name = "modal-callback-apply", lib = "(koru-modal)")]

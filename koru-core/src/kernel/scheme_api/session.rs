@@ -14,6 +14,7 @@ use scheme_rs::lists;
 use scheme_rs::proc::Procedure;
 use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
+use scheme_rs::symbols::Symbol;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::{RwLock};
 use keypress_localize::KeyboardRegion;
@@ -604,9 +605,9 @@ pub async fn emit_hook(args: &[Value]) -> Result<Vec<Value>, Condition> {
     let Some((hook_name_kind, rest)) = args.split_first() else {
         return Err(Condition::wrong_num_of_args(1, args.len()))
     };
-    let hook_name: String = hook_name_kind.clone().try_into()?;
+    let hook_name: Symbol = hook_name_kind.clone().try_into()?;
 
-    SessionState::emit_hook(&hook_name, rest).await?;
+    SessionState::emit_hook(&hook_name.to_str(), rest).await?;
     Ok(Vec::new())
 }
 
