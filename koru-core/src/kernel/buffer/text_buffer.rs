@@ -85,18 +85,15 @@ impl TextBuffer {
         match direction {
             CursorDirection::Left { wrap } => {
                 let at_line_start = cursor.at_line_start();
-                if at_line_start && wrap {
-                    cursor.move_up(&self.buffer);
-                    let Some((_, mut length, end)) = self.buffer.previous_line_information(cursor.line()) else {
+                if at_line_start && wrap && cursor.line() != 0 {
+                    let Some((_, length, end)) = self.buffer.previous_line_information(cursor.line()) else {
                         if cursor.is_main() {
                             return cursor;
                         }
                         return cursor;
                     };
-                    if length == 0 {
-                        length += 1;
-                    }
-                    cursor.set_column(length - 1);
+                    cursor.move_up(&self.buffer);
+                    cursor.set_column(length.saturating_sub(1));
                 } else if !at_line_start {
                     cursor.move_left(self.buffer.line_length(cursor.line()));
                 }
@@ -476,7 +473,7 @@ pub trait TextBufferImpl {
         if !self.is_there_prev_line(line_no) {
             return None;
         }
-        Some(self.line_information(line_no - 1))
+        Some(self.line_information(line_no.saturating_sub(1)))
     }
     fn next_line_information(&self, line_no: usize) -> Option<(usize, usize, usize)> {
         if !self.is_there_next_line(line_no) {
@@ -502,7 +499,7 @@ impl TextBufferImpl for Rope {
     }
 
     fn is_there_prev_line(&self, line_no: usize) -> bool {
-        if line_no != 0 {
+        if line_no == 0 {
             false
         } else {
             true
