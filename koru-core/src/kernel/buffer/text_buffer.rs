@@ -238,9 +238,12 @@ impl TextBuffer {
 
         let text = self.buffer.byte_slice(character_offset..byte_offset);
         let text = text.to_string();
+        let replacement_cursor = self.move_cursor(cursors[cursor_index], CursorDirection::Left { wrap: true });
         self.buffer.delete(character_offset..byte_offset);
 
-        let new_cursors = self.delete_text(&text, cursor_index, cursors);
+        let mut new_cursors = self.delete_text(&text, cursor_index, cursors);
+
+        new_cursors[cursor_index] = replacement_cursor;
 
         self.undo_tree.delete(character_offset, text).await;
         new_cursors
@@ -313,9 +316,8 @@ impl TextBuffer {
                 for _ in 0..newline_count {
                     cursor = self.move_cursor(cursor, CursorDirection::Up);
                 }
-                for _ in 0..text_before_newline {
-                    cursor = self.move_cursor(cursor, CursorDirection::Left { wrap: false });
-                }
+                let line_len = self.buffer.line_length(cursor.line());
+                cursor.set_column(line_len - cursor.column());
                 new_cursors.push(cursor);
             } else {
                 let mut cursor = cursor;

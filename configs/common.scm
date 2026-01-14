@@ -93,9 +93,7 @@
       'editor-delete-back
       "Deletes text before the primary cursor"
       (lambda (keys) (begin
-                       (command-apply text-edit-mode-delete-before-cursor 0)
-                       (command-apply text-edit-mode-cursor-left 0 #t)
-                       ))
+                       (command-apply text-edit-mode-delete-before-cursor 0)))
       'key-sequence))
 
   (define editor-delete-forward
