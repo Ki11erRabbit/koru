@@ -64,10 +64,7 @@
     (command-create
       'editor-insert-text
       "Inserts text at the primary cursor"
-      (lambda (keys) (begin
-                       (if (command-apply text-edit-mode-insert-key 0 keys)
-                         (begin (command-apply text-edit-mode-cursor-right 0 #f) #t)
-                         #f)))
+      (lambda (keys) (command-apply text-edit-mode-insert-key 0 keys))
       'key-sequence))
 
   (define editor-insert-space
@@ -75,25 +72,21 @@
       'editor-insert-text
       "Inserts text at the primary cursor"
       (lambda (keys)
-        (command-apply text-edit-mode-insert-at-cursor 0 " ")
-        (command-apply text-edit-mode-cursor-right 0 #f))
+        (command-apply text-edit-mode-insert-at-cursor 0 " "))
       'key-sequence))
 
   (define editor-return
     (command-create
       'editor-return
       "Inserts a newline at the primary cursor"
-      (lambda (keys) (begin
-                       (command-apply text-edit-mode-insert-at-cursor 0 "\n")
-                       (command-apply text-edit-mode-cursor-right 0 #t)))
+      (lambda (keys) (command-apply text-edit-mode-insert-at-cursor 0 "\n"))
       'key-sequence))
 
   (define editor-delete-back
     (command-create
       'editor-delete-back
       "Deletes text before the primary cursor"
-      (lambda (keys) (begin
-                       (command-apply text-edit-mode-delete-before-cursor 0)))
+      (lambda (keys) (command-apply text-edit-mode-delete-before-cursor 0))
       'key-sequence))
 
   (define editor-delete-forward

@@ -190,12 +190,13 @@ impl TextBuffer {
         let editor_cursor = cursors[cursor_index];
 
         for (i, cursor) in cursors.into_iter().enumerate() {
-            if i <= cursor_index {
+            if i < cursor_index {
                 new_cursors.push(cursor);
             } else if editor_cursor.line() == cursor.line() {
                 let mut cursor = cursor;
                 for _ in 0..newline_count {
                     cursor = self.move_cursor(cursor, CursorDirection::Down);
+                    cursor.set_column(0);
                 }
                 for _ in 0..text_after_newline {
                     cursor = self.move_cursor(cursor, CursorDirection::Right { wrap: false });
@@ -295,14 +296,11 @@ impl TextBuffer {
 
     fn delete_text(&mut self, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
         let mut new_cursors = Vec::with_capacity(cursors.len());
-        let mut text_before_newline = 0;
         let mut newline_count = 0;
 
         for ch in text.chars().rev() {
-            text_before_newline += 1;
             if ch == '\n' {
                 newline_count += 1;
-                text_before_newline = 0;
             }
         }
 

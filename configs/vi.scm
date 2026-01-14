@@ -177,7 +177,7 @@
       (key-map-insert vi-key-map "BS" editor-delete-back)
       (key-map-insert vi-key-map "DEL" editor-delete-forward)
       (key-map-insert vi-key-map "ENTER" editor-return)
-      (key-map-insert vi-key-map "ENTER" editor-insert-space)
+      (key-map-insert vi-key-map "SPC" editor-insert-space)
       vi-key-map))
 
   (define (vi-command-mode-keymap)
