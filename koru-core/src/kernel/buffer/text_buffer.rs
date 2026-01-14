@@ -93,7 +93,7 @@ impl TextBuffer {
                         return cursor;
                     };
                     cursor.move_up(&self.buffer);
-                    cursor.set_column(length.saturating_sub(1));
+                    cursor.set_column(length);
                 } else if !at_line_start {
                     cursor.move_left(self.buffer.line_length(cursor.line()));
                 }
@@ -225,11 +225,16 @@ impl TextBuffer {
     pub async fn delete_back(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
         let line = self.buffer.line(cursors[cursor_index].line());
+        let extra_bytes = if cursors[cursor_index].line() != 0 && cursors[cursor_index].at_line_start() {
+            '\n'.len_utf8()
+        } else {
+            0
+        };
         let character_offset = byte_offset - line.chars()
             .skip(cursors[cursor_index].column() - 1)
             .take(1)
             .map(|ch| ch.len_utf8())
-            .sum::<usize>();
+            .sum::<usize>() - extra_bytes;
 
         let text = self.buffer.byte_slice(character_offset..byte_offset);
         let text = text.to_string();
