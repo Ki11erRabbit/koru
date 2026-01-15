@@ -85,7 +85,7 @@
       "Inserts text at the primary cursor"
       (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
                       (for i from 0 to (- cursor-count 1)
-                        (command-apply text-edit-mode-insert-at-cursor 1 " "))))
+                        (command-apply text-edit-mode-insert-at-cursor i " "))))
       'key-sequence))
 
   (define editor-return
@@ -94,7 +94,7 @@
       "Inserts a newline at the primary cursor"
       (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
-                         (command-apply text-edit-mode-insert-at-cursor 1 "\n"))))
+                         (command-apply text-edit-mode-insert-at-cursor i "\n"))))
       'key-sequence))
 
   (define editor-delete-back

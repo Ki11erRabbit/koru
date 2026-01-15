@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use log::trace;
 use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::lists::Pair;
@@ -77,27 +78,24 @@ impl TextEditData {
     }
 
     pub async fn add_cursor(&self, line: usize, column: usize) {
+        //trace!("line: {line}, column: {column}");
         let mut index = 0;
-        'outer: for (i, cursor) in self.internal.lock().await.cursors.iter().enumerate() {
-            if line < cursor.line() {
-                index = i;
-            } else if line == cursor.line() {
-                for (i, cursor) in self.internal.lock().await.cursors.iter().enumerate() {
-                    if line == cursor.line() {
-                        if column >= cursor.column() {
-                            if column == cursor.column() {
-                                index = i;
-                            }
-                            break 'outer;
-                        }
-                    }
-                    index = i;
-                }
-            } else if line > cursor.line() {
+        let mut found = false;
+        let cursors = self.internal.lock().await.cursors.clone();
+
+        while index < cursors.len() && !found {
+            if line < cursors[index].line() {
                 index += 1;
-                break 'outer;
+            } else if line == cursors[index].line() {
+                if column >= cursors[index].column() && index + 1 < cursors.len()
+                && line == cursors[index + 1].line() && column < cursors[index + 1].column() {
+                    found = true;
+                }
+            } else {
+                index += 1;
             }
         }
+        //trace!("index: {index}, line: {line}, column: {column}");
 
         self.internal.lock().await.cursors.insert(index, Cursor::new(GridCursor::new(line, column)))
     }
