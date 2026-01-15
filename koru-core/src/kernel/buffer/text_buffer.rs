@@ -308,7 +308,7 @@ impl TextBuffer {
 
         for (i, cursor) in cursors.into_iter().enumerate() {
             if i <= cursor_index {
-                new_cursors.push(editor_cursor);
+                new_cursors.push(cursor);
             } else if editor_cursor.line() == editor_cursor.line() {
                 let mut cursor = cursor;
                 for _ in 0..newline_count {
