@@ -29,6 +29,7 @@
     (koru-key)
     (minor-mode)
     (koru-buffer)
+    (scheme koru)
     (scheme text-edit-mode))
 
 
@@ -36,71 +37,91 @@
     (command-create
       'editor-cursor-up
       "Moves the primary cursor up"
-      (lambda (keys) (command-apply text-edit-mode-cursor-up 0))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-cursor-up i))))
       'key-sequence))
 
   (define editor-cursor-down
     (command-create
       'editor-cursor-down
       "Moves the primary cursor down"
-      (lambda (keys) (command-apply text-edit-mode-cursor-down 0))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                        (for i from 0 to (- cursor-count 1)
+                          (command-apply text-edit-mode-cursor-down i))))
       'key-sequence))
 
   (define editor-cursor-left
     (command-create
       'editor-cursor-left
       "Moves the primary cursor left"
-      (lambda (keys) (command-apply text-edit-mode-cursor-left 0 #f))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-cursor-left i #f))))
       'key-sequence))
 
   (define editor-cursor-right
     (command-create
       'editor-cursor-right
       "Moves the primary cursor right"
-      (lambda (keys) (command-apply text-edit-mode-cursor-right 0 #f))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-cursor-right i #f))))
       'key-sequence))
 
   (define editor-insert-text
     (command-create
       'editor-insert-text
       "Inserts text at the primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-insert-key 0 keys))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)) (result (list)))
+                       (for i from 0 to (- cursor-count 1)
+                         (set! result (command-apply text-edit-mode-insert-key i keys)))
+                       result))
       'key-sequence))
 
   (define editor-insert-space
     (command-create
       'editor-insert-text
       "Inserts text at the primary cursor"
-      (lambda (keys)
-        (command-apply text-edit-mode-insert-at-cursor 0 " "))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                      (for i from 0 to (- cursor-count 1)
+                        (command-apply text-edit-mode-insert-at-cursor 1 " "))))
       'key-sequence))
 
   (define editor-return
     (command-create
       'editor-return
       "Inserts a newline at the primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-insert-at-cursor 0 "\n"))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-insert-at-cursor 1 "\n"))))
       'key-sequence))
 
   (define editor-delete-back
     (command-create
       'editor-delete-back
       "Deletes text before the primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-delete-before-cursor 0))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-delete-before-cursor i))))
       'key-sequence))
 
   (define editor-delete-forward
     (command-create
       'editor-delete-forward
       "Deletes text at the primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-delete-after-cursor 0))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-delete-after-cursor i))))
       'key-sequence))
 
   (define editor-delete-region
     (command-create
       'editor-delete-region
       "Deletes text in text region of primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-delete-cursor-region 0))
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-delete-cursor-region i))))
       'key-sequence))
 
   (define editor-undo

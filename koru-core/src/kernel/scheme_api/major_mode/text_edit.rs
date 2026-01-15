@@ -63,26 +63,26 @@ impl TextEditData {
         Ok(())
     }
 
-    pub fn num_cursors(&self) -> usize {
-        self.internal.blocking_lock().cursors.len()
+    pub async fn num_cursors(&self) -> usize {
+        self.internal.lock().await.cursors.len()
     }
 
-    pub fn remove_cursor(&self, index: usize) {
-        self.internal.blocking_lock().cursors.remove(index);
+    pub async fn remove_cursor(&self, index: usize) {
+        self.internal.lock().await.cursors.remove(index);
     }
 
-    pub fn get_cursor_position(&self, index: usize) -> (usize, usize) {
-        let cursor = &self.internal.blocking_lock().cursors[index];
+    pub async fn get_cursor_position(&self, index: usize) -> (usize, usize) {
+        let cursor = &self.internal.lock().await.cursors[index];
         (cursor.line(), cursor.column())
     }
 
-    pub fn add_cursor(&self, line: usize, column: usize) {
+    pub async fn add_cursor(&self, line: usize, column: usize) {
         let mut index = 0;
-        'outer: for (i, cursor) in self.internal.blocking_lock().cursors.iter().enumerate() {
+        'outer: for (i, cursor) in self.internal.lock().await.cursors.iter().enumerate() {
             if line < cursor.line() {
                 index = i;
             } else if line == cursor.line() {
-                for (i, cursor) in self.internal.blocking_lock().cursors.iter().enumerate() {
+                for (i, cursor) in self.internal.lock().await.cursors.iter().enumerate() {
                     if line == cursor.line() {
                         if column >= cursor.column() {
                             if column == cursor.column() {
@@ -94,11 +94,12 @@ impl TextEditData {
                     index = i;
                 }
             } else if line > cursor.line() {
+                index += 1;
                 break 'outer;
             }
         }
 
-        self.internal.blocking_lock().cursors.insert(index, Cursor::new(GridCursor::new(line, column)))
+        self.internal.lock().await.cursors.insert(index, Cursor::new(GridCursor::new(line, column)))
     }
 
     pub async fn change_main_cursor(&self, index: usize) {
@@ -122,12 +123,12 @@ impl TextEditData {
     pub async fn get_cursor(&self, index: usize) -> Cursor {
         self.internal.lock().await.cursors[index].clone()
     }
-    
+
     pub async fn get_cursors(&self) -> Vec<Cursor> {
         let guard = self.internal.lock().await;
         guard.cursors.clone()
     }
-    
+
     pub async fn set_cursors(&self, cursors: Vec<Cursor>) {
         let mut guard = self.internal.lock().await;
         guard.cursors = cursors;
@@ -310,7 +311,7 @@ pub async fn get_cursor_position(args: &[Value]) -> Result<Vec<Value>, Exception
     let cursor_index = cursor_index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    let (row, column): (usize, usize) = data.get_cursor_position(cursor_index);
+    let (row, column): (usize, usize) = data.get_cursor_position(cursor_index).await;
 
     let pair = Value::new(UnpackedValue::Pair(Pair::new(Value::from(Number::from(row)), Value::from(Number::from(column)), false)));
 
@@ -348,7 +349,7 @@ pub async fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Exception> {
     };
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    data.add_cursor(row, col);
+    data.add_cursor(row, col).await;
 
     Ok(Vec::new())
 }
@@ -365,7 +366,7 @@ pub async fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let index: usize = index.as_ref().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    data.remove_cursor(index);
+    data.remove_cursor(index).await;
 
     Ok(Vec::new())
 }
@@ -375,7 +376,7 @@ pub async fn get_cursor_count(major_mode: &Value) -> Result<Vec<Value>, Exceptio
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data: Gc<TextEditData> = major_mode.data.read().await.clone().try_to_rust_type()?;
     
-    let cursor_count = data.num_cursors();
+    let cursor_count = data.num_cursors().await;
     
     let out = Value::from(Number::from(cursor_count));
     

@@ -38,6 +38,12 @@ where
                                 .color(Color::from_rgb8(255, 255, 255));
                             spans.push(span);
                         }
+                        ColorType::SecondaryCursor => {
+                            let span = Span::new(text.to_string())
+                                .background(Color::from_rgb8(120, 120, 120))
+                                .color(Color::from_rgb8(255, 255, 255));
+                            spans.push(span);
+                        }
                         ColorType::Selection => {
                             let span = Span::new(text.to_string())
                                 .background(Color::from_rgb8(170, 170, 170))
