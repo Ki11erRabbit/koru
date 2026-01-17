@@ -1,21 +1,42 @@
 (library (configs common)
   (export
+    editor-cursor-up
     editor-cursor-up-keypress
+    editor-cursor-down
     editor-cursor-down-keypress
+    editor-cursor-left
     editor-cursor-left-keypress
+    editor-cursor-left-wrap
     editor-cursor-left-wrap-keypress
+    editor-cursor-right
     editor-cursor-right-keypress
+    editor-cursor-right-wrap
     editor-cursor-right-wrap-keypress
+    editor-cursor-add-above
     editor-cursor-add-above-keypress
+    editor-cursor-add-below
     editor-cursor-add-below-keypress
+    editor-remove-additional-cursors
     editor-remove-additional-cursors-keypress
+    editor-insert-text
     editor-insert-text-keypress
+    editor-insert-space
     editor-insert-space-keypress
+    editor-insert-newline
     editor-insert-newline-keypress
+    editor-delete-back
     editor-delete-back-keypress
+    editor-delete-forward
     editor-delete-forward-keypress
+    editor-delete-region
     editor-delete-region-keypress
+    editor-place-point-mark
+    editor-place-point-mark-keypress
+    editor-remove-mark
+    editor-remove-mark-keypress
+    editor-undo
     editor-undo-keypress
+    editor-redo
     editor-redo-keypress
     mode-state-create
     mode-state-state
@@ -125,8 +146,8 @@
       'editor-cursor-add-above
       "Adds a cursor above the first cursor as long as the cursor isn't on the first line"
       (lambda () (let ((point (text-edit-mode-cursor-position 0)))
-                       (when (not (= (car point) 0)
-                               (command-apply text-edit-mode-cursor-create (- (car point) 1) (cdr point))))))))
+                       (when (not (= (car point) 0))
+                               (command-apply text-edit-mode-cursor-create (- (car point) 1) (cdr point)))))))
 
   (define editor-cursor-add-above-keypress
     (command-create
@@ -157,10 +178,10 @@
       'editor-remove-additional-cursors
       "Removes all cursors except the main cursor"
       (lambda () (let ((last-cursor (- (text-edit-mode-cursor-count) 1))
-                        (main-cursor (text-edit-mode-main-cursor-index))
+                        (main-cursor (text-edit-mode-main-cursor-index)))
                    (for i from 0 to last-cursor step -1
                      (when (not (= i main-cursor))
-                       (command-apply text-edit-mode-cursor-destroy i))))))))
+                       (command-apply text-edit-mode-cursor-destroy i)))))))
 
   (define editor-remove-additional-cursors-keypress
     (command-create
@@ -219,36 +240,88 @@
       'editor-delete-back
       "Deletes text before each cursor in response to a keypress"
       (lambda (keys) (command-apply editor-delete-back))
+      #t
       'key-sequence))
 
   (define editor-delete-forward
     (command-create
       'editor-delete-forward
-      "Deletes text at the primary cursor"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+      "Deletes text at each cursor"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
-                         (command-apply text-edit-mode-delete-after-cursor i))))
+                         (command-apply text-edit-mode-delete-after-cursor i))))))
+
+  (define editor-delete-forward-keypress
+    (command-create
+      'editor-delete-forward-keypress
+      "Deletes text at each cursor in response to a keypress"
+      (lambda (keys) (command-apply editor-delete-forward))
+      #t
       'key-sequence))
 
   (define editor-delete-region
     (command-create
       'editor-delete-region
-      "Deletes text in text region of primary cursor"
+      "Deletes text in text region of each cursor"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-delete-cursor-region i))))))
+
+  (define editor-delete-region-keypress
+    (command-create
+      'editor-delete-region-keypress
+      "Deletes text in text region of each cursor in response to a keypress"
       (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
                          (command-apply text-edit-mode-delete-cursor-region i))))
+      #t
       'key-sequence))
 
-  (define editor-undo
+  (define editor-place-point-mark
     (command-create
-      'editor-undo
-      "Undoes a text modification"
-      (lambda (keys) (command-apply text-edit-mode-undo))
+      'editor-place-point-mark
+      "Places a point mark at each cursor"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
+                   (for i from 0 to (- cursor-count 1)
+                     (command-apply text-edit-mode-place-point-mark i))))))
+
+  (define editor-place-point-mark-keypress
+    (command-create
+      'editor-place-point-mark-keypress
+      "Places a point mark at each cursor in response to a keypress"
+      (lambda (keys) (command-apply editor-place-point-mark))
+      #t
       'key-sequence))
 
-  (define editor-redo
+  (define editor-remove-mark
+    (command-create
+      'editor-remove-mark
+      "Removes the mark at each cursor"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
+                   (for i from 0 to (- cursor-count 1)
+                     (command-apply text-edit-mode-remove-mark i))))))
+
+  (define editor-remove-mark-keypress
+    (command-create
+      'editor-remove-mark-keypress
+      "Removes the mark at each cursor in response to a keypress"
+      (lambda (keys) (command-apply editor-remove-mark))
+      #t
+      'key-sequence))
+
+
+  (define editor-undo-keypress
+    (command-create
+      'editor-undo-keypress
+      "Undoes a text modification in response to a keypress"
+      (lambda (keys) (command-apply text-edit-mode-undo))
+      #t
+      'key-sequence))
+
+  (define editor-redo-keypress
     (command-create
       'editor-redo
-      "Redoes a text modification"
+      "Redoes a text modification in response to a keypress"
       (lambda (keys) (command-apply text-edit-mode-redo))
+      #t
       'key-sequence)))

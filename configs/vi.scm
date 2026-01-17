@@ -42,8 +42,9 @@
         (command-bar-take)
         (command-bar-update)
         (command-bar-hide)
-        (command-apply text-edit-mode-remove-mark 0)
+        (command-apply editor-remove-mark)
         (vi-state-set! (minor-mode-get 'vi-mode) 'Normal))
+      #t
       'key-sequence))
 
   (define command-insert-text
@@ -52,6 +53,7 @@
       "Inserts text into the command bar from a key sequence"
       (lambda (keys) (command-bar-insert-key keys)
                      (command-bar-update (vi-prefix (minor-mode-get 'vi-mode))))
+      #t
       'key-sequence))
 
   (define command-insert-space
@@ -60,6 +62,7 @@
       "Inserts text into the command bar from a key sequence"
       (lambda (keys) (command-bar-insert " ")
                      (command-bar-update (vi-prefix (minor-mode-get 'vi-mode))))
+      #t
       'key-sequence))
 
   (define command-activate
@@ -71,6 +74,7 @@
         (command-bar-update)
         (command-bar-hide)
         (vi-state-set! (minor-mode-get 'vi-mode) 'Normal))
+      #t
       'key-sequence))
 
   (define command-delete-back
@@ -80,6 +84,7 @@
       (lambda (keys)
         (command-bar-delete-back)
         (command-bar-update (vi-prefix (minor-mode-get 'vi-mode))))
+      #t
       'key-sequence))
 
   (define command-delete-forward
@@ -89,6 +94,7 @@
       (lambda (keys)
         (command-bar-delete-forward)
         (command-bar-update (vi-prefix (minor-mode-get 'vi-mode))))
+      #t
       'key-sequence))
 
   (define command-cursor-left
@@ -98,6 +104,7 @@
       (lambda (keys)
         (command-bar-left)
         (command-bar-update (vi-prefix (minor-mode-get 'vi-mode))))
+      #t
       'key-sequence))
 
   (define command-cursor-right
@@ -107,25 +114,28 @@
       (lambda (keys)
         (command-bar-right)
         (command-bar-update (vi-prefix (minor-mode-get 'vi-mode)))
+        #t
       'key-sequence)))
 
-  (define vi-enter-insert
+  (define vi-enter-insert-keypress
     (command-create
       'vi-enter-insert
       "Enters into insert mode"
       (lambda (keys) (vi-state-set! (minor-mode-get 'vi-mode) 'Insert))
+      #t
       'key-sequence))
 
-  (define vi-enter-visual
+  (define vi-enter-visual-keypress
     (command-create
       'vi-enter-visual
       "Enters into visual mode"
       (lambda (keys)
         (command-apply text-edit-mode-place-point-mark 0)
         (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
+      #t
       'key-sequence))
 
-  (define vi-enter-command
+  (define vi-enter-command-keypress
     (command-create
       'vi-enter-command
       "Enters into command mode"
@@ -137,48 +147,49 @@
         (command-bar-show)
         (command-bar-update (vi-prefix (minor-mode-get 'vi-mode)))
         (vi-state-set! (minor-mode-get 'vi-mode) 'Command))
+      #t
       'key-sequence))
 
   (define (vi-normal-mode-keymap)
     (let ((vi-key-map (key-map-create)))
-      (key-map-insert vi-key-map "UP" editor-cursor-up)
-      (key-map-insert vi-key-map "k" editor-cursor-up)
-      (key-map-insert vi-key-map "DOWN" editor-cursor-down)
-      (key-map-insert vi-key-map "j" editor-cursor-down)
-      (key-map-insert vi-key-map "LEFT" editor-cursor-left)
-      (key-map-insert vi-key-map "h" editor-cursor-left)
-      (key-map-insert vi-key-map "RIGHT" editor-cursor-right)
-      (key-map-insert vi-key-map "l" editor-cursor-right)
-      (key-map-insert vi-key-map "i" vi-enter-insert)
-      (key-map-insert vi-key-map "v" vi-enter-visual)
-      (key-map-insert vi-key-map ":" vi-enter-command)
-      (key-map-insert vi-key-map "u" editor-undo)
-      (key-map-insert vi-key-map "C-r" editor-redo)
-      (key-map-insert vi-key-map "C-q" cursor-add)
+      (key-map-insert vi-key-map "UP" editor-cursor-up-keypress)
+      (key-map-insert vi-key-map "k" editor-cursor-up-keypress)
+      (key-map-insert vi-key-map "DOWN" editor-cursor-down-keypress)
+      (key-map-insert vi-key-map "j" editor-cursor-down-keypress)
+      (key-map-insert vi-key-map "LEFT" editor-cursor-left-keypress)
+      (key-map-insert vi-key-map "h" editor-cursor-left-keypress)
+      (key-map-insert vi-key-map "RIGHT" editor-cursor-right-keypress)
+      (key-map-insert vi-key-map "l" editor-cursor-right-keypress)
+      (key-map-insert vi-key-map "i" vi-enter-insert-keypress)
+      (key-map-insert vi-key-map "v" vi-enter-visual-keypress)
+      (key-map-insert vi-key-map ":" vi-enter-command-keypress)
+      (key-map-insert vi-key-map "u" editor-undo-keypress)
+      (key-map-insert vi-key-map "C-r" editor-redo-keypress)
+      (key-map-insert vi-key-map "C-c" editor-cursor-add-below-keypress)
       vi-key-map))
 
   (define (vi-visual-mode-keymap)
     (let ((vi-key-map (key-map-create)))
-      (key-map-insert vi-key-map "UP" editor-cursor-up)
-      (key-map-insert vi-key-map "k" editor-cursor-up)
-      (key-map-insert vi-key-map "DOWN" editor-cursor-down)
-      (key-map-insert vi-key-map "j" editor-cursor-down)
-      (key-map-insert vi-key-map "LEFT" editor-cursor-left)
-      (key-map-insert vi-key-map "h" editor-cursor-left)
-      (key-map-insert vi-key-map "RIGHT" editor-cursor-right)
-      (key-map-insert vi-key-map "l" editor-cursor-right)
+      (key-map-insert vi-key-map "UP" editor-cursor-up-keypress)
+      (key-map-insert vi-key-map "k" editor-cursor-up-keypress)
+      (key-map-insert vi-key-map "DOWN" editor-cursor-down-keypress)
+      (key-map-insert vi-key-map "j" editor-cursor-down-keypress)
+      (key-map-insert vi-key-map "LEFT" editor-cursor-left-keypress)
+      (key-map-insert vi-key-map "h" editor-cursor-left-keypress)
+      (key-map-insert vi-key-map "RIGHT" editor-cursor-right-keypress)
+      (key-map-insert vi-key-map "l" editor-cursor-right-keypress)
       vi-key-map))
 
   (define (vi-insert-mode-keymap)
-    (let ((vi-key-map (key-map-create editor-insert-text)))
-      (key-map-insert vi-key-map "UP" editor-cursor-up)
-      (key-map-insert vi-key-map "DOWN" editor-cursor-down)
-      (key-map-insert vi-key-map "LEFT" editor-cursor-left)
-      (key-map-insert vi-key-map "RIGHT" editor-cursor-right)
-      (key-map-insert vi-key-map "BS" editor-delete-back)
-      (key-map-insert vi-key-map "DEL" editor-delete-forward)
-      (key-map-insert vi-key-map "ENTER" editor-return)
-      (key-map-insert vi-key-map "SPC" editor-insert-space)
+    (let ((vi-key-map (key-map-create editor-insert-text-keypress)))
+      (key-map-insert vi-key-map "UP" editor-cursor-up-keypress)
+      (key-map-insert vi-key-map "DOWN" editor-cursor-down-keypress)
+      (key-map-insert vi-key-map "LEFT" editor-cursor-left-keypress)
+      (key-map-insert vi-key-map "RIGHT" editor-cursor-right-keypress)
+      (key-map-insert vi-key-map "BS" editor-delete-back-keypress)
+      (key-map-insert vi-key-map "DEL" editor-delete-forward-keypress)
+      (key-map-insert vi-key-map "ENTER" editor-insert-newline-keypress)
+      (key-map-insert vi-key-map "SPC" editor-insert-space-keypress)
       vi-key-map))
 
   (define (vi-command-mode-keymap)
@@ -241,7 +252,7 @@
     (enter-normal-mode-first-time))
 
   (define (init-vi-config)
-    (add-special-key-binding "C-c" editor-crash)
+    (add-special-key-binding "C-q" editor-crash)
     (create-hook 'vi-mode-change)
     (add-hook 'buffer-open 'text-edit-mode text-edit-mode-file-open-hook)
     (add-hook 'buffer-open 'vi-mode vi-config-hook)))

@@ -9,6 +9,7 @@
     text-edit-mode-cursor-destroy
     text-edit-mode-cursor-position
     text-edit-mode-cursor-count
+    text-edit-mode-main-cursor-index
     text-edit-mode-insert-at-cursor
     text-edit-mode-delete-before-cursor
     text-edit-mode-delete-after-cursor

@@ -30,26 +30,27 @@
       'editor-crash
       "Crashes the editor"
       (lambda (keys) (crash))
+      #t
       'key-sequence))
 
-  (define editor-place-point-mark
+  (define emacs-cancel
     (command-create
-      'editor-place-point-mark
-      "Places a point mark at the primary cursor"
-      (lambda (keys) (command-apply text-edit-mode-place-point-mark 0))
-      'key-sequence))
-
-  (define editor-remove-mark
-    (command-create
-      'editor-remove-mark
+      'emacs-cancel
       "Removes the mark at the primary cursor and flushes the keybuffer"
-      (lambda (keys) (begin
+      (lambda () (begin
                        (flush-key-buffer)
                        (command-bar-take)
                        (command-bar-update)
                        (command-bar-hide)
-                       (command-apply text-edit-mode-remove-mark 0)
-                       (emacs-state-set! (minor-mode-get 'emacs-mode) 'edit)))
+                       (command-apply editor-remove-mark)
+                       (emacs-state-set! (minor-mode-get 'emacs-mode) 'edit)))))
+
+  (define emacs-cancel-keypress
+    (command-create
+      'emacs-cancel-keypress
+      "Removes the mark at the primary cursor and flushes the keybuffer in response to a keypress"
+      (lambda (keys) (command-apply emacs-cancel))
+      #t
       'key-sequence))
 
   (define emacs-enter-command
@@ -74,6 +75,7 @@
       "Inserts text into the command bar from a key sequence"
       (lambda (keys) (command-bar-insert-key keys)
                      (command-bar-update (emacs-prefix (minor-mode-get 'emacs-mode))))
+      #t
       'key-sequence))
 
   (define command-insert-space
@@ -82,6 +84,7 @@
       "Inserts text into the command bar from a key sequence"
       (lambda (keys) (command-bar-insert " ")
                      (command-bar-update (emacs-prefix (minor-mode-get 'emacs-mode))))
+      #t
       'key-sequence))
 
   (define command-activate
@@ -95,6 +98,7 @@
             (command-bar-hide)
             (emacs-prefix-set! emacs-mode "")
             (emacs-state-set! emacs-mode 'edit)))
+      #t
       'key-sequence))
 
   (define command-delete-back
@@ -104,6 +108,7 @@
       (lambda (keys)
         (command-bar-delete-back)
         (command-bar-update (emacs-prefix (minor-mode-get 'emacs-mode))))
+      #t
       'key-sequence))
 
   (define command-delete-forward
@@ -113,6 +118,7 @@
       (lambda (keys)
         (command-bar-delete-forward)
         (command-bar-update (emacs-prefix (minor-mode-get 'emacs-mode))))
+      #t
       'key-sequence))
 
   (define command-cursor-left
@@ -122,6 +128,7 @@
       (lambda (keys)
         (command-bar-left)
         (command-bar-update (emacs-prefix (minor-mode-get 'emacs-mode))))
+      #t
       'key-sequence))
 
   (define command-cursor-right
@@ -131,6 +138,7 @@
       (lambda (keys)
         (command-bar-right)
         (command-bar-update (emacs-prefix (minor-mode-get 'emacs-mode))))
+      #t
       'key-sequence))
 
   (define editor-save
@@ -138,6 +146,7 @@
       'editor-save
       "Saves the currently focused buffer if it is an open file"
       (lambda (keys) (emacs-save))
+      #t
       'key-sequence))
 
   (define editor-save-as
@@ -145,6 +154,7 @@
       'editor-save-as
       "Saves the currently focused buffer as a different or new file"
       (lambda (keys) (emacs-save-as))
+      #t
       'key-sequence))
 
   (define (emacs-save)
@@ -168,24 +178,23 @@
         emacs-save-as-callback)))
 
   (define (emacs-editor)
-    (let ((emacs-editor-key-map (key-map-create editor-insert-text)))
-      (key-map-insert emacs-editor-key-map "UP" editor-cursor-up)
-      (key-map-insert emacs-editor-key-map "DOWN" editor-cursor-down)
-      (key-map-insert emacs-editor-key-map "LEFT" editor-cursor-left)
-      (key-map-insert emacs-editor-key-map "RIGHT" editor-cursor-right)
-      (key-map-insert emacs-editor-key-map "C-p" editor-cursor-up)
-      (key-map-insert emacs-editor-key-map "C-n" editor-cursor-down)
-      (key-map-insert emacs-editor-key-map "C-b" editor-cursor-left)
-      (key-map-insert emacs-editor-key-map "C-f" editor-cursor-right)
-      (key-map-insert emacs-editor-key-map "BS" editor-delete-back)
-      (key-map-insert emacs-editor-key-map "DEL" editor-delete-forward)
-      (key-map-insert emacs-editor-key-map "ENTER" editor-return)
-      (key-map-insert emacs-editor-key-map "SPC" editor-insert-space)
-      (key-map-insert emacs-editor-key-map "C-SPC" editor-place-point-mark)
-      ;(key-map-insert emacs-editor-key-map "C-g" editor-remove-mark)
-      (key-map-insert emacs-editor-key-map "C-w" editor-delete-region)
-      (key-map-insert emacs-editor-key-map "C-_" editor-undo)
-      (key-map-insert emacs-editor-key-map "C-x u" editor-redo)
+    (let ((emacs-editor-key-map (key-map-create editor-insert-text-keypress)))
+      (key-map-insert emacs-editor-key-map "UP" editor-cursor-up-keypress)
+      (key-map-insert emacs-editor-key-map "DOWN" editor-cursor-down-keypress)
+      (key-map-insert emacs-editor-key-map "LEFT" editor-cursor-left-keypress)
+      (key-map-insert emacs-editor-key-map "RIGHT" editor-cursor-right-keypress)
+      (key-map-insert emacs-editor-key-map "C-p" editor-cursor-up-keypress)
+      (key-map-insert emacs-editor-key-map "C-n" editor-cursor-down-keypress)
+      (key-map-insert emacs-editor-key-map "C-b" editor-cursor-left-keypress)
+      (key-map-insert emacs-editor-key-map "C-f" editor-cursor-right-keypress)
+      (key-map-insert emacs-editor-key-map "BS" editor-delete-back-keypress)
+      (key-map-insert emacs-editor-key-map "DEL" editor-delete-forward-keypress)
+      (key-map-insert emacs-editor-key-map "ENTER" editor-insert-newline-keypress)
+      (key-map-insert emacs-editor-key-map "SPC" editor-insert-space-keypress)
+      (key-map-insert emacs-editor-key-map "C-SPC" editor-place-point-mark-keypress)
+      (key-map-insert emacs-editor-key-map "C-w" editor-delete-region-keypress)
+      (key-map-insert emacs-editor-key-map "C-_" editor-undo-keypress)
+      (key-map-insert emacs-editor-key-map "C-x u" editor-redo-keypress)
       (key-map-insert emacs-editor-key-map "A-x" emacs-enter-command)
       (key-map-insert emacs-editor-key-map "C-x C-s" editor-save)
       (key-map-insert emacs-editor-key-map "C-x C-w" editor-save-as)
@@ -219,7 +228,7 @@
 
   (define (emacs-config-setup emacs-mode state)
     (emacs-change-state emacs-mode state)
-    (add-special-key-binding "C-g" editor-remove-mark))
+    (add-special-key-binding "C-g" emacs-cancel-keypress))
 
   (define (emacs-mode-gain-focus minor-mode)
     (emacs-config-setup minor-mode (emacs-state minor-mode)))

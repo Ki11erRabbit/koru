@@ -91,9 +91,10 @@
       'nano-eat-key-press
       "Takes in any key sequence and reports that it has been used"
       (lambda (keys) #t)
+      #t
       'key-sequence))
 
-  (define nano-edit-mode
+  (define nano-edit-mode-keypress
     (command-create
       'nano-edit-mode
       "Puts editor state back into default editing state"
@@ -106,7 +107,7 @@
           (nano-state-set! nano-mode 'edit)))
       'key-sequence))
 
-  (define nano-write-mode
+  (define nano-write-mode-keypress
     (command-create
       'nano-write-mode
       "Prompts the user to enter a file name to write to"
@@ -119,7 +120,7 @@
           (nano-state-set! nano-mode 'write)))
       'key-sequence))
 
-  (define nano-read-mode
+  (define nano-read-mode-keypress
     (command-create
       'nano-read-mode
       "Prompts the user to enter a file name to read from to insert into the buffer"
@@ -131,7 +132,7 @@
           (nano-state-set! nano-mode 'read)))
       'key-sequence))
 
-  (define nano-exit-mode
+  (define nano-exit-mode-keypress
     (command-create
       'nano-exit-mode
       "Exits the editor if there are no changes in the buffer. Otherwise, prompt the user to save"
@@ -146,7 +147,7 @@
             (display "TODO: add function that quits the session\n"))))
       'key-sequence))
 
-  (define nano-exit-write-mode
+  (define nano-exit-write-mode-keypress
     (command-create
       'nano-exit-mode
       "Prompts the user to save a file, then exits"
@@ -166,6 +167,7 @@
       (lambda (keys)
         (command-bar-insert-key keys)
         (command-bar-update (nano-prefix (minor-mode-get 'nano-mode))))
+      #t
       'key-sequence))
 
   (define command-insert-space
@@ -174,6 +176,7 @@
       "Inserts text into the command bar from a key sequence"
       (lambda (keys) (command-bar-insert " ")
                      (command-bar-update (nano-prefix (minor-mode-get 'nano-mode))))
+      #t
       'key-sequence))
 
   (define command-submit-return
@@ -187,6 +190,7 @@
             (command-bar-hide)
             (nano-prefix-set! nano-mode "")
             (nano-state-set! nano-mode 'edit)))
+      #t
       'key-sequence))
 
   (define command-delete-back
@@ -196,6 +200,7 @@
       (lambda (keys)
         (command-bar-delete-back)
         (command-bar-update (nano-prefix (minor-mode-get 'nano-mode))))
+      #t
       'key-sequence))
 
   (define command-delete-forward
@@ -205,6 +210,7 @@
       (lambda (keys)
         (command-bar-delete-forward)
         (command-bar-update (nano-prefix (minor-mode-get 'nano-mode))))
+      #t
       'key-sequence))
 
   (define command-cursor-left
@@ -212,6 +218,7 @@
       'command-cursor-left
       "Moves the cursor to the left in the command bar"
       (lambda (keys) (command-bar-left))
+      #t
       'key-sequence))
 
   (define command-cursor-right
@@ -219,6 +226,7 @@
       'command-cursor-right
       "Moves the cursor to the right in the command bar"
       (lambda (keys) (command-bar-right))
+      #t
       'key-sequence))
 
   (define nano-crash
@@ -226,22 +234,23 @@
       'command-crash
       "Crashes the editor to see logs"
       (lambda (keys) (crash))
+      #t
       'key-sequence))
 
 
   (define (nano-edit-key-map)
-    (let ((nano-key-map (key-map-create editor-insert-text)))
-      (key-map-insert nano-key-map "UP" editor-cursor-up)
-      (key-map-insert nano-key-map "DOWN" editor-cursor-down)
-      (key-map-insert nano-key-map "LEFT" editor-cursor-left)
-      (key-map-insert nano-key-map "RIGHT" editor-cursor-right)
-      (key-map-insert nano-key-map "BS" editor-delete-back)
-      (key-map-insert nano-key-map "DEL" editor-delete-forward)
-      (key-map-insert nano-key-map "ENTER" editor-return)
-      (key-map-insert nano-key-map "SPC" editor-insert-space)
-      (key-map-insert nano-key-map "C-x" nano-exit-mode)
-      (key-map-insert nano-key-map "C-o" nano-write-mode)
-      (key-map-insert nano-key-map "C-r" nano-read-mode)
+    (let ((nano-key-map (key-map-create editor-insert-text-keypress)))
+      (key-map-insert nano-key-map "UP" editor-cursor-up-keypress)
+      (key-map-insert nano-key-map "DOWN" editor-cursor-down-keypress)
+      (key-map-insert nano-key-map "LEFT" editor-cursor-left-keypress)
+      (key-map-insert nano-key-map "RIGHT" editor-cursor-right-keypress)
+      (key-map-insert nano-key-map "BS" editor-delete-back-keypress)
+      (key-map-insert nano-key-map "DEL" editor-delete-forward-keypress)
+      (key-map-insert nano-key-map "ENTER" editor-insert-newline-keypress)
+      (key-map-insert nano-key-map "SPC" editor-insert-space-keypress)
+      (key-map-insert nano-key-map "C-x" nano-exit-mode-keypress)
+      (key-map-insert nano-key-map "C-o" nano-write-mode-keypress)
+      (key-map-insert nano-key-map "C-r" nano-read-mode-keypress)
       (key-map-insert nano-key-map "C-c" nano-crash)
       nano-key-map))
 
@@ -253,14 +262,14 @@
       (key-map-insert nano-key-map "DEL" command-delete-forward)
       (key-map-insert nano-key-map "ENTER" command-submit-return)
       (key-map-insert nano-key-map "SPC" command-insert-space)
-      (key-map-insert nano-key-map "C-c" nano-edit-mode)
+      (key-map-insert nano-key-map "C-c" nano-edit-mode-keypress)
       nano-key-map))
 
   (define (nano-exit-key-map)
     (let ((nano-key-map (key-map-create nano-eat-key-press)))
-      (key-map-insert nano-key-map "y" nano-exit-write-mode)
-      (key-map-insert nano-key-map "n" nano-edit-mode)
-      (key-map-insert nano-key-map "C-c" nano-edit-mode)
+      (key-map-insert nano-key-map "y" nano-exit-write-mode-keypress)
+      (key-map-insert nano-key-map "n" nano-edit-mode-keypress)
+      (key-map-insert nano-key-map "C-c" nano-edit-mode-keypress)
       nano-key-map))
 
   (define (nano-read-key-map)
@@ -271,7 +280,7 @@
       (key-map-insert nano-key-map "DEL" command-delete-forward)
       (key-map-insert nano-key-map "ENTER" command-submit-return)
       (key-map-insert nano-key-map "SPC" command-insert-space)
-      (key-map-insert nano-key-map "C-c" nano-edit-mode)
+      (key-map-insert nano-key-map "C-c" nano-edit-mode-keypress)
       nano-key-map))
 
 
