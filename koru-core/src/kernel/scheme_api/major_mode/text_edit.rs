@@ -379,6 +379,24 @@ pub async fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Exception> {
     Ok(Vec::new())
 }
 
+#[bridge(name = "text-edit-is-mark-set?", lib = "(text-edit)")]
+pub async fn is_mark_set(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()));
+    };
+    let index: Arc<Number> = index.clone().try_into()?;
+    let index: usize = index.as_ref().try_into()?;
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor = data.get_cursor(index).await;
+    let is_set = cursor.is_mark_set();
+
+    Ok(vec![Value::from(is_set)])
+}
+
 #[bridge(name = "text-edit-cursor-count", lib = "(text-edit)")]
 pub async fn get_cursor_count(major_mode: &Value) -> Result<Vec<Value>, Exception> {
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;

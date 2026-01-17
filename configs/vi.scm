@@ -140,7 +140,6 @@
       'vi-enter-command
       "Enters into command mode"
       (lambda (keys)
-        (display "setting callback\n")
         (vi-callback-set! (minor-mode-get 'vi-mode)
           (lambda () (command-bar-take)))
         (vi-prefix-set! (minor-mode-get 'vi-mode) ":")

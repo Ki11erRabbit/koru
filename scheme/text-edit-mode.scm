@@ -10,6 +10,7 @@
     text-edit-mode-cursor-position
     text-edit-mode-cursor-count
     text-edit-mode-main-cursor-index
+    text-edit-mode-is-mark-set?
     text-edit-mode-insert-at-cursor
     text-edit-mode-delete-before-cursor
     text-edit-mode-delete-after-cursor
@@ -97,6 +98,9 @@
 
   (define (text-edit-mode-main-cursor-index)
     (text-edit-get-main-cursor-index (current-major-mode)))
+
+  (define (text-edit-mode-is-mark-set? index)
+    (text-edit-is-mark-set? (current-major-mode) index))
 
   (define text-edit-mode-cursor-main
     (command-create

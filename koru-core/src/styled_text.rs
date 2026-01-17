@@ -365,7 +365,6 @@ impl StyledFile {
                                         end += ch.len_utf8();
                                         found_mark = false;
                                         found_cursor = false;
-                                        println!("incrementing cursor_index");
                                         cursor_index += 1;
                                         column_index += 1;
                                         continue;
