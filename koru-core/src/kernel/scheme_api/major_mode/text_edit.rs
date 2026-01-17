@@ -131,6 +131,16 @@ impl TextEditData {
         let mut guard = self.internal.lock().await;
         guard.cursors = cursors;
     }
+
+    pub async fn get_main_cursor_index(&self) -> usize {
+        let guard = self.internal.lock().await;
+        for (i, cursor) in guard.cursors.iter().enumerate() {
+            if cursor.is_main() {
+                return i;
+            }
+        }
+        unreachable!("There should always be a main cursor")
+    }
 }
 
 impl SchemeCompatible for TextEditData {
@@ -404,6 +414,15 @@ pub async fn get_main_cursor(major_mode: &Value) -> Result<Vec<Value>, Exception
     let cursor = data.get_main_cursor().await;
     let cursor = Value::from(Record::from_rust_type(cursor));
     Ok(vec![cursor])
+}
+
+#[bridge(name = "text-edit-get-main-cursor-index", lib = "(text-edit)")]
+pub async fn get_main_cursor_index(major_mode: &Value) -> Result<Vec<Value>, Exception> {
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let index = data.get_main_cursor_index().await;
+    let index = Value::from(index);
+    Ok(vec![index])
 }
 
 pub async fn insert_text_at_cursor(

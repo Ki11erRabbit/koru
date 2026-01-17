@@ -199,22 +199,35 @@ pub fn command_description(command: &Value) -> Result<Vec<Value>, Exception> {
 
 #[bridge(name = "command-create", lib = "(koru-command)")]
 pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
-    let Some((first, rest)) = args.split_first() else {
-        return Err(Exception::type_error("String", "invalid"));
+    let Some((name, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
-    let name: Symbol = first.clone().try_into()?;
-    let Some((first, rest)) = rest.split_first() else {
-        return Err(Exception::type_error("String", "invalid"));
+    let Some((description, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
-    let description: String = first.clone().try_into()?;
-    let Some((first, rest)) = rest.split_first() else {
-        return Err(Exception::type_error("Procedure", "invalid"));
+    let Some((procedure, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()));
     };
-    let function: Procedure = first.clone().try_into()?;
+    let name: Symbol = name.clone().try_into()?;
+    let description: String = description.clone().try_into()?;
+    let function: Procedure = procedure.clone().try_into()?;
+    let mut hide = false;
 
     let mut arguments: Vec<ArgumentDef> = Vec::new();
     for arg in rest {
-        let arg: Symbol = arg.clone().try_into()?;
+        let arg: Symbol = match arg.clone().try_into() {
+            Ok(arg) => Ok(arg),
+            Err(err) => {
+                match arg.clone().try_into() {
+                    Ok(arg) => {
+                        let arg: bool = arg;
+                        hide = arg;
+                        continue;
+                    }
+                    _ => Err(err)
+                }
+            }
+        }?;
         match ArgumentDef::try_from(arg.to_str().as_ref()) {
             Ok(x) => arguments.push(x),
             Err(msg) => {
@@ -222,6 +235,8 @@ pub fn command_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
             }
         }
     }
+    // todo: register command
+    let _hide = hide;
 
     let command = Command::new(name, function, description, arguments);
     Ok(vec![Value::from(Record::from_rust_type(command))])

@@ -32,6 +32,7 @@ Arguments can be one of the following:
 - name: String, the name of the command
 - description: String, A description of the command
 - function: Procedure, a function that takes the arguments for the command
+- hide: Optional bool, Whether to let the command be completed or not. `#t` for to hide it. `#f` to not hide it (default).
 - arguments: Rest String, a list of strings that are the type of arguments for the function. See above for possible values
 
 ###### Output
@@ -46,6 +47,7 @@ Currently just constructs the command, but in the future may register the comman
 ###### Example
 ```scheme
 (command-create "delete" (lambda (keys) (delete-at-cursor)) "key-sequence")
+(command-create "move" (lambda (keys) (delete-at-cursor)) #t "key-sequence")
 ```
 
 #### Accessors

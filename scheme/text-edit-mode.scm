@@ -94,6 +94,9 @@
     (define (text-edit-mode-cursor-count)
       (text-edit-cursor-count (current-major-mode)))
 
+  (define (text-edit-mode-main-cursor-index)
+    (text-edit-get-main-cursor-index (current-major-mode)))
+
   (define text-edit-mode-cursor-main
     (command-create
       'text-edit-mode-cursor-main

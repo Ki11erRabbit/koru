@@ -1,17 +1,22 @@
 (library (configs common)
   (export
-    editor-cursor-up
-    editor-cursor-down
-    editor-cursor-left
-    editor-cursor-right
-    editor-insert-text
-    editor-insert-space
-    editor-return
-    editor-delete-back
-    editor-delete-forward
-    editor-delete-region
-    editor-undo
-    editor-redo
+    editor-cursor-up-keypress
+    editor-cursor-down-keypress
+    editor-cursor-left-keypress
+    editor-cursor-left-wrap-keypress
+    editor-cursor-right-keypress
+    editor-cursor-right-wrap-keypress
+    editor-cursor-add-above-keypress
+    editor-cursor-add-below-keypress
+    editor-remove-additional-cursors-keypress
+    editor-insert-text-keypress
+    editor-insert-space-keypress
+    editor-insert-newline-keypress
+    editor-delete-back-keypress
+    editor-delete-forward-keypress
+    editor-delete-region-keypress
+    editor-undo-keypress
+    editor-redo-keypress
     mode-state-create
     mode-state-state
     mode-state-state-change
@@ -37,73 +42,183 @@
     (command-create
       'editor-cursor-up
       "Moves the primary cursor up"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
-                         (command-apply text-edit-mode-cursor-up i))))
+                         (command-apply text-edit-mode-cursor-up i))))))
+
+  (define editor-cursor-up-keypress
+    (command-create
+      'editor-cursor-up-keypress
+      "Moves the primary cursor up in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-up))
+      #t
       'key-sequence))
 
   (define editor-cursor-down
     (command-create
       'editor-cursor-down
       "Moves the primary cursor down"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
                         (for i from 0 to (- cursor-count 1)
-                          (command-apply text-edit-mode-cursor-down i))))
+                          (command-apply text-edit-mode-cursor-down i))))))
+
+  (define editor-cursor-down-keypress
+    (command-create
+      'editor-cursor-down-keypress
+      "Moves the primary cursor down in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-down))
+      #t
       'key-sequence))
 
   (define editor-cursor-left
     (command-create
       'editor-cursor-left
-      "Moves the primary cursor left"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+      "Moves the primary cursor left. Takes in a boolean to indicate to wrap or not"
+      (lambda (wrap) (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
-                         (command-apply text-edit-mode-cursor-left i #f))))
+                         (command-apply text-edit-mode-cursor-left i wrap))))
+      'boolean))
+
+  (define editor-cursor-left-keypress
+    (command-create
+      'editor-cursor-left-keypress
+      "Moves the primary cursor left in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-left #f))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-left-wrap-keypress
+    (command-create
+      'editor-cursor-left-wrap-keypress
+      "Moves the primary cursor left in response to a keypress. The cursor wraps if at the start of the line"
+      (lambda (keys) (command-apply editor-cursor-left #t))
+      #t
       'key-sequence))
 
   (define editor-cursor-right
     (command-create
       'editor-cursor-right
-      "Moves the primary cursor right"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+      "Moves the primary cursor right. Takes in a boolean to indicate to wrap or not"
+      (lambda (wrap) (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
-                         (command-apply text-edit-mode-cursor-right i #f))))
+                         (command-apply text-edit-mode-cursor-right i wrap))))
+      'boolean))
+
+  (define editor-cursor-right-keypress
+    (command-create
+      'editor-cursor-right-keypress
+      "Moves the primary cursor right in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-right #f))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-right-wrap-keypress
+    (command-create
+      'editor-cursor-right-wrap-keypress
+      "Moves the primary cursor right in response to a keypress. The cursor wraps if at the end of the line"
+      (lambda (keys) (command-apply editor-cursor-right #t))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-add-above
+    (command-create
+      'editor-cursor-add-above
+      "Adds a cursor above the first cursor as long as the cursor isn't on the first line"
+      (lambda () (let ((point (text-edit-mode-cursor-position 0)))
+                       (when (not (= (car point) 0)
+                               (command-apply text-edit-mode-cursor-create (- (car point) 1) (cdr point))))))))
+
+  (define editor-cursor-add-above-keypress
+    (command-create
+      'editor-cursor-add-above-keypress
+      "Adds a cursor above the first cursor as long as the cursor isn't on the first line in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-add-above))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-add-below
+    (command-create
+      'editor-cursor-add-below
+      "Adds a cursor below the last cursor"
+      (lambda () (let ((last-cursor (- (text-edit-mode-cursor-count) 1)))
+                       (let ((point (text-edit-mode-cursor-position last-cursor)))
+                         (command-apply text-edit-mode-cursor-create (+ (car point) 1) (cdr point)))))))
+
+  (define editor-cursor-add-below-keypress
+    (command-create
+      'editor-cursor-add-below-keypress
+      "Adds a cursor below the last cursor"
+      (lambda (keys) (command-apply editor-cursor-add-below))
+      #t
+      'key-sequence))
+
+  (define editor-remove-additional-cursors
+    (command-create
+      'editor-remove-additional-cursors
+      "Removes all cursors except the main cursor"
+      (lambda () (let ((last-cursor (- (text-edit-mode-cursor-count) 1))
+                        (main-cursor (text-edit-mode-main-cursor-index))
+                   (for i from 0 to last-cursor step -1
+                     (when (not (= i main-cursor))
+                       (command-apply text-edit-mode-cursor-destroy i))))))))
+
+  (define editor-remove-additional-cursors-keypress
+    (command-create
+      'editor-remove-additional-cursors-keypress
+      "Removes all cursors except the main cursor in response to a keypress"
+      (lambda (keys) (command-apply editor-remove-additional-cursors))
+      #t
+      'key-sequence))
+
+  (define editor-insert-text-keypress
+    (command-create
+      'editor-insert-text-keypress
+      "Inserts text at all cursors from a key sequence"
+      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)) (result (list)))
+                       (for i from 0 to (- cursor-count 1)
+                         (set! result (command-apply text-edit-mode-insert-key i keys)))
+                       result))
+      #t
       'key-sequence))
 
   (define editor-insert-text
     (command-create
       'editor-insert-text
-      "Inserts text at the primary cursor"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)) (result (list)))
+      "Inserts text at the cursors from text"
+      (lambda (text) (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
-                         (set! result (command-apply text-edit-mode-insert-key i keys)))
-                       result))
+                         (command-apply text-edit-mode-insert-at-cursor i text))))
+      'text))
+
+  (define editor-insert-space-keypress
+    (command-create
+      'editor-insert-space-keypress
+      "Inserts a space at each cursor in response to a keypress"
+      (lambda (keys) (command-apply editor-insert-text " "))
+      #t
       'key-sequence))
 
-  (define editor-insert-space
+  (define editor-insert-newline-keypress
     (command-create
-      'editor-insert-text
-      "Inserts text at the primary cursor"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
-                      (for i from 0 to (- cursor-count 1)
-                        (command-apply text-edit-mode-insert-at-cursor i " "))))
-      'key-sequence))
-
-  (define editor-return
-    (command-create
-      'editor-return
-      "Inserts a newline at the primary cursor"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
-                       (for i from 0 to (- cursor-count 1)
-                         (command-apply text-edit-mode-insert-at-cursor i "\n"))))
+      'editor-insert-newline-keypress
+      "Inserts a space at each cursor in response to a keypress"
+      (lambda (keys) (command-apply editor-insert-text "\n"))
+      #t
       'key-sequence))
 
   (define editor-delete-back
     (command-create
       'editor-delete-back
-      "Deletes text before the primary cursor"
-      (lambda (keys) (let ((cursor-count (text-edit-mode-cursor-count)))
+      "Deletes text before each cursor"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
-                         (command-apply text-edit-mode-delete-before-cursor i))))
+                         (command-apply text-edit-mode-delete-before-cursor i))))))
+
+  (define editor-delete-back-keypress
+    (command-create
+      'editor-delete-back
+      "Deletes text before each cursor in response to a keypress"
+      (lambda (keys) (command-apply editor-delete-back))
       'key-sequence))
 
   (define editor-delete-forward

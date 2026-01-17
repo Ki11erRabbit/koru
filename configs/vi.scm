@@ -139,16 +139,6 @@
         (vi-state-set! (minor-mode-get 'vi-mode) 'Command))
       'key-sequence))
 
-
-  (define cursor-add
-    (command-create
-      'cursor-add
-      "Adds a cursor below the last cursor"
-      (lambda (keys) (let ((last-cursor (- (text-edit-mode-cursor-count) 1)))
-                      (let ((point (text-edit-mode-cursor-position last-cursor)))
-                        (command-apply text-edit-mode-cursor-create (+ (car point) 1) (cdr point)))))
-      'key-sequence))
-
   (define (vi-normal-mode-keymap)
     (let ((vi-key-map (key-map-create)))
       (key-map-insert vi-key-map "UP" editor-cursor-up)
