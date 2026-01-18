@@ -339,9 +339,6 @@ impl StyledFile {
                         let mut end = start;
                         for ch in text.chars() {
                             if cursor_index < cursors.len() {
-                                println!("cursor pos: {}:{}", cursors[cursor_index].line(), cursors[cursor_index].column());
-                                println!("  mark pos: {:?}:{:?}", cursors[cursor_index].mark_line(), cursors[cursor_index].mark_column());
-
                                 if column_index == cursors[cursor_index].column()
                                     && line_index == cursors[cursor_index].line() {
                                     found_cursor = true;
@@ -402,7 +399,6 @@ impl StyledFile {
                                         });
                                         start = end;
                                     } else {
-                                        println!("normal text 4 {}", text.rope.byte_slice(start..end).to_string());
                                         current_line.push(StyledText::Style {
                                             bg_color: cursor_color,
                                             fg_color: ColorType::Text,
@@ -441,7 +437,6 @@ impl StyledFile {
                                             text: TextChunk::new(text.rope.clone(), start, end),
                                         });
                                         start = end;
-                                        println!("normal text 2");
 
                                         current_line.push(StyledText::Style {
                                             bg_color: cursor_color,
@@ -457,7 +452,6 @@ impl StyledFile {
                                             text: TextChunk::new(text.rope.clone(), start, end),
                                         });
                                         start = end;
-                                        println!("normal text 3");
 
                                         current_line.push(StyledText::Style {
                                             bg_color: cursor_color,
@@ -491,7 +485,6 @@ impl StyledFile {
                             column_index += 1;
                         }
                         if found_mark && !found_cursor {
-                            println!("normal text 1");
                             current_line.push(StyledText::Style {
                                 bg_color: ColorType::Selection,
                                 fg_color: ColorType::Text,
