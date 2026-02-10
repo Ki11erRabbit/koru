@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder, RopeSlice};
 use scheme_rs::exceptions::Exception;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use unicode_normalization::char::is_combining_mark;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::{Cursors, EditOperation, EditValue, UndoTree};
 
@@ -497,7 +498,7 @@ pub trait TextBufferImpl {
         }
         Some(self.line_information(line_no + 1))
     }
-    /// Returns a byte position and byte size of that char
+    /// Returns a byte position and byte size of that char, this skips things like diacritics
     fn next_n_chars(&self, line_no: usize, n: usize) -> (usize, usize);
 }
 
@@ -542,9 +543,17 @@ impl TextBufferImpl for Rope {
         let line = self.line(line_no);
         let mut pos = self.byte_of_line(line_no);
         let mut size = 0;
-        for (ch, _) in line.chars().zip(0..n) {
+        let mut counter = 0;
+        for ch in line.chars() {
+            if counter == n {
+                break;
+            }
             pos += ch.len_utf8();
             size = ch.len_utf8();
+            if is_combining_mark(ch) {
+                continue;
+            }
+            counter += 1;
         }
         (pos, size)
     }
