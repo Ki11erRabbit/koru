@@ -1,17 +1,12 @@
-use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::Path;
 use std::sync::LazyLock;
 use futures::future::BoxFuture;
 use log::info;
-use scheme_rs::ast::DefinitionBody;
-use scheme_rs::env::Environment;
-use scheme_rs::cps::Compile;
-use scheme_rs::registry::Library;
+use scheme_rs::env::TopLevelEnvironment;
 use scheme_rs::runtime::Runtime;
-use scheme_rs::syntax::{Span, Syntax};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::Mutex;
 
 pub mod major_mode;
 pub mod command;
@@ -22,32 +17,6 @@ mod modal;
 pub static SCHEME_RUNTIME: LazyLock<Mutex<Option<Runtime>>> = LazyLock::new(|| {
     Mutex::new(Some(Runtime::new()))
 });
-
-static SCHEME_ENV: LazyLock<RwLock<SchemeEnvs>> = LazyLock::new(|| {
-    RwLock::new(SchemeEnvs::new())
-});
-
-pub struct SchemeEnvs {
-    envs: HashMap<String, Environment>,
-}
-
-impl SchemeEnvs {
-    pub fn new() -> Self {
-        SchemeEnvs {
-            envs: HashMap::new(),
-        }
-    }
-
-    pub async fn get_environment(path: &str) -> Option<Environment> {
-        SCHEME_ENV.read().await.envs.get(path).map(Clone::clone)
-    }
-
-    pub async fn put_environment<P: AsRef<Path>>(path: P, environment: Environment) {
-        let path = path.as_ref().as_os_str().to_string_lossy().to_string();
-        SCHEME_ENV.write().await.envs.insert(path, environment);
-    }
-}
-
 pub static KORU_USER_PATH: &str = ".";
 
 
@@ -77,29 +46,12 @@ fn load_directory<'load, P: AsRef<Path>>(
             }
             
             info!("Loading {:?}", path);
-            
-            let prog = Library::new_program(runtime, &path);
-            let env = Environment::Top(prog);
 
-            let file = std::fs::read_to_string(&path)?;
-
-            let file_name = entry.file_name().into_string().unwrap();
-
-            let sexprs = Syntax::from_str(file.as_str(), Some(file_name.as_str()))?;
-            let span = Span::default();
             let future = Box::pin(async move {
-                let env = env;
-                let base = DefinitionBody::parse_lib_body(
-                    &runtime,
-                    &sexprs,
-                    &env,
-                ).await.map_err(|e| format!("{:?}", e))?;
-
-                SchemeEnvs::put_environment(path, env).await;
-
-                let compiled = base.compile_top_level();
-                let proc = runtime.compile_expr(compiled).await;
-                proc.call(&[]).await.unwrap();
+                let env = TopLevelEnvironment::new_repl(runtime);
+                env.import("(library (rnrs))".parse().unwrap()).await.unwrap();
+                let contents = tokio::fs::read_to_string(path).await?;
+                env.eval(true, &contents).await.unwrap();
                 Ok(())
             });
 

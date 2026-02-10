@@ -24,6 +24,10 @@ unsafe impl Trace for ModifierKey {
     unsafe fn visit_children(&self, _: &mut dyn FnMut(OpaqueGcPtr)) {
         
     }
+
+    unsafe fn finalize(&mut self) {
+        
+    }
 }
 
 impl SchemeCompatible for ModifierKey {

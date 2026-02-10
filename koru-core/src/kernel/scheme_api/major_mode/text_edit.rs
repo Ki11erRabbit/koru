@@ -1,15 +1,14 @@
 use std::sync::Arc;
-use log::trace;
 use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::lists::Pair;
-use scheme_rs::num::Number;
+use scheme_rs::num::SimpleNumber;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::Mutex;
 use crate::kernel::buffer::{BufferHandle, Cursor, CursorDirection, Cursors, GridCursor};
-use crate::kernel::input::{KeyPress, KeyValue, ModifierKey};
+use crate::kernel::input::{KeyPress, KeyValue};
 use crate::kernel::scheme_api::major_mode::{MajorMode};
 use crate::kernel::scheme_api::session::SessionState;
 
@@ -212,8 +211,8 @@ pub async fn move_cursor_up(args: &[Value]) -> Result<Vec<Value>, Exception> {
     };
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Up).await?;
     Ok(Vec::new())
 }
@@ -228,8 +227,8 @@ pub async fn move_cursor_down(args: &[Value]) -> Result<Vec<Value>, Exception> {
     };
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Down).await?;
     Ok(Vec::new())
 }
@@ -248,8 +247,8 @@ pub async fn move_cursor_left(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let wrap: bool = wrap.clone().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Left { wrap }).await?;
     Ok(Vec::new())
 }
@@ -268,8 +267,8 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Exception> 
     let wrap: bool = wrap.clone().try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Right { wrap }).await?;
     Ok(Vec::new())
 }
@@ -282,8 +281,8 @@ pub async fn place_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((cursor_index, _)) = rest.split_first() else {
         return Err(Exception::wrong_num_of_args(2, args.len()))
     };
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
     data.place_mark(cursor_index).await?;
@@ -298,8 +297,8 @@ pub async fn remove_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((cursor_index, _)) = rest.split_first() else {
         return Err(Exception::wrong_num_of_args(2, args.len()))
     };
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
     data.remove_mark(cursor_index).await?;
@@ -315,13 +314,13 @@ pub async fn get_cursor_position(args: &[Value]) -> Result<Vec<Value>, Exception
     let Some((cursor_index, _)) = rest.split_first() else {
         return Err(Exception::wrong_num_of_args(2, args.len()))
     };
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
     let (row, column): (usize, usize) = data.get_cursor_position(cursor_index).await;
 
-    let pair = Value::new(UnpackedValue::Pair(Pair::new(Value::from(Number::from(row)), Value::from(Number::from(column)), false)));
+    let pair = Value::new(UnpackedValue::Pair(Pair::new(Value::from(SimpleNumber::from(row)), Value::from(SimpleNumber::from(column)), false)));
 
     Ok(vec![pair])
 }
@@ -338,19 +337,19 @@ pub async fn create_cursor(args: &[Value]) -> Result<Vec<Value>, Exception> {
         UnpackedValue::Pair(pair) => {
             let left = pair.car().clone();
             let right = pair.cdr().clone();
-            let row: Arc<Number> = left.try_into()?;
-            let col: Arc<Number> = right.try_into()?;
-            let col: usize = col.as_ref().try_into()?;
-            let row: usize = row.as_ref().try_into()?;
+            let row: SimpleNumber = left.try_into()?;
+            let col: SimpleNumber = right.try_into()?;
+            let col: usize = col.try_into()?;
+            let row: usize = row.try_into()?;
             (row, col)
         }
         UnpackedValue::Number(row) => {
             let Some((col, _)) = rest.split_first() else {
                 return Err(Exception::wrong_num_of_args(3, args.len()));
             };
-            let col: Arc<Number> = col.clone().try_into()?;
-            let row: usize = row.as_ref().try_into()?;
-            let col: usize = col.as_ref().try_into()?;
+            let col: SimpleNumber = col.clone().try_into()?;
+            let row: usize = row.try_into()?;
+            let col: usize = col.try_into()?;
             (row, col)
         }
         ty => return Err(Exception::type_error("Pair or Integer", ty.type_name()))
@@ -370,8 +369,8 @@ pub async fn destroy_cursor(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((index, _)) = rest.split_first() else {
         return Err(Exception::wrong_num_of_args(2, args.len()));
     };
-    let index: Arc<Number> = index.clone().try_into()?;
-    let index: usize = index.as_ref().try_into()?;
+    let index: SimpleNumber = index.clone().try_into()?;
+    let index: usize = index.try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
     data.remove_cursor(index).await;
@@ -387,8 +386,8 @@ pub async fn is_mark_set(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((index, _)) = rest.split_first() else {
         return Err(Exception::wrong_num_of_args(2, args.len()));
     };
-    let index: Arc<Number> = index.clone().try_into()?;
-    let index: usize = index.as_ref().try_into()?;
+    let index: SimpleNumber = index.clone().try_into()?;
+    let index: usize = index.try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
     let cursor = data.get_cursor(index).await;
@@ -404,7 +403,7 @@ pub async fn get_cursor_count(major_mode: &Value) -> Result<Vec<Value>, Exceptio
     
     let cursor_count = data.num_cursors().await;
     
-    let out = Value::from(Number::from(cursor_count));
+    let out = Value::from(SimpleNumber::from(cursor_count));
     
     Ok(vec![out])
 }
@@ -417,8 +416,8 @@ pub async fn change_main_cursor(args: &[Value]) -> Result<Vec<Value>, Exception>
     let Some((index, _)) = rest.split_first() else {
         return Err(Exception::wrong_num_of_args(2, args.len()));
     };
-    let index: Arc<Number> = index.clone().try_into()?;
-    let index: usize = index.as_ref().try_into()?;
+    let index: SimpleNumber = index.clone().try_into()?;
+    let index: usize = index.try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
     data.change_main_cursor(index).await;
@@ -469,8 +468,8 @@ pub async fn insert_text(args: &[Value]) -> Result<Vec<Value>, Exception> {
     };
 
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.try_into()?;
     match text.clone().try_into() {
         Ok(text) => {
             let text: String = text;
@@ -501,8 +500,8 @@ pub async fn delete_text_back(args: &[Value]) -> Result<Vec<Value>, Exception> {
     };
 
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.try_into()?;
     let data = get_data(&major_mode).await?;
     let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
@@ -521,8 +520,8 @@ pub async fn delete_text_forward(args: &[Value]) -> Result<Vec<Value>, Exception
     };
 
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.try_into()?;
     let data = get_data(&major_mode).await?;
     let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
@@ -541,8 +540,8 @@ pub async fn delete_text_region(args: &[Value]) -> Result<Vec<Value>, Exception>
     };
 
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.try_into()?;
     let data = get_data(&major_mode).await?;
     let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
@@ -564,8 +563,8 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Exception> {
     };
 
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.try_into()?;
     match text.clone().try_into() {
         Ok(text) => {
             let text: String = text;
@@ -624,8 +623,8 @@ pub async fn insert_keypress(args: &[Value]) -> Result<Vec<Value>, Exception> {
         return Err(Exception::wrong_num_of_args(3, args.len()));
     };
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
-    let cursor_index: Arc<Number> = cursor_index.clone().try_into()?;
-    let cursor_index: usize = cursor_index.as_ref().try_into()?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index: usize = cursor_index.try_into()?;
     let key_press = {
         let key_sequence = key_sequence.clone().unpack();
         match key_sequence {

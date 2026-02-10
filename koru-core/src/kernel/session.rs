@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::error::Error;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 use log::error;
 use scheme_rs::gc::Gc;
@@ -84,7 +86,7 @@ impl Session {
             guard.add_buffer(name, handle).await;
         }
         let path = PathBuf::from(&out);
-        let file_ext = path.extension().unwrap().to_string_lossy().to_string();
+        let file_ext = path.extension().unwrap_or_else(|| OsStr::new("")).to_string_lossy().to_string();
         self.buffer_opened_hook(name, &file_ext).await;
         Ok(out)
     }

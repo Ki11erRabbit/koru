@@ -4,12 +4,11 @@ use bitflags::bitflags;
 use crop::Rope;
 use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
-use scheme_rs::num::Number;
+use scheme_rs::num::SimpleNumber;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
 use crate::kernel::buffer::Cursor;
-use crate::kernel::scheme_api::major_mode::MajorMode;
 
 #[derive(Clone, Debug, Eq, PartialEq, Trace)]
 pub struct TextChunk {
@@ -780,10 +779,10 @@ pub fn styled_file_prepend_segment(args: &[Value]) -> Result<Vec<Value>, Excepti
     };
     let file: Gc<StyledFile> = file.clone().try_to_rust_type()?;
     let mut file = (*file).clone();
-    let line_no: Arc<Number> = line_no.clone().try_into()?;
-    let line_no: i64 = match line_no.as_ref() {
-        Number::FixedInteger(line_no) => *line_no,
-        _ => return Err(Exception::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
+    let line_no: SimpleNumber = line_no.clone().try_into()?;
+    let line_no: i64 = match line_no {
+        SimpleNumber::FixedInteger(line_no) => line_no,
+        _ => return Err(Exception::error(String::from("Wrong kind of number for styled-file-prepend")))
     };
     let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
     let text: Gc<StyledText> = text.clone().try_to_rust_type()?;
@@ -806,10 +805,10 @@ pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Exceptio
     };
     let file: Gc<StyledFile> = file.clone().try_to_rust_type()?;
     let mut file = (*file).clone();
-    let line_no: Arc<Number> = line_no.clone().try_into()?;
-    let line_no: i64 = match line_no.as_ref() {
-        Number::FixedInteger(line_no) => *line_no,
-        _ => return Err(Exception::error(String::from("Wrong kind of number for styled-text-prepend-segment")))
+    let line_no: SimpleNumber = line_no.clone().try_into()?;
+    let line_no: i64 = match line_no {
+        SimpleNumber::FixedInteger(line_no) => line_no,
+        _ => return Err(Exception::error(String::from("Wrong kind of number for styled-file-append")))
     };
     let line_no = u64::from_ne_bytes(line_no.to_ne_bytes());
     let text: Gc<StyledText> = text.clone().try_to_rust_type()?;
