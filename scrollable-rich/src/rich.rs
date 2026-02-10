@@ -462,14 +462,6 @@ where
         let state = tree
             .state
             .downcast_ref::<State<Link, Renderer::Paragraph>>();
-        eprintln!("=== DRAW DEBUG ===");
-        eprintln!("Number of spans in state: {}", state.spans.len());
-
-        for (i, span) in state.spans.iter().enumerate() {
-            let text = format!("{}", span.text);
-            eprintln!("Span {}: text = {:?}", i, text);
-            eprintln!("  graphemes: {:?}", text.as_str().graphemes(true).collect::<Vec<_>>());
-        }
 
         let style = theme.style(&self.class);
 
@@ -798,9 +790,6 @@ where
     for span in spans {
         let text = &span.text;
 
-        eprintln!("Processing span text: {:?}", span.text);
-        eprintln!("Grapheme count: {}", span.text.graphemes(true).count());
-
         if text.contains('\n') {
             let lines: Vec<&str> = text.split('\n').collect();
 
@@ -877,10 +866,6 @@ where
                 graphemes_processed += grapheme_count;
             }
         }
-    }
-
-    for (i, span) in result.iter_mut().enumerate() {
-        eprintln!("Result span {}: {:?}", i, span.text);
     }
 
     result
