@@ -7,7 +7,7 @@ edition = "2024"
 tokio = { workspace = true }
 futures = { workspace = true }
 bitflags = "2.9.4"
-crop = "0.4.3"
+crop = { version = "0.4.3", features = ["graphemes"] }
 scheme-rs = { workspace = true }
 inventory = { workspace = true }
 hashbrown = { workspace = true }
@@ -16,3 +16,4 @@ clap = { version = "4.5.54", features = ["derive"] }
 log = { workspace = true }
 time-format = "1.2.1"
 unicode-normalization = "0.1.25"
+unicode-segmentation = "1.12.0"

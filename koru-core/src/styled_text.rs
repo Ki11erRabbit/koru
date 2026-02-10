@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Display;
 use std::sync::{Arc};
 use bitflags::bitflags;
@@ -8,6 +9,7 @@ use scheme_rs::num::SimpleNumber;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
+use unicode_normalization::char::is_combining_mark;
 use crate::kernel::buffer::Cursor;
 
 #[derive(Clone, Debug, Eq, PartialEq, Trace)]
@@ -24,6 +26,10 @@ impl TextChunk {
 
     pub fn chars(&self) -> impl Iterator<Item = char> + '_ {
         self.rope.byte_slice(self.start..self.end).chars()
+    }
+
+    pub fn graphemes(&self) -> impl Iterator<Item = Cow<str>> {
+        self.rope.byte_slice(self.start..self.end).graphemes()
     }
 
     pub fn start(&self) -> usize {
@@ -309,7 +315,7 @@ impl StyledFile {
     }
 
     fn process_segment(
-        cursor_index : &mut usize,
+        cursor_index: &mut usize,
         cursors: &[Cursor],
         line_index: usize,
         lines: &mut Vec<Vec<StyledText>>,
@@ -323,119 +329,162 @@ impl StyledFile {
         attribute: TextAttribute,
     ) {
         let mut start = text.start();
-        let mut end = start;
-        for ch in text.chars() {
+        let mut current_pos = start;
+        let mut prev_pos = start;
+
+        for slice in text.graphemes() {
+            let grapheme_len = slice.len();
+            let next_pos = current_pos + grapheme_len;
+
             if *cursor_index < cursors.len() {
-                if *column_index == cursors[*cursor_index].column()
-                    && line_index == cursors[*cursor_index].line() {
+                let cursor = &cursors[*cursor_index];
+                let at_cursor = *column_index == cursor.column() && line_index == cursor.line();
+                let at_mark = cursor.is_mark_set()
+                    && *column_index == cursor.mark_column().unwrap()
+                    && line_index == cursor.mark_line().unwrap();
+
+                // Handle finding the cursor position
+                if at_cursor {
                     *found_cursor = true;
                     if !*found_mark {
-                        current_line.push(StyledText::Style {
-                            fg_color,
-                            bg_color,
-                            attribute,
-                            text: TextChunk::new(text.rope.clone(), start, end)
-                        });
-                        start = end;
+                        // Push text before cursor (if any)
+                        if start < current_pos {
+                            current_line.push(StyledText::Style {
+                                fg_color,
+                                bg_color,
+                                attribute,
+                                text: TextChunk::new(text.rope.clone(), start, current_pos),
+                            });
+                        }
+                        start = current_pos;
                     }
-
-                } else if cursors[*cursor_index].is_mark_set()
-                    && *column_index == cursors[*cursor_index].mark_column().unwrap()
-                    && line_index == cursors[*cursor_index].mark_line().unwrap() {
+                }
+                // Handle finding the mark position
+                else if at_mark {
                     *found_mark = true;
                     if !*found_cursor {
-                        current_line.push(StyledText::Style {
-                            fg_color,
-                            bg_color,
-                            attribute,
-                            text: TextChunk::new(text.rope.clone(), start, end)
-                        });
-                        start = end;
-                    } else if *column_index != cursors[*cursor_index].column() + 1  {
+                        // Push text before mark (if any)
+                        if start < current_pos {
+                            current_line.push(StyledText::Style {
+                                fg_color,
+                                bg_color,
+                                attribute,
+                                text: TextChunk::new(text.rope.clone(), start, current_pos),
+                            });
+                        }
+                        start = current_pos;
+                    } else if *column_index != cursor.column() + 1 {
+                        // Push selected text
+                        if start < current_pos {
+                            current_line.push(StyledText::Style {
+                                bg_color: ColorType::Selection,
+                                fg_color,
+                                attribute,
+                                text: TextChunk::new(text.rope.clone(), start, current_pos),
+                            });
+                        }
+
+                        // Push current grapheme with selection
                         current_line.push(StyledText::Style {
                             bg_color: ColorType::Selection,
                             fg_color,
                             attribute,
-                            text: TextChunk::new(text.rope.clone(), start, end),
+                            text: TextChunk::new(text.rope.clone(), current_pos, next_pos),
                         });
-                        start = end;
-                        end += ch.len_utf8();
+
+                        start = next_pos;
                         *found_mark = false;
                         *found_cursor = false;
                         *cursor_index += 1;
+                        current_pos = next_pos;
                         *column_index += 1;
                         continue;
                     }
                 }
+
+                // Handle position after cursor (cursor highlight)
                 if *found_cursor
-                    && *column_index == cursors[*cursor_index].column() + 1
-                    && line_index == cursors[*cursor_index].line() {
-                    let cursor_color = if cursors[*cursor_index].is_main() {
+                    && *column_index == cursor.column() + 1
+                    && line_index == cursor.line()
+                {
+                    let cursor_color = if cursor.is_main() {
                         ColorType::Cursor
                     } else {
                         ColorType::SecondaryCursor
                     };
 
-                    if cursors[*cursor_index].is_mark_and_cursor_same() {
+                    if cursor.is_mark_and_cursor_same() {
                         *found_mark = false;
                     }
 
                     if *found_mark {
-                        current_line.push(StyledText::Style {
-                            bg_color: ColorType::Selection,
-                            fg_color,
-                            attribute: TextAttribute::empty(),
-                            text: TextChunk::new(text.rope.clone(), start, end - ch.len_utf8()),
-                        });
-                        start = end - ch.len_utf8();
+                        // Push selected text before cursor grapheme
+                        if start < prev_pos {
+                            current_line.push(StyledText::Style {
+                                bg_color: ColorType::Selection,
+                                fg_color,
+                                attribute: TextAttribute::empty(),
+                                text: TextChunk::new(text.rope.clone(), start, prev_pos),
+                            });
+                        }
+
+                        // Push cursor grapheme (from prev_pos to current_pos)
                         current_line.push(StyledText::Style {
                             bg_color: cursor_color,
                             fg_color,
                             attribute: TextAttribute::empty(),
-                            text: TextChunk::new(text.rope.clone(), start, end),
+                            text: TextChunk::new(text.rope.clone(), prev_pos, current_pos),
                         });
-                        start = end;
+
+                        start = current_pos;
                     } else {
+                        // Push cursor grapheme (from prev_pos to current_pos)
                         current_line.push(StyledText::Style {
                             bg_color: cursor_color,
                             fg_color,
                             attribute: TextAttribute::empty(),
-                            text: TextChunk::new(text.rope.clone(), start, end),
+                            text: TextChunk::new(text.rope.clone(), prev_pos, current_pos),
                         });
-                        start = end;
+
+                        start = current_pos;
                     }
 
-
-                    if (*found_cursor && !cursors[*cursor_index].is_mark_set()) {
+                    if *found_cursor && !cursor.is_mark_set() {
                         *cursor_index += 1;
-                    } else if *found_cursor && cursors[*cursor_index].is_mark_set() && *found_mark {
+                    } else if *found_cursor && cursor.is_mark_set() && *found_mark {
                         *cursor_index += 1;
                         *found_cursor = false;
                         *found_mark = false;
                     }
-                } else if *found_cursor
-                    && ch == '\n'
-                    && *column_index == cursors[*cursor_index].column()
-                    && line_index == cursors[*cursor_index].line() {
-                    let cursor_color = if cursors[*cursor_index].is_main() {
+                }
+                // Handle cursor at newline
+                else if *found_cursor
+                    && slice.contains('\n')
+                    && *column_index == cursor.column()
+                    && line_index == cursor.line()
+                {
+                    let cursor_color = if cursor.is_main() {
                         ColorType::Cursor
                     } else {
                         ColorType::SecondaryCursor
                     };
 
-                    if cursors[*cursor_index].is_mark_and_cursor_same() {
+                    if cursor.is_mark_and_cursor_same() {
                         *found_mark = false;
                     }
 
                     if *found_mark {
-                        current_line.push(StyledText::Style {
-                            bg_color: ColorType::Selection,
-                            fg_color,
-                            attribute: TextAttribute::empty(),
-                            text: TextChunk::new(text.rope.clone(), start, end),
-                        });
-                        start = end;
+                        // Push selected text
+                        if start < current_pos {
+                            current_line.push(StyledText::Style {
+                                bg_color: ColorType::Selection,
+                                fg_color,
+                                attribute: TextAttribute::empty(),
+                                text: TextChunk::new(text.rope.clone(), start, current_pos),
+                            });
+                        }
 
+                        // Push cursor (space at newline)
                         current_line.push(StyledText::Style {
                             bg_color: cursor_color,
                             fg_color,
@@ -443,14 +492,17 @@ impl StyledFile {
                             text: TextChunk::from(String::from(' ')),
                         });
                     } else {
-                        current_line.push(StyledText::Style {
-                            bg_color: ColorType::Selection,
-                            fg_color,
-                            attribute: TextAttribute::empty(),
-                            text: TextChunk::new(text.rope.clone(), start, end),
-                        });
-                        start = end;
+                        // Push text before cursor
+                        if start < current_pos {
+                            current_line.push(StyledText::Style {
+                                bg_color: ColorType::Selection,
+                                fg_color,
+                                attribute: TextAttribute::empty(),
+                                text: TextChunk::new(text.rope.clone(), start, current_pos),
+                            });
+                        }
 
+                        // Push cursor (space at newline)
                         current_line.push(StyledText::Style {
                             bg_color: cursor_color,
                             fg_color,
@@ -459,53 +511,68 @@ impl StyledFile {
                         });
                     }
 
+                    start = current_pos;
 
-                    if (*found_cursor && !cursors[*cursor_index].is_mark_set()) {
+                    if *found_cursor && !cursor.is_mark_set() {
                         *cursor_index += 1;
-                    } else if *found_cursor && cursors[*cursor_index].is_mark_set() && *found_mark {
+                    } else if *found_cursor && cursor.is_mark_set() && *found_mark {
                         *cursor_index += 1;
                         *found_cursor = false;
                         *found_mark = false;
                     }
-                } else if *found_mark
-                    && *column_index == cursors[*cursor_index].mark_column().unwrap()
-                    && line_index == cursors[*cursor_index].mark_line().unwrap() {
-                    current_line.push(StyledText::Style {
-                        bg_color: ColorType::Selection,
-                        fg_color,
-                        attribute,
-                        text: TextChunk::new(text.rope.clone(), start, end),
-                    });
-                    start = end;
+                }
+                // Handle mark position after cursor
+                else if *found_mark
+                    && *column_index == cursor.mark_column().unwrap()
+                    && line_index == cursor.mark_line().unwrap()
+                {
+                    // Push selected text
+                    if start < current_pos {
+                        current_line.push(StyledText::Style {
+                            bg_color: ColorType::Selection,
+                            fg_color,
+                            attribute,
+                            text: TextChunk::new(text.rope.clone(), start, current_pos),
+                        });
+                    }
+                    start = current_pos;
                 }
             }
-            end += ch.len_utf8();
+
+            prev_pos = current_pos;
+            current_pos = next_pos;
             *column_index += 1;
         }
-        if *found_mark && !*found_cursor {
-            current_line.push(StyledText::Style {
-                bg_color: ColorType::Selection,
-                fg_color,
-                attribute,
-                text: TextChunk::new(text.rope.clone(), start, end),
-            });
-            start = end;
-        } else if *found_cursor && (!*found_mark && *cursor_index < cursors.len() && cursors[*cursor_index].is_mark_set() && !cursors[*cursor_index].is_mark_and_cursor_same()) {
-            current_line.push(StyledText::Style {
-                bg_color: ColorType::Selection,
-                fg_color,
-                attribute,
-                text: TextChunk::new(text.rope.clone(), start, end),
-            });
-            start = end;
-        } else {
-            current_line.push(StyledText::Style {
-                fg_color,
-                bg_color,
-                attribute,
-                text: TextChunk::new(text.rope.clone(), start, end)
-            });
-            start = end;
+
+        // Push any remaining text at the end
+        if start < current_pos {
+            if *found_mark && !*found_cursor {
+                current_line.push(StyledText::Style {
+                    bg_color: ColorType::Selection,
+                    fg_color,
+                    attribute,
+                    text: TextChunk::new(text.rope.clone(), start, current_pos),
+                });
+            } else if *found_cursor
+                && *cursor_index < cursors.len()
+                && cursors[*cursor_index].is_mark_set()
+                && !cursors[*cursor_index].is_mark_and_cursor_same()
+                && !*found_mark
+            {
+                current_line.push(StyledText::Style {
+                    bg_color: ColorType::Selection,
+                    fg_color,
+                    attribute,
+                    text: TextChunk::new(text.rope.clone(), start, current_pos),
+                });
+            } else {
+                current_line.push(StyledText::Style {
+                    fg_color,
+                    bg_color,
+                    attribute,
+                    text: TextChunk::new(text.rope.clone(), start, current_pos),
+                });
+            }
         }
     }
 
