@@ -4,6 +4,8 @@ use std::path::{Path, PathBuf};
 use crop::{Rope, RopeBuilder, RopeSlice};
 use scheme_rs::exceptions::Exception;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use unicode_normalization::char::is_combining_mark;
+use unicode_segmentation::UnicodeSegmentation;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::{Cursors, EditOperation, EditValue, UndoTree};
 
@@ -165,9 +167,9 @@ impl TextBuffer {
         }
 
         let line = self.buffer.line(line);
-        byte_offset += line.chars()
+        byte_offset += line.graphemes()
             .take(column)
-            .map(|ch| ch.len_utf8())
+            .map(|s| s.len())
             .sum::<usize>();
 
         byte_offset
@@ -178,9 +180,9 @@ impl TextBuffer {
         let mut text_after_newline = 0;
         let mut newline_count = 0;
 
-        for ch in text.chars() {
+        for ch in text.graphemes(true) {
             text_after_newline += 1;
-            if ch == '\n' {
+            if ch.contains('\n') {
                 newline_count += 1;
                 text_after_newline = 0;
             }
@@ -231,10 +233,10 @@ impl TextBuffer {
         } else {
             0
         };
-        let character_offset = byte_offset - line.chars()
+        let character_offset = byte_offset - line.graphemes()
             .skip(cursors[cursor_index].column() - 1)
             .take(1)
-            .map(|ch| ch.len_utf8())
+            .map(|s| s.len())
             .sum::<usize>() - extra_bytes;
 
         let text = self.buffer.byte_slice(character_offset..byte_offset);
@@ -254,10 +256,10 @@ impl TextBuffer {
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
         let line_no = cursors[cursor_index].line();
         let line = self.buffer.line_slice(line_no..(line_no + 1));
-        let character_offset = byte_offset + line.chars()
+        let character_offset = byte_offset + line.graphemes()
             .skip(cursors[cursor_index].column())
             .take(1)
-            .map(|ch| ch.len_utf8())
+            .map(|s| s.len())
             .sum::<usize>();
 
         let range = byte_offset..character_offset;
@@ -299,9 +301,9 @@ impl TextBuffer {
         let mut newline_count = 0;
         let mut text_after_newline = 0;
 
-        for ch in text.chars().rev() {
+        for ch in text.graphemes(true).rev() {
             text_after_newline += 1;
-            if ch == '\n' {
+            if ch.contains('\n') {
                 newline_count += 1;
                 text_after_newline = 0;
             }
@@ -360,10 +362,10 @@ impl TextBuffer {
         } else {
             let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
             let line = self.buffer.line(cursors[cursor_index].line());
-            let character_offset = byte_offset + line.chars()
+            let character_offset = byte_offset + line.graphemes()
                 .skip(cursors[cursor_index].column())
                 .take(1)
-                .map(|ch| ch.len_utf8())
+                .map(|ch| ch.len())
                 .sum::<usize>();
 
             let range = byte_offset..character_offset;
@@ -497,7 +499,7 @@ pub trait TextBufferImpl {
         }
         Some(self.line_information(line_no + 1))
     }
-    /// Returns a byte position and byte size of that char
+    /// Returns a byte position and byte size of that char, this skips things like diacritics
     fn next_n_chars(&self, line_no: usize, n: usize) -> (usize, usize);
 }
 
@@ -533,7 +535,7 @@ impl TextBufferImpl for Rope {
     fn line_information(&self, line_no: usize) -> (usize, usize, usize) {
         let start = self.line_start(line_no);
         let end = self.line_end(line_no);
-        let len = self.line(line_no).chars().count();
+        let len = self.line(line_no).graphemes().count();
 
         (start, len, end)
     }
@@ -542,9 +544,14 @@ impl TextBufferImpl for Rope {
         let line = self.line(line_no);
         let mut pos = self.byte_of_line(line_no);
         let mut size = 0;
-        for (ch, _) in line.chars().zip(0..n) {
-            pos += ch.len_utf8();
-            size = ch.len_utf8();
+        let mut counter = 0;
+        for ch in line.graphemes() {
+            if counter == n {
+                break;
+            }
+            pos += ch.len();
+            size = ch.len();
+            counter += 1;
         }
         (pos, size)
     }

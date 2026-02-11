@@ -4,6 +4,7 @@ use iced_core::text::{Fragment, LineHeight, Paragraph, Shaping, Span, Wrapping};
 use iced_core::widget::text::{Catalog, Style, StyleFn};
 use iced_core::widget::{text, tree, Tree};
 use iced_core::widget::tree::Tag;
+use unicode_segmentation::UnicodeSegmentation;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct VisibleTextMetrics {
@@ -184,7 +185,7 @@ where
             font: font.clone(),
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Top,
-            shaping: Shaping::Basic, // Use Basic shaping for more predictable monospace behavior
+            shaping: Shaping::Advanced,
             wrapping: Wrapping::None,
         };
 
@@ -195,9 +196,9 @@ where
             return None;
         }
 
-        // Calculate average character width
-        let char_count = test_chars.chars().count() as f32;
-        let avg_width = total_bounds.width / char_count;
+        // Calculate average character width using GRAPHEME count
+        let grapheme_count = test_chars.graphemes(true).count() as f32;
+        let avg_width = total_bounds.width / grapheme_count;
 
         // Verify this is actually monospaced by testing individual characters
         // For a monospaced font, each character should have roughly the same width
@@ -213,7 +214,7 @@ where
                 font: font.clone(),
                 horizontal_alignment: alignment::Horizontal::Left,
                 vertical_alignment: alignment::Vertical::Top,
-                shaping: Shaping::Basic,
+                shaping: Shaping::Advanced,
                 wrapping: Wrapping::None,
             };
 
@@ -784,25 +785,26 @@ where
     }
 
     let mut result = Vec::new();
-    let mut chars_processed = 0;
+    let mut graphemes_processed = 0; // Renamed from chars_processed
 
     for span in spans {
         let text = &span.text;
 
-        // Handle newlines specially - they reset column counting per line
         if text.contains('\n') {
-            // Split by newline and process each segment
             let lines: Vec<&str> = text.split('\n').collect();
 
             for (i, line) in lines.iter().enumerate() {
-                let line_char_count = line.chars().count();
+                let line_grapheme_count = line.graphemes(true).count(); // Changed
 
-                if chars_processed < column_offset {
-                    let chars_to_skip = column_offset.saturating_sub(chars_processed);
+                if graphemes_processed < column_offset {
+                    let graphemes_to_skip = column_offset.saturating_sub(graphemes_processed);
 
-                    if chars_to_skip < line_char_count {
-                        // Take part of this line
-                        let trimmed: String = line.chars().skip(chars_to_skip).collect();
+                    if graphemes_to_skip < line_grapheme_count {
+                        // Skip graphemes instead of chars
+                        let trimmed: String = line.graphemes(true)
+                            .skip(graphemes_to_skip)
+                            .collect();
+
                         if !trimmed.is_empty() {
                             let mut new_span = span.clone();
                             let final_text = if i < lines.len() - 1 {
@@ -813,21 +815,18 @@ where
                             new_span.text = Fragment::from(final_text);
                             result.push(new_span);
                         } else if i < lines.len() - 1 {
-                            // Just add newline
                             let mut new_span = span.clone();
                             new_span.text = Fragment::from("\n");
                             result.push(new_span);
                         }
-                        chars_processed = column_offset; // We've now applied the offset
+                        graphemes_processed = column_offset;
                     } else if i < lines.len() - 1 {
-                        // Skip this line but keep the newline
                         let mut new_span = span.clone();
                         new_span.text = Fragment::from("\n");
                         result.push(new_span);
-                        chars_processed = 0; // Reset for next line
+                        graphemes_processed = 0;
                     }
                 } else {
-                    // We've already applied offset, include full line
                     let mut new_span = span.clone();
                     let final_text = if i < lines.len() - 1 {
                         format!("{}\n", line)
@@ -839,34 +838,32 @@ where
                 }
 
                 if i < lines.len() - 1 {
-                    chars_processed = 0; // Reset column count after newline
+                    graphemes_processed = 0;
                 }
             }
         } else {
-            // No newlines, simpler logic
-            let char_count = text.chars().count();
+            let grapheme_count = text.graphemes(true).count(); // Changed
 
-            if chars_processed + char_count <= column_offset {
-                // Skip this entire span
-                chars_processed += char_count;
+            if graphemes_processed + grapheme_count <= column_offset {
+                graphemes_processed += grapheme_count;
                 continue;
             }
 
-            if chars_processed < column_offset {
-                // Partially skip this span
-                let chars_to_skip = column_offset - chars_processed;
-                let trimmed: String = text.chars().skip(chars_to_skip).collect();
+            if graphemes_processed < column_offset {
+                let graphemes_to_skip = column_offset - graphemes_processed;
+                let trimmed: String = text.graphemes(true)
+                    .skip(graphemes_to_skip)
+                    .collect();
 
                 if !trimmed.is_empty() {
                     let mut new_span = span.clone();
                     new_span.text = Fragment::from(trimmed);
                     result.push(new_span);
                 }
-                chars_processed += char_count;
+                graphemes_processed += grapheme_count;
             } else {
-                // Include this span entirely
                 result.push(span.clone());
-                chars_processed += char_count;
+                graphemes_processed += grapheme_count;
             }
         }
     }
