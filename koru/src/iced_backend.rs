@@ -1,5 +1,6 @@
 mod styled_text;
 mod buffer_state;
+mod colors;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
@@ -21,7 +22,9 @@ use buffer_state::BufferState;
 use iced_core::window::Id as WindowId;
 use tabled::Table;
 use koru_core::{KoruLogger, LogEntry};
+use koru_core::styled_text::ColorValue;
 use crate::crash_logs::CrashLog;
+use crate::iced_backend::colors::ColorDefinitions;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {
@@ -265,6 +268,16 @@ impl App {
                                     suffix 
                                  }) => {
                 self.message_bar = prefix + body.as_str() + suffix.as_str();
+                Task::none()
+            }
+            MessageKind::General(GeneralMessage::SetColorDef(definition)) => {
+                let (key, value) = definition.to_tuple();
+                match value {
+                    ColorValue::Rgb { r, g, b } => {
+                        ColorDefinitions::insert(key, (r, g, b))
+                    }
+                    _ => todo!("Handle ANSI color sequences in gui")
+                }
                 Task::none()
             }
             MessageKind::Broker(BrokerMessage::Crash) => {

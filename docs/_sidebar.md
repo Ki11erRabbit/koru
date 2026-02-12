@@ -12,3 +12,4 @@
   * [minor-mode](runtime-modules/minor-mode.md)
   * [koru-cursor](runtime-modules/koru-cursor.md)
   * [koru-modal](runtime-modules/koru-modal.md)
+  * [koru-theme](runtime-modules/koru-theme.md)

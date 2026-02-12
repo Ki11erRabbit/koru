@@ -2,6 +2,7 @@ mod events;
 mod input;
 mod components;
 mod buffer_state;
+pub mod colors;
 
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
@@ -18,6 +19,7 @@ use crate::tuirealm_backend::events::BrokerPort;
 use buffer_state::BufferState;
 use koru_core::KoruLogger;
 use crate::crash_logs::CrashLog;
+use crate::tuirealm_backend::colors::ColorDefinitions;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub enum UiMessage {
@@ -130,6 +132,11 @@ impl App {
             MessageKind::Broker(BrokerMessage::Crash) => {
                 self.crashed = true;
                 self.quit = true;
+                Ok(())
+            }
+            MessageKind::General(GeneralMessage::SetColorDef(definition)) => {
+                let (color_type, color_value) = definition.to_tuple();
+                ColorDefinitions::insert(color_type, color_value);
                 Ok(())
             }
             _ => Ok(())

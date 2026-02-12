@@ -760,7 +760,7 @@ pub fn styled_file_append_segment(args: &[Value]) -> Result<Vec<Value>, Exceptio
 }
 
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum ColorValue {
     Rgb {
         r: u8,
@@ -768,6 +768,16 @@ pub enum ColorValue {
         b: u8,
     },
     Ansi(u8),
+}
+
+impl ColorValue {
+    pub fn from_hex(digit: u32) -> Self {
+        ColorValue::Rgb {
+            r: ((digit >> 16) & 0xFF) as u8,
+            g: ((digit >> 8) & 0xFF) as u8,
+            b: (digit & 0xFF) as u8,
+        }
+    }
 }
 
 
@@ -803,5 +813,14 @@ pub struct ColorDefinition {
     value: ColorValue,
 }
 
+impl ColorDefinition {
+    pub fn new(color: ColorType, value: ColorValue) -> Self {
+        Self { color, value }
+    }
+
+    pub fn to_tuple(self) -> (ColorType, ColorValue) {
+        (self.color, self.value)
+    }
+}
 
 

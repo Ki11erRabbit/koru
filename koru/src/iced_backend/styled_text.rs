@@ -2,6 +2,7 @@ use iced_core::Color;
 use iced_core::text::{Span, Wrapping};
 use koru_core::styled_text::{ColorType, StyledText};
 use scrollable_rich::rich::{Rich, VisibleTextMetrics};
+use crate::iced_backend::colors::ColorDefinitions;
 use crate::iced_backend::UiMessage;
 
 pub fn rich<'a, Theme, Renderer>(
@@ -28,31 +29,16 @@ where
                 }
                 StyledText::Style {
                     text,
+                    fg_color,
                     bg_color,
                     ..
                 } => {
-                    match bg_color {
-                        ColorType::Cursor => {
-                            let span = Span::new(text.to_string())
-                                .background(Color::from_rgb8(100, 100, 100))
-                                .color(Color::from_rgb8(255, 255, 255));
-                            spans.push(span);
-                        }
-                        ColorType::SecondaryCursor => {
-                            let span = Span::new(text.to_string())
-                                .background(Color::from_rgb8(120, 120, 120))
-                                .color(Color::from_rgb8(255, 255, 255));
-                            spans.push(span);
-                        }
-                        ColorType::Selection => {
-                            let span = Span::new(text.to_string())
-                                .background(Color::from_rgb8(170, 170, 170))
-                                .color(Color::from_rgb8(255, 255, 255));
-                            spans.push(span);
-                        }
-                        _ => spans.push(Span::new(text.to_string())),
-                    }
-                    
+                    let fg_color = ColorDefinitions::get(fg_color);
+                    let bg_color = ColorDefinitions::get(bg_color);
+                    let span = Span::new(text.to_string())
+                        .background(Color::from_rgb8(bg_color.0, bg_color.1, bg_color.2))
+                        .color(Color::from_rgb8(fg_color.0, fg_color.1, fg_color.2));
+                    spans.push(span);
                 }
             }
         }

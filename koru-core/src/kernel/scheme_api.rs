@@ -13,6 +13,7 @@ pub mod command;
 pub mod session;
 mod minor_mode;
 mod modal;
+pub mod theme;
 
 pub static SCHEME_RUNTIME: LazyLock<Mutex<Option<Runtime>>> = LazyLock::new(|| {
     Mutex::new(Some(Runtime::new()))
