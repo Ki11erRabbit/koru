@@ -1,4 +1,4 @@
 (import (rnrs))
-(import (configs kakoune))
+(import (configs vi))
 
-(init-kakoune-config)
+(init-vi-config)

@@ -817,6 +817,10 @@ impl ColorDefinition {
     pub fn new(color: ColorType, value: ColorValue) -> Self {
         Self { color, value }
     }
+
+    pub fn to_tuple(self) -> (ColorType, ColorValue) {
+        (self.color, self.value)
+    }
 }
 
 
