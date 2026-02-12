@@ -40,13 +40,11 @@ impl BufferState {
 
     fn scroll_horizontal(&mut self) {
         let column_count = self.column_count;
-        info!("before:\n\tcolumn_count: {} column_offset: {}", column_count, self.column_offset);
         while self.col < self.column_offset {
             self.column_offset -= 1;
         }
         while self.col > self.column_offset + column_count - 1 {
             self.column_offset += 1;
         }
-        info!("after:\n\tcolumn_count: {} column_offset: {}", column_count, self.column_offset);
     }
 }
