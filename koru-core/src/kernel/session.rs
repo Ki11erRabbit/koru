@@ -11,6 +11,7 @@ use crate::kernel::broker::{BackendMessage, BrokerClient, GeneralMessage, Messag
 use crate::kernel::buffer::TextBufferTable;
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::session::SessionState;
+use crate::kernel::scheme_api::theme;
 use crate::KoruArgs;
 use crate::styled_text::StyledFile;
 
@@ -59,6 +60,10 @@ impl Session {
         self.broker_client.send_async(MessageKind::General(GeneralMessage::SetUiAttrs(values)), id).await?;*/
         
         self.client_ids.push(id);
+        
+        for definition in theme::all_color_definitions().await {
+            self.broker_client.send_async(MessageKind::General(GeneralMessage::SetColorDef(definition)), id).await?;
+        }
         
         Ok(())
     }
