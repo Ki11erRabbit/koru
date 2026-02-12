@@ -1,7 +1,7 @@
 use tuirealm::{AttrValue, Attribute, Component, Event, Frame, MockComponent, Props, State, StateValue};
 use tuirealm::command::{Cmd, CmdResult, Direction};
 use tuirealm::ratatui::layout::Rect;
-use koru_core::styled_text::{StyledFile, StyledText};
+use koru_core::styled_text::{ColorType, StyledFile, StyledText};
 use tuirealm::props::{Color, TextSpan};
 use tuirealm::ratatui::prelude::Text;
 use tuirealm::ratatui::text::{Line, Span};
@@ -29,8 +29,17 @@ impl TextView {
                     StyledText::None { text} => {
                         new_line.push(TextSpan::new(text.to_string()));
                     }
-                    StyledText::Style { text, .. } => {
+                    StyledText::Style { text, bg_color: ColorType::Cursor, .. } => {
                         new_line.push(TextSpan::new(text.to_string()).bg(Color::Gray).fg(Color::Black));
+                    }
+                    StyledText::Style { text, bg_color: ColorType::SecondaryCursor, .. } => {
+                        new_line.push(TextSpan::new(text.to_string()).bg(Color::Cyan).fg(Color::Black));
+                    }
+                    StyledText::Style { text, bg_color: ColorType::Selection, .. } => {
+                        new_line.push(TextSpan::new(text.to_string()).bg(Color::Yellow).fg(Color::Black));
+                    }
+                    StyledText::Style { text, .. } => {
+                        new_line.push(TextSpan::new(text.to_string()));
                     }
                 }
             }
@@ -47,6 +56,9 @@ impl MockComponent for TextView {
             return;
         };
         let Some(AttrValue::Number(top_line)) = self.query(Attribute::Custom("LineOffset")) else {
+            return;
+        };
+        let Some(AttrValue::Number(column_offset)) = self.query(Attribute::Custom("ColumnOffset")) else {
             return;
         };
 
@@ -66,7 +78,7 @@ impl MockComponent for TextView {
 
         let text = Text::from(lines);
         let paragraph = Paragraph::new(text)
-            .scroll((top_line as u16, 0));
+            .scroll((top_line as u16, column_offset as u16));
         
         frame.render_widget(paragraph, area)
 

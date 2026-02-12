@@ -31,6 +31,11 @@ impl BufferState {
     }
 
     pub fn scroll_view(&mut self) {
+        self.scroll_vertical();
+        self.scroll_horizontal();
+    }
+
+    fn scroll_vertical(&mut self) {
         let text_metrics = self.text_metrics.lock().expect("lock poisoned").clone();
         while self.line < self.line_offset {
             self.line_offset -= 1;
@@ -38,5 +43,18 @@ impl BufferState {
         while self.line >= self.line_offset + text_metrics.line_count {
             self.line_offset += 1;
         }
+    }
+
+    fn scroll_horizontal(&mut self) {
+        let text_metrics = self.text_metrics.lock().expect("lock poisoned").clone();
+        if let Some(column_count) = text_metrics.max_columns {
+            while self.col < self.column_offset {
+                self.column_offset -= 1;
+            }
+            while self.col > self.column_offset + column_count - 1 {
+                self.column_offset += 1;
+            }
+        }
+
     }
 }
