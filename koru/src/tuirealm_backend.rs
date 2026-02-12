@@ -51,6 +51,7 @@ impl App {
 
         app.attr(&Id::Buffer, Attribute::Text, TextView::lines(&self.buffer_state.text)).expect("Invalid attribute");
         app.attr(&Id::Buffer, Attribute::Custom("LineOffset"), AttrValue::Number(self.buffer_state.line_offset as isize)).expect("Invalid attribute");
+        app.attr(&Id::Buffer, Attribute::Custom("ColumnOffset"), AttrValue::Number(self.buffer_state.column_offset as isize)).expect("Invalid attribute");
         app.attr(&Id::MessageBar, Attribute::Text, AttrValue::String(self.message_bar.clone())).expect("Invalid attribute");
         
         self.terminal.draw(|frame| {

@@ -266,7 +266,7 @@ where
             font: None,
             align_x: alignment::Horizontal::Left,
             align_y: alignment::Vertical::Top,
-            wrapping: Wrapping::default(),
+            wrapping: Wrapping::None,
             class: Theme::default(),
         }
     }
@@ -291,7 +291,7 @@ where
             font: None,
             align_x: alignment::Horizontal::Left,
             align_y: alignment::Vertical::Top,
-            wrapping: Wrapping::default(),
+            wrapping: Wrapping::None,
             class: Theme::default(),
         }
     }
@@ -703,7 +703,12 @@ where
     Renderer: iced_core::text::Renderer + iced_core::text::Renderer,
 {
     layout::sized(limits, width, height, |limits| {
-        let bounds = limits.max();
+        let mut bounds = limits.max();
+
+        // When wrapping is disabled, use infinite width to prevent text from wrapping
+        if wrapping == Wrapping::None {
+            bounds.width = f32::INFINITY;
+        }
 
         let size = size.unwrap_or_else(|| renderer.default_size());
         let font = font.unwrap_or_else(|| renderer.default_font());
