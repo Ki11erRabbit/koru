@@ -1,11 +1,12 @@
 use tuirealm::{AttrValue, Attribute, Component, Event, Frame, MockComponent, Props, State, StateValue};
 use tuirealm::command::{Cmd, CmdResult, Direction};
 use tuirealm::ratatui::layout::Rect;
-use koru_core::styled_text::{ColorType, StyledFile, StyledText};
+use koru_core::styled_text::{ColorType, ColorValue, StyledFile, StyledText};
 use tuirealm::props::{Color, TextSpan};
 use tuirealm::ratatui::prelude::Text;
 use tuirealm::ratatui::text::{Line, Span};
 use tuirealm::ratatui::widgets::Paragraph;
+use crate::tuirealm_backend::colors::ColorDefinitions;
 use crate::tuirealm_backend::UiMessage;
 
 pub struct TextView {
@@ -29,18 +30,31 @@ impl TextView {
                     StyledText::None { text} => {
                         new_line.push(TextSpan::new(text.to_string()));
                     }
-                    StyledText::Style { text, bg_color: ColorType::Cursor, .. } => {
-                        new_line.push(TextSpan::new(text.to_string()).bg(Color::Gray).fg(Color::Black));
+                    StyledText::Style { text, fg_color, bg_color, .. } => {
+                        
+                        let fg_color = match ColorDefinitions::get(fg_color) {
+                            ColorValue::Rgb { r, g , b } => {
+                                Color::Rgb(r, g, b)
+                            }
+                            ColorValue::Ansi(ansi) => {
+                                Color::Indexed(ansi)
+                            }
+                        };
+
+                        let bg_color = match ColorDefinitions::get(bg_color) {
+                            ColorValue::Rgb { r, g , b } => {
+                                Color::Rgb(r, g, b)
+                            }
+                            ColorValue::Ansi(ansi) => {
+                                Color::Indexed(ansi)
+                            }
+                        };
+                        
+                        new_line.push(
+                            TextSpan::new(text.to_string()).bg(bg_color).fg(fg_color)
+                        );
                     }
-                    StyledText::Style { text, bg_color: ColorType::SecondaryCursor, .. } => {
-                        new_line.push(TextSpan::new(text.to_string()).bg(Color::Cyan).fg(Color::Black));
-                    }
-                    StyledText::Style { text, bg_color: ColorType::Selection, .. } => {
-                        new_line.push(TextSpan::new(text.to_string()).bg(Color::Yellow).fg(Color::Black));
-                    }
-                    StyledText::Style { text, .. } => {
-                        new_line.push(TextSpan::new(text.to_string()));
-                    }
+                    
                 }
             }
             lines.push(new_line);
