@@ -666,6 +666,25 @@ impl StyledFile {
                 text: TextChunk::new(text.rope.clone(), start, current_pos_bytes),
             });
         }
+
+        // Check if this line has a line selection but no newline at the end
+        // This handles the edge case where the last line doesn't end with \n
+        let line_has_no_newline = !text.chars().any(|ch| ch == '\n');
+        if line_has_no_newline {
+            let end_pos = Position::new(line_index, *column_index);
+            let has_line_selection = active_selections.iter()
+                .any(|sel| matches!(sel.selection_type, SelectionType::Line) && sel.contains(end_pos));
+
+            if has_line_selection {
+                // Add a visual space to show the line is selected
+                current_line.push(StyledText::Style {
+                    fg_color,
+                    bg_color: ColorType::Selection,
+                    attribute,
+                    text: TextChunk::from(String::from(' ')),
+                });
+            }
+        }
     }
 
     /// Place cursors and their selections into the styled text.
@@ -708,6 +727,7 @@ impl StyledFile {
         Self { lines }
     }
 }
+
 
 
 impl Default for StyledFile {
