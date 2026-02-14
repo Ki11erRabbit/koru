@@ -136,14 +136,13 @@
         (command-bar-show)
         (command-bar-update (kakoune-prefix (minor-mode-get 'kakoune-mode)))
         (kakoune-state-set! (minor-mode-get 'kakoune-mode) 'Command))
-      #t
       'key-sequence))
 
   (define kak-move-cursor-up
     (command-create
       'kak-move-cursor-up
       "Move the cursors up. If there is a selection, then it is ended"
-      (lambda () (when (text-edit-mode-is-mark-set? 0)
+      (lambda () (when (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index))
                    (command-apply editor-remove-mark))
                  (command-apply editor-cursor-up))))
 
@@ -159,7 +158,7 @@
     (command-create
       'kak-extend-cursor-up
       "Move the cursors up and extend the selection"
-      (lambda () (when (not (text-edit-mode-is-mark-set? 0))
+      (lambda () (when (not (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index)))
                    (command-apply editor-place-point-mark))
                  (command-apply editor-cursor-up))))
 
@@ -175,7 +174,7 @@
     (command-create
       'kak-move-cursor-down
       "Move the cursors down. If there is a selection, then it is ended"
-      (lambda () (when (text-edit-mode-is-mark-set? 0)
+      (lambda () (when (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index))
                    (command-apply editor-remove-mark))
                  (command-apply editor-cursor-down))))
 
@@ -191,7 +190,7 @@
     (command-create
       'kak-extend-cursor-down
       "Move the cursors down and extend the selection"
-      (lambda () (when (not (text-edit-mode-is-mark-set? 0))
+      (lambda () (when (not (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index)))
                    (command-apply editor-place-point-mark))
                  (command-apply editor-cursor-down))))
 
@@ -207,7 +206,7 @@
     (command-create
       'kak-move-cursor-left
       "Move the cursors left. If there is a selection, then it is ended"
-      (lambda () (when (text-edit-mode-is-mark-set? 0)
+      (lambda () (when (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index))
                    (command-apply editor-remove-mark))
                  (command-apply editor-cursor-left #f))))
 
@@ -223,7 +222,7 @@
     (command-create
       'kak-extend-cursor-left
       "Move the cursors left and extend the selection"
-      (lambda () (when (not (text-edit-mode-is-mark-set? 0))
+      (lambda () (when (not (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index)))
                    (command-apply editor-place-point-mark))
                  (command-apply editor-cursor-left #f))))
 
@@ -239,7 +238,7 @@
     (command-create
       'kak-move-cursor-right
       "Move the cursors right. If there is a selection, then it is ended"
-      (lambda () (when (text-edit-mode-is-mark-set? 0)
+      (lambda () (when (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index))
                    (command-apply editor-remove-mark))
                  (command-apply editor-cursor-right #f))))
 
@@ -255,7 +254,7 @@
     (command-create
       'kak-extend-cursor-right
       "Move the cursors right and extend the selection"
-      (lambda () (when (not (text-edit-mode-is-mark-set? 0))
+      (lambda () (when (not (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index)))
                    (command-apply editor-place-point-mark))
                  (command-apply editor-cursor-right #f))))
 
@@ -271,7 +270,7 @@
     (command-create
       'kak-stop-selection
       "Ends the selection"
-      (lambda () (when (not (text-edit-mode-is-mark-set? 0))
+      (lambda () (when (not (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index)))
                    (command-apply editor-remove-mark)))))
 
   (define kak-stop-selection-keypress
@@ -342,7 +341,7 @@
   (define (enter-insert-mode)
     (when (is-current-buffer-set?)
       (command-apply text-edit-mode-start-transaction))
-    (when (text-edit-mode-is-mark-set? 0)
+    (when (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index))
       (command-apply text-edit-mode-remove-mark))
     (add-key-map 'kakoune-edit (kakoune-insert-mode-keymap)))
 
