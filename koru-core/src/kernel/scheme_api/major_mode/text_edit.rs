@@ -49,9 +49,30 @@ impl TextEditData {
         Ok(())
     }
 
-    pub async fn place_mark(&self, index: usize) -> Result<(), Exception> {
+    pub async fn place_point_mark(&self, index: usize) -> Result<(), Exception> {
         let handle = self.get_buffer_handle().await?;
-        let new_cursor = handle.place_mark(self.internal.lock().await.cursors[index]).await;
+        let new_cursor = handle.place_point_mark(self.internal.lock().await.cursors[index]).await;
+        self.internal.lock().await.cursors[index] = new_cursor;
+        Ok(())
+    }
+
+    pub async fn place_line_mark(&self, index: usize) -> Result<(), Exception> {
+        let handle = self.get_buffer_handle().await?;
+        let new_cursor = handle.place_line_mark(self.internal.lock().await.cursors[index]).await;
+        self.internal.lock().await.cursors[index] = new_cursor;
+        Ok(())
+    }
+
+    pub async fn place_box_mark(&self, index: usize) -> Result<(), Exception> {
+        let handle = self.get_buffer_handle().await?;
+        let new_cursor = handle.place_box_mark(self.internal.lock().await.cursors[index]).await;
+        self.internal.lock().await.cursors[index] = new_cursor;
+        Ok(())
+    }
+
+    pub async fn place_file_mark(&self, index: usize) -> Result<(), Exception> {
+        let handle = self.get_buffer_handle().await?;
+        let new_cursor = handle.place_file_mark(self.internal.lock().await.cursors[index]).await;
         self.internal.lock().await.cursors[index] = new_cursor;
         Ok(())
     }
@@ -274,7 +295,7 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Exception> 
 }
 
 #[bridge(name = "text-edit-place-point-mark-at-cursor", lib = "(text-edit)")]
-pub async fn place_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
+pub async fn place_point_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((major_mode, rest)) = args.split_first() else {
         return Err(Exception::wrong_num_of_args(2, args.len()))
     };
@@ -285,7 +306,55 @@ pub async fn place_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let cursor_index = cursor_index.try_into()?;
     let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
     let data = get_data(&major_mode).await?;
-    data.place_mark(cursor_index).await?;
+    data.place_point_mark(cursor_index).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-place-line-mark-at-cursor", lib = "(text-edit)")]
+pub async fn place_line_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    data.place_line_mark(cursor_index).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-place-box-mark-at-cursor", lib = "(text-edit)")]
+pub async fn place_box_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    data.place_box_mark(cursor_index).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-place-buffer-mark-at-cursor", lib = "(text-edit)")]
+pub async fn place_buffer_mark(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    data.place_file_mark(cursor_index).await?;
     Ok(Vec::new())
 }
 

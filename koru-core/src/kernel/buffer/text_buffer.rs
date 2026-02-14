@@ -130,16 +130,55 @@ impl TextBuffer {
         }
     }
     
-    pub fn place_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub fn place_point_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
         let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
         for cursor in cursors {
-            output.push(self.place_mark(cursor));
+            output.push(self.place_point_mark(cursor));
         }
         output
     }
 
-    pub fn place_mark(&self, mut cursor: Cursor) -> Cursor {
-        cursor.place_mark();
+    pub fn place_point_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_point_mark();
+        cursor
+    }
+
+    pub fn place_line_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.place_line_mark(cursor));
+        }
+        output
+    }
+
+    pub fn place_line_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_line_mark();
+        cursor
+    }
+
+    pub fn place_box_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.place_box_mark(cursor));
+        }
+        output
+    }
+
+    pub fn place_box_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_box_mark();
+        cursor
+    }
+
+    pub fn place_file_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.place_file_mark(cursor));
+        }
+        output
+    }
+
+    pub fn place_file_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_file_mark();
         cursor
     }
 

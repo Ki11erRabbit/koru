@@ -30,6 +30,15 @@ pub fn cursors_create() -> Result<Vec<Value>, Exception> {
     Ok(vec![Value::from(value)])
 }
 
+#[derive(Debug, Copy, Clone, Trace)]
+pub enum CursorMark {
+    None,
+    Point,
+    Line,
+    Box,
+    File
+}
+
 #[derive(Copy, Clone)]
 pub enum CursorDirection {
     Up,
@@ -53,6 +62,8 @@ pub struct Cursor {
     real_cursor: GridCursor,
     /// This is where the mark is currently located
     mark: Option<GridCursor>,
+    /// The state that the mark is currently in
+    mark_state: CursorMark,
     main_cursor: bool,
 }
 
@@ -65,6 +76,7 @@ impl Cursor {
             real_cursor: logical_cursor,
             mark: None,
             main_cursor: false,
+            mark_state: CursorMark::None,
         }
     }
 
@@ -76,6 +88,7 @@ impl Cursor {
             real_cursor: logical_cursor,
             mark: None,
             main_cursor: true,
+            mark_state: CursorMark::None,
         }
     }
 
@@ -177,12 +190,28 @@ impl Cursor {
         }
     }
 
-    pub fn place_mark(&mut self) {
+    pub fn place_point_mark(&mut self) {
         self.mark = Some(self.real_cursor);
+        self.mark_state = CursorMark::Point;
+    }
+
+    pub fn place_line_mark(&mut self) {
+        self.mark = Some(self.real_cursor);
+        self.mark_state = CursorMark::Line;
+    }
+
+    pub fn place_box_mark(&mut self) {
+        self.mark = Some(self.real_cursor);
+        self.mark_state = CursorMark::Box;
+    }
+
+    pub fn place_file_mark(&mut self) {
+        self.mark_state = CursorMark::File;
     }
 
     pub fn remove_mark(&mut self) {
         self.mark = None;
+        self.mark_state = CursorMark::None;
     }
 
     pub fn flip_mark(&mut self) {
