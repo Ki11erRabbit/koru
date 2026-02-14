@@ -86,9 +86,12 @@ impl Component<UiMessage, UiMessage> for Input {
                     Key::Function(33) => KeyValue::ControlKey(ControlKey::F33),
                     Key::Function(34) => KeyValue::ControlKey(ControlKey::F34),
                     Key::Function(35) => KeyValue::ControlKey(ControlKey::F35),
-                    Key::Char(c) => {
+                    Key::Char(mut c) => {
                         if c.is_control() {
                             return None;
+                        }
+                        if c.is_uppercase() {
+                            c = c.to_lowercase().next().unwrap();
                         }
                         KeyValue::CharacterKey(c.to_string().into_boxed_str())
                     },
