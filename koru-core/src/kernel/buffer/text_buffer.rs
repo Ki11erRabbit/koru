@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{ErrorKind, SeekFrom};
 use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
@@ -87,7 +88,7 @@ impl TextBuffer {
 
     /// Pred returns false if we should terminate and true if we should loop on a given grapheme.
     pub fn move_cursor(&self, mut cursor: Cursor, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception>) -> Result<Cursor, Exception> {
-        let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+        let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
         match direction {
             CursorDirection::Left { wrap } => {
                 loop  {
@@ -104,7 +105,7 @@ impl TextBuffer {
                     } else if !at_line_start {
                         cursor.move_left(self.buffer.line_length(cursor.line()));
                     }
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
                     if !pred(&char)? {
                         break;
                     }
@@ -128,7 +129,7 @@ impl TextBuffer {
                     } else if !at_line_end {
                         cursor.move_right(self.buffer.line_length(cursor.line()));
                     }
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
                     if !pred(&char)? {
                         break;
                     }
@@ -138,7 +139,7 @@ impl TextBuffer {
             CursorDirection::Up => {
                 loop {
                     cursor.move_up(&self.buffer);
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
                     if !pred(&char)? {
                         break;
                     }
@@ -148,7 +149,7 @@ impl TextBuffer {
             CursorDirection::Down => {
                 loop {
                     cursor.move_down(&self.buffer);
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
                     if !pred(&char)? {
                         break;
                     }
