@@ -3,6 +3,10 @@
     text-edit-mode-cursor-down
     text-edit-mode-cursor-left
     text-edit-mode-cursor-right
+    text-edit-mode-cursor-up-predicate
+    text-edit-mode-cursor-down-predicate
+    text-edit-mode-cursor-left-predicate
+    text-edit-mode-cursor-right-predicate
     text-edit-mode-cursor-line-start
     text-edit-mode-cursor-line-end
     text-edit-mode-cursor-buffer-start
@@ -69,6 +73,18 @@
       (lambda (index wrap) (text-edit-move-cursor-right (current-major-mode) index wrap))
       'number
       'boolean))
+
+  (define (text-edit-mode-cursor-up-predicate index pred)
+    (text-edit-move-cursor-up-predicate (current-major-mode) index pred))
+
+  (define (text-edit-mode-cursor-down-predicate index pred)
+    (text-edit-move-cursor-down-predicate (current-major-mode) index pred))
+
+  (define (text-edit-mode-cursor-left-predicate index wrap pred)
+    (text-edit-move-cursor-left-predicate (current-major-mode) index wrap pred))
+
+  (define (text-edit-mode-cursor-right-predicate index wrap pred)
+    (text-edit-move-cursor-right-predicate (current-major-mode) index wrap pred))
 
   (define text-edit-mode-cursor-line-start
     (command-create
