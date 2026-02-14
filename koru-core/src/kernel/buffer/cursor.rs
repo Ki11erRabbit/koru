@@ -50,7 +50,11 @@ pub enum CursorDirection {
     Right {
         /// Whether to go to the next line or not.
         wrap: bool,
-    }
+    },
+    LineStart,
+    LineEnd,
+    BufferStart,
+    BufferEnd,
 }
 
 

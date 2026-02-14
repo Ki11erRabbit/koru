@@ -127,6 +127,36 @@ impl TextBuffer {
                 cursor.move_down(&self.buffer);
                 cursor
             }
+            CursorDirection::LineStart => {
+                while cursor.column() != 0 {
+                    cursor.move_left(self.buffer.line_length(cursor.line()));
+                }
+                cursor
+            }
+            CursorDirection::LineEnd => {
+                while cursor.column() != self.buffer.line_length(cursor.line()) {
+                    cursor.move_right(self.buffer.line_length(cursor.line()));
+                }
+                cursor
+            }
+            CursorDirection::BufferStart => {
+                while cursor.column() != 0 {
+                    cursor.move_left(self.buffer.line_length(cursor.line()));
+                }
+                while cursor.line() != 0 {
+                    cursor.move_up(&self.buffer);
+                }
+                cursor
+            }
+            CursorDirection::BufferEnd => {
+                while cursor.line() != self.buffer.line_len() {
+                    cursor.move_down(&self.buffer);
+                }
+                while cursor.column() != self.buffer.line_length(cursor.line()) {
+                    cursor.move_right(self.buffer.line_length(cursor.line()));
+                }
+                cursor
+            }
         }
     }
 

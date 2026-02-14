@@ -300,6 +300,71 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Exception> 
     Ok(Vec::new())
 }
 
+#[bridge(name = "text-edit-move-cursor-line-start", lib = "(text-edit)")]
+pub async fn move_cursor_line_start(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    data.move_cursor(cursor_index, CursorDirection::LineStart).await?;
+    Ok(Vec::new())
+}
+
+
+#[bridge(name = "text-edit-move-cursor-line-end", lib = "(text-edit)")]
+pub async fn move_cursor_line_end(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    data.move_cursor(cursor_index, CursorDirection::LineEnd).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-move-cursor-buffer-start", lib = "(text-edit)")]
+pub async fn move_cursor_buffer_start(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    data.move_cursor(cursor_index, CursorDirection::BufferStart).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-move-cursor-buffer-end", lib = "(text-edit)")]
+pub async fn move_cursor_buffer_end(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    data.move_cursor(cursor_index, CursorDirection::BufferEnd).await?;
+    Ok(Vec::new())
+}
+
 #[bridge(name = "text-edit-scan-cursor", lib = "(text-edit)")]
 pub async fn scan_cursor(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let Some((major_mode, rest)) = args.split_first() else {
