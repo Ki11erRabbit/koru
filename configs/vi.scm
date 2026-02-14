@@ -127,11 +127,42 @@
 
   (define vi-enter-visual-keypress
     (command-create
-      'vi-enter-visual
-      "Enters into visual mode"
+      'vi-enter-visual-keypress
+      "Enters into visual mode with a point selection."
       (lambda (keys)
         (command-apply text-edit-mode-place-point-mark 0)
         (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
+      #t
+      'key-sequence))
+
+  (define vi-enter-visual-box-keypress
+    (command-create
+      'vi-enter-visual-box-keypress
+      "Enters into visual mode with a box selection."
+      (lambda (keys)
+        (command-apply text-edit-mode-place-box-mark 0)
+        (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
+      #t
+      'key-sequence))
+
+  (define vi-enter-visual-line-keypress
+    (command-create
+      'vi-enter-visual-line-keypress
+      "Enters into visual mode with a line selection."
+      (lambda (keys)
+        (command-apply text-edit-mode-place-line-mark 0)
+        (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
+      #t
+      'key-sequence))
+
+  (define vi-visual-visual-delete-keypress
+    (command-create
+      'vi-visual-visual-delete-keypress
+      "Deletes the highlighted region and enters into Normal mode."
+      (lambda (keys)
+        (command-apply text-edit-mode-delete-cursor-region 0)
+        (command-apply editor-remove-mark)
+        (vi-state-set! (minor-mode-get 'vi-mode) 'Normal))
       #t
       'key-sequence))
 
@@ -161,10 +192,13 @@
       (key-map-insert vi-key-map "l" editor-cursor-right-keypress)
       (key-map-insert vi-key-map "i" vi-enter-insert-keypress)
       (key-map-insert vi-key-map "v" vi-enter-visual-keypress)
+      (key-map-insert vi-key-map "V" vi-enter-visual-line-keypress)
+      (key-map-insert vi-key-map "C-v" vi-enter-visual-box-keypress)
       (key-map-insert vi-key-map ":" vi-enter-command-keypress)
       (key-map-insert vi-key-map "u" editor-undo-keypress)
       (key-map-insert vi-key-map "C-r" editor-redo-keypress)
       (key-map-insert vi-key-map "C-c" editor-cursor-add-below-keypress)
+      (key-map-insert vi-key-map "x" editor-delete-forward-keypress)
       vi-key-map))
 
   (define (vi-visual-mode-keymap)
@@ -177,6 +211,8 @@
       (key-map-insert vi-key-map "h" editor-cursor-left-keypress)
       (key-map-insert vi-key-map "RIGHT" editor-cursor-right-keypress)
       (key-map-insert vi-key-map "l" editor-cursor-right-keypress)
+      (key-map-insert vi-key-map "x" vi-visual-visual-delete-keypress)
+      (key-map-insert vi-key-map "d" vi-visual-visual-delete-keypress)
       vi-key-map))
 
   (define (vi-insert-mode-keymap)

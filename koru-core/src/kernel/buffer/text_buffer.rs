@@ -130,16 +130,55 @@ impl TextBuffer {
         }
     }
     
-    pub fn place_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub fn place_point_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
         let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
         for cursor in cursors {
-            output.push(self.place_mark(cursor));
+            output.push(self.place_point_mark(cursor));
         }
         output
     }
 
-    pub fn place_mark(&self, mut cursor: Cursor) -> Cursor {
-        cursor.place_mark();
+    pub fn place_point_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_point_mark();
+        cursor
+    }
+
+    pub fn place_line_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.place_line_mark(cursor));
+        }
+        output
+    }
+
+    pub fn place_line_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_line_mark();
+        cursor
+    }
+
+    pub fn place_box_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.place_box_mark(cursor));
+        }
+        output
+    }
+
+    pub fn place_box_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_box_mark();
+        cursor
+    }
+
+    pub fn place_file_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());
+        for cursor in cursors {
+            output.push(self.place_file_mark(cursor));
+        }
+        output
+    }
+
+    pub fn place_file_mark(&self, mut cursor: Cursor) -> Cursor {
+        cursor.place_file_mark();
         cursor
     }
 
@@ -274,26 +313,144 @@ impl TextBuffer {
         new_cursors
     }
 
+    // Refactored delete_region function for TextBuffer
+    // This handles Point, Line, Box, and File mark types
+
     pub async fn delete_region(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        use crate::kernel::buffer::cursor::CursorMark;
+
         if !cursors[cursor_index].is_mark_set() {
             return cursors;
         }
-        let mark_offset = self.calculate_byte_offset(cursors[cursor_index].mark_line().unwrap(), cursors[cursor_index].mark_column().unwrap());
-        let cursor_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
 
-        let (start, range) = if mark_offset < cursor_offset {
-            (mark_offset, mark_offset..=cursor_offset)
-        } else {
-            (cursor_offset, cursor_offset..=(mark_offset - 1))
-        };
-        let text = self.buffer.byte_slice(range.clone());
-        let text = text.to_string();
-        self.buffer.delete(range);
+        let cursor = &cursors[cursor_index];
+        let cursor_line = cursor.line();
+        let cursor_col = cursor.column();
+        let mark_line = cursor.mark_line().unwrap();
+        let mark_col = cursor.mark_column().unwrap();
 
-        let new_cursors = self.delete_text(&text, cursor_index, cursors);
+        match cursor.mark_state {
+            CursorMark::Point => {
+                // Point selection: delete between cursor and mark (inclusive on both ends)
+                let mark_offset = self.calculate_byte_offset(mark_line, mark_col);
+                let cursor_offset = self.calculate_byte_offset(cursor_line, cursor_col);
 
-        self.undo_tree.delete(start - 1, text).await;
-        new_cursors
+                let (start, range) = if mark_offset <= cursor_offset {
+                    (mark_offset, mark_offset..=cursor_offset)
+                } else {
+                    (cursor_offset, cursor_offset..=mark_offset)
+                };
+
+                let text = self.buffer.byte_slice(range.clone());
+                let text = text.to_string();
+                self.buffer.delete(range);
+
+                let new_cursors = self.delete_text(&text, cursor_index, cursors);
+                self.undo_tree.delete(start, text).await;
+                new_cursors
+            }
+
+            CursorMark::Line => {
+                // Line selection: delete entire lines from min to max line (inclusive)
+                let (min_line, max_line) = if cursor_line <= mark_line {
+                    (cursor_line, mark_line)
+                } else {
+                    (mark_line, cursor_line)
+                };
+
+                // Calculate byte offsets for the start of min_line and end of max_line
+                let start_offset = self.calculate_byte_offset(min_line, 0);
+                let end_line_len = self.buffer.line_length(max_line);
+                let end_offset = self.calculate_byte_offset(max_line, end_line_len);
+
+                // Include the newline after the last line if it exists
+                let range_end = if self.buffer.is_there_next_line(max_line) {
+                    end_offset + '\n'.len_utf8()
+                } else {
+                    end_offset
+                };
+
+                let text = self.buffer.byte_slice(start_offset..range_end);
+                let text = text.to_string();
+                self.buffer.delete(start_offset..range_end);
+
+                let new_cursors = self.delete_text(&text, cursor_index, cursors);
+                self.undo_tree.delete(start_offset, text).await;
+                new_cursors
+            }
+
+            CursorMark::Box => {
+                // Box selection: delete rectangular region
+                // For proper undo/redo, we need to track each line's deletion separately
+                let (min_line, max_line) = if cursor_line <= mark_line {
+                    (cursor_line, mark_line)
+                } else {
+                    (mark_line, cursor_line)
+                };
+
+                let (min_col, max_col) = if cursor_col <= mark_col {
+                    (cursor_col, mark_col)
+                } else {
+                    (mark_col, cursor_col)
+                };
+
+                // Start a transaction for the bulk delete
+                self.undo_tree.start_transaction().await;
+
+                let mut total_deleted = String::new();
+
+                // Delete from bottom to top to maintain byte offsets
+                for line_no in (min_line..=max_line).rev() {
+                    let line_len = self.buffer.line_length(line_no);
+
+                    // Clamp columns to actual line length
+                    let actual_min_col = min_col.min(line_len);
+                    let actual_max_col = (max_col + 1).min(line_len); // +1 to make it inclusive
+
+                    if actual_min_col < actual_max_col {
+                        let start_offset = self.calculate_byte_offset(line_no, actual_min_col);
+                        let end_offset = self.calculate_byte_offset(line_no, actual_max_col);
+
+                        let text = self.buffer.byte_slice(start_offset..end_offset);
+                        let text_str = text.to_string();
+
+                        // Record this individual deletion in undo tree
+                        self.undo_tree.delete(start_offset, text_str.clone()).await;
+
+                        // Prepend to total for delete_text cursor adjustment
+                        total_deleted.insert_str(0, &text_str);
+                        if line_no != min_line {
+                            total_deleted.insert(0, '\n');
+                        }
+
+                        // Actually delete from buffer
+                        self.buffer.delete(start_offset..end_offset);
+                    }
+                }
+
+                // End the transaction so all deletes are grouped
+                self.undo_tree.end_transaction().await;
+
+                let new_cursors = self.delete_text(&total_deleted, cursor_index, cursors);
+                new_cursors
+            }
+
+            CursorMark::File => {
+                // File selection: delete entire buffer
+                let text = self.buffer.to_string();
+                let len = self.buffer.byte_len();
+                self.buffer.delete(0..len);
+
+                let new_cursors = self.delete_text(&text, cursor_index, cursors);
+                self.undo_tree.delete(0, text).await;
+                new_cursors
+            }
+
+            CursorMark::None => {
+                // No mark set, return cursors unchanged
+                cursors
+            }
+        }
     }
 
     fn delete_text(&mut self, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {

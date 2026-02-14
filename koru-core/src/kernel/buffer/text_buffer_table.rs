@@ -120,11 +120,32 @@ impl BufferHandle {
         self.handle.lock().await.move_cursor(cursor, direction)
     }
     
-    pub async fn place_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
-        self.handle.lock().await.place_marks(cursors)
+    pub async fn place_point_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.place_point_marks(cursors)
     }
-    pub async fn place_mark(&self, cursor: Cursor) -> Cursor {
-        self.handle.lock().await.place_mark(cursor)
+    pub async fn place_point_mark(&self, cursor: Cursor) -> Cursor {
+        self.handle.lock().await.place_point_mark(cursor)
+    }
+
+    pub async fn place_line_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.place_line_marks(cursors)
+    }
+    pub async fn place_line_mark(&self, cursor: Cursor) -> Cursor {
+        self.handle.lock().await.place_line_mark(cursor)
+    }
+
+    pub async fn place_box_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.place_box_marks(cursors)
+    }
+    pub async fn place_box_mark(&self, cursor: Cursor) -> Cursor {
+        self.handle.lock().await.place_box_mark(cursor)
+    }
+    
+    pub async fn place_file_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
+        self.handle.lock().await.place_file_marks(cursors)
+    }
+    pub async fn place_file_mark(&self, cursor: Cursor) -> Cursor {
+        self.handle.lock().await.place_file_mark(cursor)
     }
     
     pub async fn remove_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {

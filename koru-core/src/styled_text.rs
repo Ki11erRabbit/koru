@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::{Arc};
 use bitflags::bitflags;
@@ -275,6 +276,104 @@ pub fn styled_text_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct Position {
+    line: usize,
+    column: usize,
+}
+
+impl Position {
+    fn new(line: usize, column: usize) -> Self {
+        Self { line, column }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum SelectionType {
+    Point,
+    Line,
+    Box,
+    File,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Selection {
+    start: Position,
+    end: Position,
+    selection_type: SelectionType,
+}
+
+impl Selection {
+    fn contains(&self, pos: Position) -> bool {
+        match self.selection_type {
+            SelectionType::Point => {
+                self.is_point_in_range(pos)
+            }
+            SelectionType::Line => {
+                self.is_line_in_range(pos.line)
+            }
+            SelectionType::Box => {
+                self.is_box_in_range(pos)
+            }
+            SelectionType::File => true,
+        }
+    }
+
+    fn is_point_in_range(&self, pos: Position) -> bool {
+        let (start, end) = if self.start.line < self.end.line
+            || (self.start.line == self.end.line && self.start.column <= self.end.column) {
+            (self.start, self.end)
+        } else {
+            (self.end, self.start)
+        };
+
+        if pos.line < start.line || pos.line > end.line {
+            return false;
+        }
+
+        if pos.line == start.line && pos.line == end.line {
+            // Same line: inclusive on both ends
+            pos.column >= start.column && pos.column <= end.column
+        } else if pos.line == start.line {
+            // Start line: from start column to end of line
+            pos.column >= start.column
+        } else if pos.line == end.line {
+            // End line: from start of line to end column (inclusive)
+            pos.column <= end.column
+        } else {
+            // Middle lines: entire line is selected
+            true
+        }
+    }
+
+    fn is_line_in_range(&self, line: usize) -> bool {
+        let (start_line, end_line) = if self.start.line <= self.end.line {
+            (self.start.line, self.end.line)
+        } else {
+            (self.end.line, self.start.line)
+        };
+
+        line >= start_line && line <= end_line
+    }
+
+    fn is_box_in_range(&self, pos: Position) -> bool {
+        let (min_line, max_line) = if self.start.line <= self.end.line {
+            (self.start.line, self.end.line)
+        } else {
+            (self.end.line, self.start.line)
+        };
+
+        let (min_col, max_col) = if self.start.column <= self.end.column {
+            (self.start.column, self.end.column)
+        } else {
+            (self.end.column, self.start.column)
+        };
+
+        pos.line >= min_line && pos.line <= max_line
+            && pos.column >= min_col && pos.column <= max_col
+    }
+}
+
 #[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub struct StyledFile {
     #[trace(skip)]
@@ -313,352 +412,303 @@ impl StyledFile {
         }
         self.lines[line].push(text);
     }
+}
 
-    fn process_segment(
-        cursor_index: &mut usize,
+impl StyledFile {
+    /// Build a map of positions to their selection/cursor states
+    fn build_selection_map(cursors: &[Cursor]) -> HashMap<Position, Vec<(usize, bool, bool)>> {
+        let mut map: HashMap<Position, Vec<(usize, bool, bool)>> = HashMap::new();
+
+        for (idx, cursor) in cursors.iter().enumerate() {
+            let cursor_pos = Position::new(cursor.line(), cursor.column());
+
+            // Mark cursor position
+            map.entry(cursor_pos)
+                .or_insert_with(Vec::new)
+                .push((idx, true, false));
+
+            // Mark selection if present
+            if let Some(mark_line) = cursor.mark_line() {
+                if let Some(mark_col) = cursor.mark_column() {
+                    let mark_pos = Position::new(mark_line, mark_col);
+                    map.entry(mark_pos)
+                        .or_insert_with(Vec::new)
+                        .push((idx, false, true));
+                }
+            }
+        }
+
+        map
+    }
+
+    fn process_segment_with_selections(
+        selection_map: &HashMap<Position, Vec<(usize, bool, bool)>>,
         cursors: &[Cursor],
         line_index: usize,
-        lines: &mut Vec<Vec<StyledText>>,
         current_line: &mut Vec<StyledText>,
         column_index: &mut usize,
-        found_mark: &mut bool,
-        found_cursor: &mut bool,
         text: TextChunk,
         fg_color: ColorType,
         bg_color: ColorType,
         attribute: TextAttribute,
     ) {
+        // Pre-compute all selections for this line to avoid repeated calculations
+        let mut active_selections: Vec<Selection> = Vec::new();
+        for cursor in cursors {
+            if !cursor.is_mark_set() {
+                continue;
+            }
+
+            let cursor_pos = Position::new(cursor.line(), cursor.column());
+            let mark_pos = Position::new(
+                cursor.mark_line().unwrap(),
+                cursor.mark_column().unwrap()
+            );
+
+            let selection_type = match cursor.mark_state {
+                crate::kernel::buffer::CursorMark::Point => SelectionType::Point,
+                crate::kernel::buffer::CursorMark::Line => SelectionType::Line,
+                crate::kernel::buffer::CursorMark::Box => SelectionType::Box,
+                crate::kernel::buffer::CursorMark::File => SelectionType::File,
+                crate::kernel::buffer::CursorMark::None => continue,
+            };
+
+            active_selections.push(Selection {
+                start: cursor_pos,
+                end: mark_pos,
+                selection_type,
+            });
+        }
+
+        // Check if this is an empty line (just a newline character)
+        let is_empty_line = text.chars().next() == Some('\n') &&
+            text.chars().count() == 1;
+
         let mut start = text.start();
-        let mut current_pos = start;
-        let mut prev_pos = start;
+        let mut current_pos_bytes = start;
+        let mut prev_column = *column_index;
 
-        for slice in text.graphemes() {
-            let grapheme_len = slice.len();
-            let next_pos = current_pos + grapheme_len;
+        // Handle empty line with cursor - prepend a space before the newline
+        if is_empty_line {
+            let pos = Position::new(line_index, *column_index);
+            let cursor_at_pos = selection_map.get(&pos)
+                .and_then(|info_list| {
+                    info_list.iter()
+                        .find(|&&(_idx, is_cursor, _is_mark)| is_cursor)
+                        .map(|&(idx, _, _)| idx)
+                });
 
-            if *cursor_index < cursors.len() {
-                let cursor = &cursors[*cursor_index];
-                let at_cursor = *column_index == cursor.column() && line_index == cursor.line();
-                let at_mark = cursor.is_mark_set()
-                    && *column_index == cursor.mark_column().unwrap()
-                    && line_index == cursor.mark_line().unwrap();
+            if let Some(cursor_idx) = cursor_at_pos {
+                // Render cursor as a space on empty line
+                let cursor = &cursors[cursor_idx];
+                let cursor_color = if cursor.is_main() {
+                    ColorType::Cursor
+                } else {
+                    ColorType::SecondaryCursor
+                };
 
-                // Handle finding the cursor position
-                if at_cursor {
-                    *found_cursor = true;
-                    if !*found_mark {
-                        // Push text before cursor (if any)
-                        if start < current_pos {
-                            current_line.push(StyledText::Style {
-                                fg_color,
-                                bg_color,
-                                attribute,
-                                text: TextChunk::new(text.rope.clone(), start, current_pos),
-                            });
-                        }
-                        start = current_pos;
-                    }
-                }
-                // Handle finding the mark position
-                else if at_mark {
-                    *found_mark = true;
-                    if !*found_cursor {
-                        // Push text before mark (if any)
-                        if start < current_pos {
-                            current_line.push(StyledText::Style {
-                                fg_color,
-                                bg_color,
-                                attribute,
-                                text: TextChunk::new(text.rope.clone(), start, current_pos),
-                            });
-                        }
-                        start = current_pos;
-                    } else if *column_index != cursor.column() + 1 {
-                        // Push selected text
-                        if start < current_pos {
-                            current_line.push(StyledText::Style {
-                                bg_color: ColorType::Selection,
-                                fg_color,
-                                attribute,
-                                text: TextChunk::new(text.rope.clone(), start, current_pos),
-                            });
-                        }
+                current_line.push(StyledText::Style {
+                    fg_color,
+                    bg_color: cursor_color,
+                    attribute: TextAttribute::empty(),
+                    text: TextChunk::from(String::from(' ')),
+                });
+            } else {
+                // Check if line is selected
+                let is_selected = active_selections.iter()
+                    .any(|sel| sel.contains(pos));
 
-                        // Push current grapheme with selection
-                        current_line.push(StyledText::Style {
-                            bg_color: ColorType::Selection,
-                            fg_color,
-                            attribute,
-                            text: TextChunk::new(text.rope.clone(), current_pos, next_pos),
-                        });
+                let line_bg = if is_selected {
+                    ColorType::Selection
+                } else {
+                    bg_color
+                };
 
-                        start = next_pos;
-                        *found_mark = false;
-                        *found_cursor = false;
-                        *cursor_index += 1;
-                        current_pos = next_pos;
-                        *column_index += 1;
-                        continue;
-                    }
-                }
+                // Render empty line as a space to maintain visibility
+                current_line.push(StyledText::Style {
+                    fg_color,
+                    bg_color: line_bg,
+                    attribute,
+                    text: TextChunk::from(String::from(' ')),
+                });
+            }
 
-                // Handle position after cursor (cursor highlight)
-                if *found_cursor
-                    && *column_index == cursor.column() + 1
-                    && line_index == cursor.line()
-                {
-                    let cursor_color = if cursor.is_main() {
-                        ColorType::Cursor
+            // Increment column for the space we just added
+            *column_index += 1;
+            prev_column = *column_index;
+        }
+
+
+        for grapheme in text.graphemes() {
+            let grapheme_len = grapheme.len();
+            let next_pos_bytes = current_pos_bytes + grapheme_len;
+            let current_column = *column_index;
+            let is_newline = grapheme.contains('\n');
+
+            // Check if any cursor is at this position (BEFORE incrementing column)
+            let pos = Position::new(line_index, current_column);
+            let cursor_at_pos = selection_map.get(&pos)
+                .and_then(|info_list| {
+                    info_list.iter()
+                        .find(|&&(_idx, is_cursor, _is_mark)| is_cursor)
+                        .map(|&(idx, _, _)| idx)
+                });
+
+            // Check if this position is selected
+            let is_selected = active_selections.iter()
+                .any(|sel| sel.contains(pos));
+
+            // Determine if we need to flush accumulated text
+            if let Some(cursor_idx) = cursor_at_pos {
+                // Flush text before cursor if any
+                if start < current_pos_bytes {
+                    let prev_pos = Position::new(line_index, prev_column);
+                    let prev_selected = active_selections.iter()
+                        .any(|sel| sel.contains(prev_pos));
+
+                    let chunk_bg = if prev_selected {
+                        ColorType::Selection
                     } else {
-                        ColorType::SecondaryCursor
+                        bg_color
                     };
 
-                    if cursor.is_mark_and_cursor_same() {
-                        *found_mark = false;
-                    }
-
-                    if *found_mark {
-                        // Push selected text before cursor grapheme
-                        if start < prev_pos {
-                            current_line.push(StyledText::Style {
-                                bg_color: ColorType::Selection,
-                                fg_color,
-                                attribute: TextAttribute::empty(),
-                                text: TextChunk::new(text.rope.clone(), start, prev_pos),
-                            });
-                        }
-
-                        // Push cursor grapheme (from prev_pos to current_pos)
-                        current_line.push(StyledText::Style {
-                            bg_color: cursor_color,
-                            fg_color,
-                            attribute: TextAttribute::empty(),
-                            text: TextChunk::new(text.rope.clone(), prev_pos, current_pos),
-                        });
-
-                        start = current_pos;
-                    } else {
-                        // Push cursor grapheme (from prev_pos to current_pos)
-                        current_line.push(StyledText::Style {
-                            bg_color: cursor_color,
-                            fg_color,
-                            attribute: TextAttribute::empty(),
-                            text: TextChunk::new(text.rope.clone(), prev_pos, current_pos),
-                        });
-
-                        start = current_pos;
-                    }
-
-                    if *found_cursor && !cursor.is_mark_set() {
-                        *cursor_index += 1;
-                    } else if *found_cursor && cursor.is_mark_set() && *found_mark {
-                        *cursor_index += 1;
-                        *found_cursor = false;
-                        *found_mark = false;
-                    }
+                    current_line.push(StyledText::Style {
+                        fg_color,
+                        bg_color: chunk_bg,
+                        attribute,
+                        text: TextChunk::new(text.rope.clone(), start, current_pos_bytes),
+                    });
                 }
-                // Handle cursor at newline
-                else if *found_cursor
-                    && slice.contains('\n')
-                    && *column_index == cursor.column()
-                    && line_index == cursor.line()
-                {
-                    let cursor_color = if cursor.is_main() {
-                        ColorType::Cursor
+
+                // Render cursor
+                let cursor = &cursors[cursor_idx];
+                let cursor_color = if cursor.is_main() {
+                    ColorType::Cursor
+                } else {
+                    ColorType::SecondaryCursor
+                };
+
+                let cursor_text = if is_newline {
+                    // Cursor at end of line - show as space, but still include the newline after
+                    current_line.push(StyledText::Style {
+                        fg_color,
+                        bg_color: cursor_color,
+                        attribute: TextAttribute::empty(),
+                        text: TextChunk::from(String::from(' ')),
+                    });
+
+                    // Now add the actual newline
+                    start = current_pos_bytes;
+                    current_pos_bytes = next_pos_bytes;
+                    *column_index += 1;
+                    prev_column = current_column + 1;
+                    continue;
+                } else {
+                    // Cursor on grapheme
+                    TextChunk::new(text.rope.clone(), current_pos_bytes, next_pos_bytes)
+                };
+
+                current_line.push(StyledText::Style {
+                    fg_color,
+                    bg_color: cursor_color,
+                    attribute: TextAttribute::empty(),
+                    text: cursor_text,
+                });
+
+                start = next_pos_bytes;
+                prev_column = current_column + 1;
+            } else if start < current_pos_bytes {
+                // Check if background changed (selected to unselected or vice versa)
+                let prev_pos = Position::new(line_index, prev_column);
+                let prev_selected = active_selections.iter()
+                    .any(|sel| sel.contains(prev_pos));
+
+                if prev_selected != is_selected {
+                    // Flush accumulated text with previous background
+                    let chunk_bg = if prev_selected {
+                        ColorType::Selection
                     } else {
-                        ColorType::SecondaryCursor
+                        bg_color
                     };
 
-                    if cursor.is_mark_and_cursor_same() {
-                        *found_mark = false;
-                    }
+                    current_line.push(StyledText::Style {
+                        fg_color,
+                        bg_color: chunk_bg,
+                        attribute,
+                        text: TextChunk::new(text.rope.clone(), start, current_pos_bytes),
+                    });
 
-                    if *found_mark {
-                        // Push selected text
-                        if start < current_pos {
-                            current_line.push(StyledText::Style {
-                                bg_color: ColorType::Selection,
-                                fg_color,
-                                attribute: TextAttribute::empty(),
-                                text: TextChunk::new(text.rope.clone(), start, current_pos),
-                            });
-                        }
-
-                        // Push cursor (space at newline)
-                        current_line.push(StyledText::Style {
-                            bg_color: cursor_color,
-                            fg_color,
-                            attribute: TextAttribute::empty(),
-                            text: TextChunk::from(String::from(' ')),
-                        });
-                    } else {
-                        // Push text before cursor
-                        if start < current_pos {
-                            current_line.push(StyledText::Style {
-                                bg_color: ColorType::Selection,
-                                fg_color,
-                                attribute: TextAttribute::empty(),
-                                text: TextChunk::new(text.rope.clone(), start, current_pos),
-                            });
-                        }
-
-                        // Push cursor (space at newline)
-                        current_line.push(StyledText::Style {
-                            bg_color: cursor_color,
-                            fg_color,
-                            attribute: TextAttribute::empty(),
-                            text: TextChunk::from(String::from(' ')),
-                        });
-                    }
-
-                    start = current_pos;
-
-                    if *found_cursor && !cursor.is_mark_set() {
-                        *cursor_index += 1;
-                    } else if *found_cursor && cursor.is_mark_set() && *found_mark {
-                        *cursor_index += 1;
-                        *found_cursor = false;
-                        *found_mark = false;
-                    }
-                }
-                // Handle mark position after cursor
-                else if *found_mark
-                    && *column_index == cursor.mark_column().unwrap()
-                    && line_index == cursor.mark_line().unwrap()
-                {
-                    // Push selected text
-                    if start < current_pos {
-                        current_line.push(StyledText::Style {
-                            bg_color: ColorType::Selection,
-                            fg_color,
-                            attribute,
-                            text: TextChunk::new(text.rope.clone(), start, current_pos),
-                        });
-                    }
-                    start = current_pos;
+                    start = current_pos_bytes;
+                    prev_column = current_column;
                 }
             }
 
-            prev_pos = current_pos;
-            current_pos = next_pos;
+            current_pos_bytes = next_pos_bytes;
             *column_index += 1;
         }
 
-        // Push any remaining text at the end
-        if start < current_pos {
-            if *found_mark && !*found_cursor {
-                current_line.push(StyledText::Style {
-                    bg_color: ColorType::Selection,
-                    fg_color,
-                    attribute,
-                    text: TextChunk::new(text.rope.clone(), start, current_pos),
-                });
-            } else if *found_cursor
-                && *cursor_index < cursors.len()
-                && cursors[*cursor_index].is_mark_set()
-                && !cursors[*cursor_index].is_mark_and_cursor_same()
-                && !*found_mark
-            {
-                current_line.push(StyledText::Style {
-                    bg_color: ColorType::Selection,
-                    fg_color,
-                    attribute,
-                    text: TextChunk::new(text.rope.clone(), start, current_pos),
-                });
+        // Push any remaining text
+        if start < current_pos_bytes {
+            let final_pos = Position::new(line_index, prev_column);
+            let final_selected = active_selections.iter()
+                .any(|sel| sel.contains(final_pos));
+
+            let final_bg = if final_selected {
+                ColorType::Selection
             } else {
-                current_line.push(StyledText::Style {
-                    fg_color,
-                    bg_color,
-                    attribute,
-                    text: TextChunk::new(text.rope.clone(), start, current_pos),
-                });
-            }
+                bg_color
+            };
+
+            current_line.push(StyledText::Style {
+                fg_color,
+                bg_color: final_bg,
+                attribute,
+                text: TextChunk::new(text.rope.clone(), start, current_pos_bytes),
+            });
         }
     }
 
-
-    /// Cursors must be in order they are logically in the file
+    /// Place cursors and their selections into the styled text.
+    /// Cursors can be in arbitrary order.
     pub fn place_cursors(self, cursors: &[Cursor]) -> Self {
-        let mut cursor_index = 0;
+        let selection_map = Self::build_selection_map(cursors);
+
         let mut lines = Vec::new();
-        let mut found_mark = false;
-        let mut found_cursor = false;
-        //let prepend_line = major_mode.read().prepend_line();
-        //let append_line = major_mode.read().append_line();
+
         for (line_index, line) in self.lines.into_iter().enumerate() {
             let mut current_line = Vec::new();
             let mut column_index = 0;
-            /*if let Some(ref proc) = prepend_line {
-                let args = &[
-                    Value::from(Number::from(line_index)),
-                    Value::from(Number::from(total_lines))
-                ];
-                let value = proc.call(args).await.unwrap();
-                if value.len() != 0 {
-                    let text: Gc<StyledText> = value[0].clone().try_to_rust_type().unwrap();
-                    current_line.push(text.read().clone());
-                }
-            }*/
+
             for segment in line {
-                match segment {
+                let (fg_color, bg_color, attribute, text) = match segment {
                     StyledText::None { text } => {
-                        //println!("cursor index: {}, cursor-count: {}", cursor_index, cursors.len());
-                        Self::process_segment(
-                            &mut cursor_index,
-                            cursors,
-                            line_index,
-                            &mut lines,
-                            &mut current_line,
-                            &mut column_index,
-                            &mut found_mark,
-                            &mut found_cursor,
-                            text,
-                            ColorType::Text,
-                            ColorType::Base,
-                            TextAttribute::empty(),
-                        );
+                        (ColorType::Text, ColorType::Base, TextAttribute::empty(), text)
                     }
-                    StyledText::Style {
-                        fg_color,
-                        bg_color,
-                        attribute,
-                        text,
-                    } => {
-                        Self::process_segment(
-                            &mut cursor_index,
-                            cursors,
-                            line_index,
-                            &mut lines,
-                            &mut current_line,
-                            &mut column_index,
-                            &mut found_mark,
-                            &mut found_cursor,
-                            text,
-                            fg_color,
-                            bg_color,
-                            attribute,
-                        );
+                    StyledText::Style { fg_color, bg_color, attribute, text } => {
+                        (fg_color, bg_color, attribute, text)
                     }
-                }
+                };
+
+                Self::process_segment_with_selections(
+                    &selection_map,
+                    cursors,
+                    line_index,
+                    &mut current_line,
+                    &mut column_index,
+                    text,
+                    fg_color,
+                    bg_color,
+                    attribute,
+                );
             }
-            /*if let Some(ref proc) = append_line {
-                let args = &[
-                    Value::from(Number::from(line_index)),
-                    Value::from(Number::from(total_lines))
-                ];
-                let value = proc.call(args).await.unwrap();
-                if value.len() != 0 {
-                    let text: Gc<StyledText> = value[0].clone().try_to_rust_type().unwrap();
-                    current_line.push(text.read().clone());
-                }
-            }*/
+
             lines.push(current_line);
         }
-        Self {
-            lines,
-        }
+
+        Self { lines }
     }
 }
+
 
 impl Default for StyledFile {
     fn default() -> Self {
