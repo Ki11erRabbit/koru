@@ -119,6 +119,10 @@ impl BufferHandle {
     pub async fn move_cursor(&self, cursor: Cursor, direction: CursorDirection) -> Cursor {
         self.handle.lock().await.move_cursor(cursor, direction)
     }
+
+    pub async fn scan(&self, cursor: Cursor) -> String {
+        self.handle.lock().await.scan(cursor)
+    }
     
     pub async fn place_point_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
         self.handle.lock().await.place_point_marks(cursors)

@@ -129,6 +129,17 @@ impl TextBuffer {
             }
         }
     }
+
+    /// Scans the grapheme at the cursor provided.
+    pub fn scan(&self, cursor: Cursor) -> String {
+        let line = self.buffer.line(cursor.line());
+        for (i, grapheme) in (0..=cursor.column()).zip(line.graphemes()) {
+            if i == cursor.column() {
+                return grapheme.to_string();
+            }
+        }
+        unreachable!("It should always be possible to find the right grapheme")
+    }
     
     pub fn place_point_marks(&self, cursors: Vec<Cursor>) -> Vec<Cursor> {
         let mut output: Vec<Cursor> = Vec::with_capacity(cursors.len());

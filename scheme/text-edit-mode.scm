@@ -3,6 +3,7 @@
     text-edit-mode-cursor-down
     text-edit-mode-cursor-left
     text-edit-mode-cursor-right
+    text-edit-mode-cursor-scan
     text-edit-mode-place-point-mark
     text-edit-mode-place-line-mark
     text-edit-mode-place-box-mark
@@ -62,7 +63,11 @@
       'text-edit-mode-cursor-right
       "Moves the cursor at the index right with the possiblity of wrapping at the end"
       (lambda (index wrap) (text-edit-move-cursor-right (current-major-mode) index wrap))
-      'number))
+      'number
+      'boolean))
+
+  (define (text-edit-mode-cursor-scan index)
+    (text-edit-scan-cursor (current-major-mode) index))
 
     (define text-edit-mode-place-point-mark
       (command-create

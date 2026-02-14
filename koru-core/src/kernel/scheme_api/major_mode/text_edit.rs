@@ -48,6 +48,12 @@ impl TextEditData {
         self.internal.lock().await.cursors[index] = new_cursor;
         Ok(())
     }
+    
+    pub async fn scan(&self, cursor: usize) -> Result<String, Exception> {
+        let handle = self.get_buffer_handle().await?;
+        let character = handle.scan(self.internal.lock().await.cursors[cursor]).await;
+        Ok(character)
+    }
 
     pub async fn place_point_mark(&self, index: usize) -> Result<(), Exception> {
         let handle = self.get_buffer_handle().await?;
@@ -292,6 +298,22 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Exception> 
     let cursor_index = cursor_index.try_into()?;
     data.move_cursor(cursor_index, CursorDirection::Right { wrap }).await?;
     Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-scan-cursor", lib = "(text-edit)")]
+pub async fn scan_cursor(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let Some((cursor_index, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let string = data.scan(cursor_index).await?;
+    Ok(vec![Value::from(string)])
 }
 
 #[bridge(name = "text-edit-place-point-mark-at-cursor", lib = "(text-edit)")]
