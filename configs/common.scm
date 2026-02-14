@@ -12,6 +12,14 @@
     editor-cursor-right-keypress
     editor-cursor-right-wrap
     editor-cursor-right-wrap-keypress
+    editor-cursor-line-start
+    editor-cursor-line-start-keypress
+    editor-cursor-line-end
+    editor-cursor-line-end-keypress
+    editor-cursor-buffer-start
+    editor-cursor-buffer-start-keypress
+    editor-cursor-buffer-end
+    editor-cursor-buffer-end-keypress
     editor-cursor-add-above
     editor-cursor-add-above-keypress
     editor-cursor-add-below
@@ -119,7 +127,7 @@
   (define editor-cursor-right
     (command-create
       'editor-cursor-right
-      "Moves the primary cursor right. Takes in a boolean to indicate to wrap or not"
+      "Moves the cursors to the right. Takes in a boolean to indicate to wrap or not"
       (lambda (wrap) (let ((cursor-count (text-edit-mode-cursor-count)))
                        (for i from 0 to (- cursor-count 1)
                          (command-apply text-edit-mode-cursor-right i wrap))))
@@ -138,6 +146,70 @@
       'editor-cursor-right-wrap-keypress
       "Moves the primary cursor right in response to a keypress. The cursor wraps if at the end of the line"
       (lambda (keys) (command-apply editor-cursor-right #t))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-line-start
+    (command-create
+      'editor-cursor-line-start
+      "Moves the cursors to the start of a line"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
+                       (for i from 0 to (- cursor-count 1)
+                         (command-apply text-edit-mode-cursor-line-start i))))))
+
+  (define editor-cursor-line-start-keypress
+    (command-create
+      'editor-cursor-line-start-keypress
+      "Moves the cursors to the start of a line in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-line-start))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-line-end
+    (command-create
+      'editor-cursor-line-end
+      "Moves the cursors to the end of a line"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
+                   (for i from 0 to (- cursor-count 1)
+                     (command-apply text-edit-mode-cursor-line-end i))))))
+
+  (define editor-cursor-line-end-keypress
+    (command-create
+      'editor-cursor-line-end-keypress
+      "Moves the cursors to the start of a line in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-line-end))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-buffer-start
+    (command-create
+      'editor-cursor-buffer-start
+      "Moves the cursors to the start of the buffer"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
+                   (for i from 0 to (- cursor-count 1)
+                     (command-apply text-edit-mode-cursor-buffer-start i))))))
+
+  (define editor-cursor-buffer-start-keypress
+    (command-create
+      'editor-cursor-buffer-start-keypress
+      "Moves the cursors to the start of the buffer in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-buffer-start))
+      #t
+      'key-sequence))
+
+  (define editor-cursor-buffer-end
+    (command-create
+      'editor-cursor-buffer-end
+      "Moves the cursors to the end of the buffer"
+      (lambda () (let ((cursor-count (text-edit-mode-cursor-count)))
+                   (for i from 0 to (- cursor-count 1)
+                     (command-apply text-edit-mode-cursor-buffer-end i))))))
+
+  (define editor-cursor-buffer-end-keypress
+    (command-create
+      'editor-cursor-libufferne-end-keypress
+      "Moves the cursors to the end of the buffer in response to a keypress"
+      (lambda (keys) (command-apply editor-cursor-buffer-end))
       #t
       'key-sequence))
 

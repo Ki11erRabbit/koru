@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::io::{ErrorKind, SeekFrom};
 use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
@@ -56,10 +57,12 @@ impl TextBuffer {
         self.buffer.clone()
     }
 
-    pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
+
+    /// Pred returns false if we should terminate and true if we should loop on a given grapheme.
+    pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception> + Clone) -> Result<Vec<Cursor>, Exception> {
         let mut new_cursors = Vec::with_capacity(cursors.len());
         for cursor in cursors {
-            let cursor = self.move_cursor(cursor, direction);
+            let cursor = self.move_cursor(cursor, direction, pred.clone())?;
             new_cursors.push(cursor);
         }
         let mut index = 1;
@@ -80,52 +83,108 @@ impl TextBuffer {
             }
             index += 1;
         }
-        new_cursors
+        Ok(new_cursors)
     }
 
-    pub fn move_cursor(&self, mut cursor: Cursor, direction: CursorDirection) -> Cursor {
+    /// Pred returns false if we should terminate and true if we should loop on a given grapheme.
+    pub fn move_cursor(&self, mut cursor: Cursor, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception>) -> Result<Cursor, Exception> {
+        let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
         match direction {
             CursorDirection::Left { wrap } => {
-                let at_line_start = cursor.at_line_start();
-                if at_line_start && wrap && cursor.line() != 0 {
-                    let Some((_, length, end)) = self.buffer.previous_line_information(cursor.line()) else {
-                        if cursor.is_main() {
-                            return cursor;
-                        }
-                        return cursor;
-                    };
-                    cursor.move_up(&self.buffer);
-                    cursor.set_column(length);
-                } else if !at_line_start {
-                    cursor.move_left(self.buffer.line_length(cursor.line()));
+                loop  {
+                    let at_line_start = cursor.at_line_start();
+                    if at_line_start && wrap && cursor.line() != 0 {
+                        let Some((_, length, end)) = self.buffer.previous_line_information(cursor.line()) else {
+                            if cursor.is_main() {
+                                return Ok(cursor);
+                            }
+                            return Ok(cursor);
+                        };
+                        cursor.move_up(&self.buffer);
+                        cursor.set_column(length);
+                    } else if !at_line_start {
+                        cursor.move_left(self.buffer.line_length(cursor.line()));
+                    }
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
+                    if !pred(&char)? {
+                        break;
+                    }
                 }
-                cursor
+                Ok(cursor)
             }
             CursorDirection::Right {
                 wrap,
             } => {
-                let at_line_end = cursor.at_line_end(&self.buffer);
-                if at_line_end && wrap {
-                    cursor.move_down(&self.buffer);
-                    let Some((start, _, _)) = self.buffer.previous_line_information(cursor.line()) else {
-                        if cursor.is_main() {
-                            return cursor;
-                        }
-                        return cursor;
-                    };
-                    cursor.set_column(0);
-                } else if !at_line_end {
-                    cursor.move_right(self.buffer.line_length(cursor.line()));
+                loop {
+                    let at_line_end = cursor.at_line_end(&self.buffer);
+                    if at_line_end && wrap {
+                        cursor.move_down(&self.buffer);
+                        let Some((start, _, _)) = self.buffer.previous_line_information(cursor.line()) else {
+                            if cursor.is_main() {
+                                return Ok(cursor);
+                            }
+                            return Ok(cursor);
+                        };
+                        cursor.set_column(0);
+                    } else if !at_line_end {
+                        cursor.move_right(self.buffer.line_length(cursor.line()));
+                    }
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
+                    if !pred(&char)? {
+                        break;
+                    }
                 }
-                cursor
+                Ok(cursor)
             }
             CursorDirection::Up => {
-                cursor.move_up(&self.buffer);
-                cursor
+                loop {
+                    cursor.move_up(&self.buffer);
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
+                    if !pred(&char)? {
+                        break;
+                    }
+                }
+                Ok(cursor)
             }
             CursorDirection::Down => {
-                cursor.move_down(&self.buffer);
-                cursor
+                loop {
+                    cursor.move_down(&self.buffer);
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap_or(Cow::Borrowed("\n"));
+                    if !pred(&char)? {
+                        break;
+                    }
+                }
+                Ok(cursor)
+            }
+            CursorDirection::LineStart => {
+                while cursor.column() != 0 {
+                    cursor.move_left(self.buffer.line_length(cursor.line()));
+                }
+                Ok(cursor)
+            }
+            CursorDirection::LineEnd => {
+                while cursor.column() != self.buffer.line_length(cursor.line()) {
+                    cursor.move_right(self.buffer.line_length(cursor.line()));
+                }
+                Ok(cursor)
+            }
+            CursorDirection::BufferStart => {
+                while cursor.column() != 0 {
+                    cursor.move_left(self.buffer.line_length(cursor.line()));
+                }
+                while cursor.line() != 0 {
+                    cursor.move_up(&self.buffer);
+                }
+                Ok(cursor)
+            }
+            CursorDirection::BufferEnd => {
+                while cursor.line() < self.buffer.line_len() - 1 {
+                    cursor.move_down(&self.buffer);
+                }
+                while cursor.column() != self.buffer.line_length(cursor.line()) {
+                    cursor.move_right(self.buffer.line_length(cursor.line()));
+                }
+                Ok(cursor)
             }
         }
     }
@@ -225,7 +284,7 @@ impl TextBuffer {
         byte_offset
     }
 
-    fn insert_text(&mut self, byte_offset: usize, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    fn insert_text(&mut self, byte_offset: usize, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         let mut new_cursors = Vec::with_capacity(cursors.len());
         let mut text_after_newline = 0;
         let mut newline_count = 0;
@@ -247,35 +306,35 @@ impl TextBuffer {
             } else if editor_cursor.line() == cursor.line() {
                 let mut cursor = cursor;
                 for _ in 0..newline_count {
-                    cursor = self.move_cursor(cursor, CursorDirection::Down);
+                    cursor = self.move_cursor(cursor, CursorDirection::Down, |_| Ok(false))?;
                     cursor.set_column(0);
                 }
                 for _ in 0..text_after_newline {
-                    cursor = self.move_cursor(cursor, CursorDirection::Right { wrap: false });
+                    cursor = self.move_cursor(cursor, CursorDirection::Right { wrap: false }, |_| Ok(false))?;
                 }
                 new_cursors.push(cursor);
             } else {
                 let mut cursor = cursor;
                 for _ in 0..newline_count {
-                    cursor = self.move_cursor(cursor, CursorDirection::Down);
+                    cursor = self.move_cursor(cursor, CursorDirection::Down, |_| Ok(false))?;
                 }
                 new_cursors.push(cursor);
             }
         }
-        new_cursors
+        Ok(new_cursors)
     }
 
 
-    pub async fn insert(&mut self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor>  {
+    pub async fn insert(&mut self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception>  {
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
 
-        let new_cursors = self.insert_text(byte_offset, &text, cursor_index, cursors);
+        let new_cursors = self.insert_text(byte_offset, &text, cursor_index, cursors)?;
 
         self.undo_tree.insert(byte_offset, text.clone()).await;
-        new_cursors
+        Ok(new_cursors)
     }
 
-    pub async fn delete_back(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn delete_back(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
         let line = self.buffer.line(cursors[cursor_index].line());
         let extra_bytes = if cursors[cursor_index].line() != 0 && cursors[cursor_index].at_line_start() {
@@ -291,18 +350,18 @@ impl TextBuffer {
 
         let text = self.buffer.byte_slice(character_offset..byte_offset);
         let text = text.to_string();
-        let replacement_cursor = self.move_cursor(cursors[cursor_index], CursorDirection::Left { wrap: true });
+        let replacement_cursor = self.move_cursor(cursors[cursor_index], CursorDirection::Left { wrap: true }, |_| Ok(false))?;
         self.buffer.delete(character_offset..byte_offset);
 
-        let mut new_cursors = self.delete_text(&text, cursor_index, cursors);
+        let mut new_cursors = self.delete_text(&text, cursor_index, cursors)?;
 
         new_cursors[cursor_index] = replacement_cursor;
 
         self.undo_tree.delete(character_offset, text).await;
-        new_cursors
+        Ok(new_cursors)
     }
 
-    pub async fn delete_forward(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn delete_forward(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
         let line_no = cursors[cursor_index].line();
         let line = self.buffer.line_slice(line_no..(line_no + 1));
@@ -318,20 +377,20 @@ impl TextBuffer {
         let text = text.to_string();
         self.buffer.delete(range);
 
-        let new_cursors = self.delete_text(&text, cursor_index, cursors);
+        let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
 
         self.undo_tree.delete(byte_offset, text).await;
-        new_cursors
+        Ok(new_cursors)
     }
 
     // Refactored delete_region function for TextBuffer
     // This handles Point, Line, Box, and File mark types
 
-    pub async fn delete_region(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn delete_region(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         use crate::kernel::buffer::cursor::CursorMark;
 
         if !cursors[cursor_index].is_mark_set() {
-            return cursors;
+            return Ok(cursors);
         }
 
         let cursor = &cursors[cursor_index];
@@ -360,7 +419,6 @@ impl TextBuffer {
                 self.undo_tree.delete(start, text).await;
                 new_cursors
             }
-
             CursorMark::Line => {
                 // Line selection: delete entire lines from min to max line (inclusive)
                 let (min_line, max_line) = if cursor_line <= mark_line {
@@ -385,11 +443,10 @@ impl TextBuffer {
                 let text = text.to_string();
                 self.buffer.delete(start_offset..range_end);
 
-                let new_cursors = self.delete_text(&text, cursor_index, cursors);
+                let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
                 self.undo_tree.delete(start_offset, text).await;
-                new_cursors
+                Ok(new_cursors)
             }
-
             CursorMark::Box => {
                 // Box selection: delete rectangular region
                 // For proper undo/redo, we need to track each line's deletion separately
@@ -445,26 +502,24 @@ impl TextBuffer {
                 let new_cursors = self.delete_text(&total_deleted, cursor_index, cursors);
                 new_cursors
             }
-
             CursorMark::File => {
                 // File selection: delete entire buffer
                 let text = self.buffer.to_string();
                 let len = self.buffer.byte_len();
                 self.buffer.delete(0..len);
 
-                let new_cursors = self.delete_text(&text, cursor_index, cursors);
+                let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
                 self.undo_tree.delete(0, text).await;
-                new_cursors
+                Ok(new_cursors)
             }
-
             CursorMark::None => {
                 // No mark set, return cursors unchanged
-                cursors
+                Ok(cursors)
             }
         }
     }
 
-    fn delete_text(&mut self, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    fn delete_text(&mut self, text: &str, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         let mut new_cursors = Vec::with_capacity(cursors.len());
         let mut newline_count = 0;
         let mut text_after_newline = 0;
@@ -486,7 +541,7 @@ impl TextBuffer {
                 let mut cursor = cursor;
                 let mut change_column = false;
                 for _ in 0..newline_count {
-                    cursor = self.move_cursor(cursor, CursorDirection::Up);
+                    cursor = self.move_cursor(cursor, CursorDirection::Up, |_| Ok(false))?;
                     change_column = true;
                 }
                 if change_column {
@@ -494,21 +549,21 @@ impl TextBuffer {
                     cursor.set_column(line_len.saturating_sub(cursor.column()));
                 }
                 if cursor.column() > editor_cursor.column() {
-                    cursor = self.move_cursor(cursor, CursorDirection::Left { wrap: false });
+                    cursor = self.move_cursor(cursor, CursorDirection::Left { wrap: false }, |_| Ok(false))?;
                 }
                 new_cursors.push(cursor);
             } else {
                 let mut cursor = cursor;
                 for _ in 0..newline_count {
-                    cursor = self.move_cursor(cursor, CursorDirection::Up);
+                    cursor = self.move_cursor(cursor, CursorDirection::Up, |_| Ok(false))?;
                 }
                 new_cursors.push(cursor);
             }
         }
-        new_cursors
+        Ok(new_cursors)
     }
 
-    pub async fn replace(&mut self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor>  {
+    pub async fn replace(&mut self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception>  {
         if cursors[cursor_index].is_mark_set() {
             let mark_offset = self.calculate_byte_offset(cursors[cursor_index].mark_line().unwrap(), cursors[cursor_index].mark_column().unwrap());
             let cursor_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
@@ -522,7 +577,7 @@ impl TextBuffer {
             let old_text = old_text.to_string();
             self.buffer.delete(mark_offset..cursor_offset);
 
-            let cursors = self.delete_text(&old_text, cursor_index, cursors);
+            let cursors = self.delete_text(&old_text, cursor_index, cursors)?;
             let cursors = self.insert_text(start, &text, cursor_index, cursors);
 
             self.undo_tree.replace(start - 1, old_text, text).await;
@@ -541,7 +596,7 @@ impl TextBuffer {
             let old_text = self.buffer.byte_slice(range.clone());
             let old_text = old_text.to_string();
 
-            let cursors = self.delete_text(&old_text, cursor_index, cursors);
+            let cursors = self.delete_text(&old_text, cursor_index, cursors)?;
             let cursors = self.insert_text(byte_offset, &old_text, cursor_index, cursors);
 
             self.undo_tree.replace(byte_offset - 1, old_text, text).await;

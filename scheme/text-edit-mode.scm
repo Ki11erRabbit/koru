@@ -3,6 +3,14 @@
     text-edit-mode-cursor-down
     text-edit-mode-cursor-left
     text-edit-mode-cursor-right
+    text-edit-mode-cursor-up-predicate
+    text-edit-mode-cursor-down-predicate
+    text-edit-mode-cursor-left-predicate
+    text-edit-mode-cursor-right-predicate
+    text-edit-mode-cursor-line-start
+    text-edit-mode-cursor-line-end
+    text-edit-mode-cursor-buffer-start
+    text-edit-mode-cursor-buffer-end
     text-edit-mode-cursor-scan
     text-edit-mode-place-point-mark
     text-edit-mode-place-line-mark
@@ -65,6 +73,46 @@
       (lambda (index wrap) (text-edit-move-cursor-right (current-major-mode) index wrap))
       'number
       'boolean))
+
+  (define (text-edit-mode-cursor-up-predicate index pred)
+    (text-edit-move-cursor-up-predicate (current-major-mode) index pred))
+
+  (define (text-edit-mode-cursor-down-predicate index pred)
+    (text-edit-move-cursor-down-predicate (current-major-mode) index pred))
+
+  (define (text-edit-mode-cursor-left-predicate index wrap pred)
+    (text-edit-move-cursor-left-predicate (current-major-mode) index wrap pred))
+
+  (define (text-edit-mode-cursor-right-predicate index wrap pred)
+    (text-edit-move-cursor-right-predicate (current-major-mode) index wrap pred))
+
+  (define text-edit-mode-cursor-line-start
+    (command-create
+      'text-edit-mode-cursor-line-start
+      "Moves the cursor to the start of the line"
+      (lambda (index) (text-edit-move-cursor-line-start (current-major-mode) index))
+      'number))
+
+  (define text-edit-mode-cursor-line-end
+    (command-create
+      'text-edit-mode-cursor-line-end
+      "Moves the cursor to the end of the line"
+      (lambda (index) (text-edit-move-cursor-line-end (current-major-mode) index))
+      'number))
+
+  (define text-edit-mode-cursor-buffer-start
+    (command-create
+      'text-edit-mode-cursor-buffer-start
+      "Moves the cursor to the start of the buffer"
+      (lambda (index) (text-edit-move-cursor-buffer-start (current-major-mode) index))
+      'number))
+
+  (define text-edit-mode-cursor-buffer-end
+    (command-create
+      'text-edit-mode-cursor-buffer-end
+      "Moves the cursor to the end of the buffer"
+      (lambda (index) (text-edit-move-cursor-buffer-end (current-major-mode) index))
+      'number))
 
   (define (text-edit-mode-cursor-scan index)
     (text-edit-scan-cursor (current-major-mode) index))

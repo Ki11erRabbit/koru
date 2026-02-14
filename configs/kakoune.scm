@@ -266,6 +266,42 @@
       #t
       'key-sequence))
 
+  (define kak-select-line
+    (command-create
+      'kak-select-line
+      "Makes each cursor select the line they are on"
+      (lambda () (when (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index))
+                   (command-apply editor-remove-mark))
+                 (command-apply editor-cursor-line-start)
+                 (command-apply editor-place-point-mark)
+                 (command-apply editor-cursor-line-end))))
+
+  (define kak-select-line-keypress
+    (command-create
+      'kak-select-line-keypress
+      "Makes each cursor select the line they are on. Takes a keypress."
+      (lambda (keys) (command-apply kak-select-line))
+      #t
+      'key-sequence))
+
+  (define kak-select-buffer
+    (command-create
+      'kak-select-buffer
+      "Makes each cursor select the line they are on"
+      (lambda () (when (text-edit-mode-is-mark-set? (text-edit-mode-main-cursor-index))
+                   (command-apply editor-remove-mark))
+                 (command-apply editor-cursor-buffer-start)
+                 (command-apply editor-place-point-mark)
+                 (command-apply editor-cursor-buffer-end))))
+
+  (define kak-select-buffer-keypress
+    (command-create
+      'kak-select-buffer-keypress
+      "Makes each cursor select the whole buffer. Takes a keypress."
+      (lambda (keys) (command-apply kak-select-buffer))
+      #t
+      'key-sequence))
+
   (define kak-stop-selection
     (command-create
       'kak-stop-selection
@@ -305,6 +341,8 @@
       (key-map-insert kakoune-key-map "u" editor-undo-keypress)
       (key-map-insert kakoune-key-map "U" editor-redo-keypress)
       (key-map-insert kakoune-key-map "C-c" editor-cursor-add-below-keypress)
+      (key-map-insert kakoune-key-map "x" kak-select-line-keypress)
+      (key-map-insert kakoune-key-map "%" kak-select-buffer-keypress)
       kakoune-key-map))
 
 
