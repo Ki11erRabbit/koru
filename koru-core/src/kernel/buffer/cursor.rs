@@ -61,9 +61,9 @@ pub struct Cursor {
     /// This cursor will be aligned to a line
     real_cursor: GridCursor,
     /// This is where the mark is currently located
-    mark: Option<GridCursor>,
+    pub mark: Option<GridCursor>,
     /// The state that the mark is currently in
-    mark_state: CursorMark,
+    pub mark_state: CursorMark,
     main_cursor: bool,
 }
 
@@ -227,6 +227,50 @@ impl Cursor {
 
     pub fn set_main(&mut self) {
         self.main_cursor = true;
+    }
+
+    /// This function checks if the provided col and row are at the end of a mark.
+    pub fn is_mark_active(&self, col: usize, row: usize) -> bool {
+        match self.mark_state {
+            CursorMark::None => false,
+            CursorMark::Point | CursorMark::Box => {
+                if let Some(mark) = self.mark {
+                    mark.column == col && mark.line == row
+                } else {
+                    false
+                }
+            }
+            CursorMark::Line => {
+                if let Some(mark) = self.mark {
+                    mark.line == row
+                } else {
+                    false
+                }
+            }
+            CursorMark::File => {
+                true
+            }
+        }
+    }
+
+    /// This function checks if the provided col and row are at the start of a mark.
+    pub fn is_point_active(&self, col: usize, row: usize) -> bool {
+        match self.mark_state {
+            CursorMark::None => false,
+            CursorMark::Point | CursorMark::Box => {
+                self.real_cursor.column == col && self.real_cursor.line == row
+            }
+            CursorMark::Line => {
+                self.real_cursor.line == row
+            }
+            CursorMark::File => {
+                self.real_cursor.line == row && self.real_cursor.column == col
+            }
+        }
+    }
+
+    pub fn at_cursor(&self, col: usize, row: usize) -> bool {
+        self.real_cursor.column == col && self.real_cursor.line == row
     }
 }
 

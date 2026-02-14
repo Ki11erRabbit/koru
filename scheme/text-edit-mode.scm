@@ -4,6 +4,8 @@
     text-edit-mode-cursor-left
     text-edit-mode-cursor-right
     text-edit-mode-place-point-mark
+    text-edit-mode-place-line-mark
+    text-edit-mode-place-box-mark
     text-edit-mode-remove-mark
     text-edit-mode-cursor-create
     text-edit-mode-cursor-destroy
@@ -67,6 +69,20 @@
         "Places a point mark at the position of the cursor indicated by the index"
         (lambda (index) (text-edit-place-point-mark-at-cursor (current-major-mode) index))
         'number))
+
+  (define text-edit-mode-place-line-mark
+    (command-create
+      'text-edit-mode-place-line-mark
+      "Places a line mark at the position of the cursor indicated by the index"
+      (lambda (index) (text-edit-place-line-mark-at-cursor (current-major-mode) index))
+      'number))
+
+  (define text-edit-mode-place-box-mark
+    (command-create
+      'text-edit-mode-place-box-mark
+      "Places a box mark at the position of the cursor indicated by the index"
+      (lambda (index) (text-edit-place-box-mark-at-cursor (current-major-mode) index))
+      'number))
 
     (define text-edit-mode-remove-mark
       (command-create

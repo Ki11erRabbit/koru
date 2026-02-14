@@ -135,6 +135,26 @@
       #t
       'key-sequence))
 
+  (define vi-enter-visual-box-keypress
+    (command-create
+      'vi-enter-visual
+      "Enters into visual mode"
+      (lambda (keys)
+        (command-apply text-edit-mode-place-box-mark 0)
+        (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
+      #t
+      'key-sequence))
+
+  (define vi-enter-visual-line-keypress
+    (command-create
+      'vi-enter-visual
+      "Enters into visual mode"
+      (lambda (keys)
+        (command-apply text-edit-mode-place-line-mark 0)
+        (vi-state-set! (minor-mode-get 'vi-mode) 'Visual))
+      #t
+      'key-sequence))
+
   (define vi-enter-command-keypress
     (command-create
       'vi-enter-command
@@ -161,6 +181,8 @@
       (key-map-insert vi-key-map "l" editor-cursor-right-keypress)
       (key-map-insert vi-key-map "i" vi-enter-insert-keypress)
       (key-map-insert vi-key-map "v" vi-enter-visual-keypress)
+      (key-map-insert vi-key-map "V" vi-enter-visual-line-keypress)
+      (key-map-insert vi-key-map "C-v" vi-enter-visual-box-keypress)
       (key-map-insert vi-key-map ":" vi-enter-command-keypress)
       (key-map-insert vi-key-map "u" editor-undo-keypress)
       (key-map-insert vi-key-map "C-r" editor-redo-keypress)
