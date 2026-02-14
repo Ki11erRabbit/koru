@@ -112,12 +112,12 @@ impl BufferHandle {
         self.handle.lock().await.get_name()
     }
     
-    pub async fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection) -> Vec<Cursor> {
-        self.handle.lock().await.move_cursors(cursors, direction)
+    pub async fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception> + Clone) -> Result<Vec<Cursor>, Exception> {
+        self.handle.lock().await.move_cursors(cursors, direction, pred)
     }
 
-    pub async fn move_cursor(&self, cursor: Cursor, direction: CursorDirection) -> Cursor {
-        self.handle.lock().await.move_cursor(cursor, direction)
+    pub async fn move_cursor(&self, cursor: Cursor, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception>) -> Result<Cursor, Exception> {
+        self.handle.lock().await.move_cursor(cursor, direction, pred)
     }
 
     pub async fn scan(&self, cursor: Cursor) -> String {
@@ -159,23 +159,23 @@ impl BufferHandle {
         self.handle.lock().await.remove_mark(cursor)
     }
 
-    pub async fn insert(&self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn insert(&self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         self.handle.lock().await.insert(text, cursor_index, cursors).await
     }
 
-    pub async fn delete_back(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn delete_back(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         self.handle.lock().await.delete_back(cursor_index, cursors).await
     }
 
-    pub async fn delete_forward(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn delete_forward(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         self.handle.lock().await.delete_forward(cursor_index, cursors).await
     }
 
-    pub async fn delete_region(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn delete_region(&self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         self.handle.lock().await.delete_region(cursor_index, cursors).await
     }
 
-    pub async fn replace(&self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Vec<Cursor> {
+    pub async fn replace(&self, text: String, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         self.handle.lock().await.replace(text, cursor_index, cursors).await
     }
     

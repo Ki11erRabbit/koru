@@ -3,6 +3,7 @@ use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::{Gc, Trace};
 use scheme_rs::lists::Pair;
 use scheme_rs::num::SimpleNumber;
+use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::value::{UnpackedValue, Value};
@@ -42,9 +43,9 @@ impl TextEditData {
         let handle = buffer.get_handle();
         Ok(handle)
     }
-    pub async fn move_cursor(&self, index: usize, direction: CursorDirection) -> Result<(), Exception> {
+    pub async fn move_cursor(&self, index: usize, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception>) -> Result<(), Exception> {
         let handle = self.get_buffer_handle().await?;
-        let new_cursor = handle.move_cursor(self.internal.lock().await.cursors[index], direction).await;
+        let new_cursor = handle.move_cursor(self.internal.lock().await.cursors[index], direction, pred).await?;
         self.internal.lock().await.cursors[index] = new_cursor;
         Ok(())
     }
@@ -240,7 +241,7 @@ pub async fn move_cursor_up(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::Up).await?;
+    data.move_cursor(cursor_index, CursorDirection::Up, |_| Ok(false)).await?;
     Ok(Vec::new())
 }
 
@@ -256,7 +257,7 @@ pub async fn move_cursor_down(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::Down).await?;
+    data.move_cursor(cursor_index, CursorDirection::Down, |_| Ok(false)).await?;
     Ok(Vec::new())
 }
 
@@ -276,7 +277,7 @@ pub async fn move_cursor_left(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::Left { wrap }).await?;
+    data.move_cursor(cursor_index, CursorDirection::Left { wrap }, |_| Ok(false)).await?;
     Ok(Vec::new())
 }
 
@@ -296,7 +297,127 @@ pub async fn move_cursor_right(args: &[Value]) -> Result<Vec<Value>, Exception> 
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::Right { wrap }).await?;
+    data.move_cursor(cursor_index, CursorDirection::Right { wrap }, |_| Ok(false)).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-move-cursor-up-predicate", lib = "(text-edit)")]
+pub async fn move_cursor_up_pred(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()))
+    };
+    let Some((cursor_index, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()))
+    };
+    let Some((pred, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()))
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let pred: Procedure = pred.try_into()?;
+    let pred = |text: &str| {
+        let pred = pred.clone();
+        let text = text.to_string();
+        let boolean = pred.call_sync(&[Value::from(text)])?;
+        let boolean = boolean[0].clone();
+        let boolean: bool = boolean.try_into()?;
+        Ok(boolean)
+    };
+    data.move_cursor(cursor_index, CursorDirection::Up, pred).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-move-cursor-down-predicate", lib = "(text-edit)")]
+pub async fn move_cursor_down_pred(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()))
+    };
+    let Some((cursor_index, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()))
+    };
+    let Some((pred, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(3, args.len()))
+    };
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let pred: Procedure = pred.try_into()?;
+    let pred = |text: &str| {
+        let pred = pred.clone();
+        let text = text.to_string();
+        let boolean = pred.call_sync(&[Value::from(text)])?;
+        let boolean = boolean[0].clone();
+        let boolean: bool = boolean.try_into()?;
+        Ok(boolean)
+    };
+    data.move_cursor(cursor_index, CursorDirection::Down, pred).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-move-cursor-left-predicate", lib = "(text-edit)")]
+pub async fn move_cursor_left_pred(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()))
+    };
+    let Some((cursor_index, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()))
+    };
+    let Some((wrap, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let Some((pred, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let wrap: bool = wrap.clone().try_into()?;
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let pred: Procedure = pred.try_into()?;
+    let pred = |text: &str| {
+        let pred = pred.clone();
+        let text = text.to_string();
+        let boolean = pred.call_sync(&[Value::from(text)])?;
+        let boolean = boolean[0].clone();
+        let boolean: bool = boolean.try_into()?;
+        Ok(boolean)
+    };
+    data.move_cursor(cursor_index, CursorDirection::Left { wrap }, pred).await?;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "text-edit-move-cursor-right-predicate", lib = "(text-edit)")]
+pub async fn move_cursor_right_pred(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((major_mode, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()))
+    };
+    let Some((cursor_index, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()))
+    };
+    let Some((wrap, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let Some((pred, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let wrap: bool = wrap.clone().try_into()?;
+    let major_mode: Gc<MajorMode> = major_mode.clone().try_to_rust_type()?;
+    let data = get_data(&major_mode).await?;
+    let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
+    let cursor_index = cursor_index.try_into()?;
+    let pred: Procedure = pred.try_into()?;
+    let pred = |text: &str| {
+        let pred = pred.clone();
+        let text = text.to_string();
+        let boolean = pred.call_sync(&[Value::from(text)])?;
+        let boolean = boolean[0].clone();
+        let boolean: bool = boolean.try_into()?;
+        Ok(boolean)
+    };
+    data.move_cursor(cursor_index, CursorDirection::Right { wrap }, pred).await?;
     Ok(Vec::new())
 }
 
@@ -312,10 +433,9 @@ pub async fn move_cursor_line_start(args: &[Value]) -> Result<Vec<Value>, Except
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::LineStart).await?;
+    data.move_cursor(cursor_index, CursorDirection::LineStart, |_| Ok(false)).await?;
     Ok(Vec::new())
 }
-
 
 #[bridge(name = "text-edit-move-cursor-line-end", lib = "(text-edit)")]
 pub async fn move_cursor_line_end(args: &[Value]) -> Result<Vec<Value>, Exception> {
@@ -329,7 +449,7 @@ pub async fn move_cursor_line_end(args: &[Value]) -> Result<Vec<Value>, Exceptio
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::LineEnd).await?;
+    data.move_cursor(cursor_index, CursorDirection::LineEnd, |_| Ok(false)).await?;
     Ok(Vec::new())
 }
 
@@ -345,7 +465,7 @@ pub async fn move_cursor_buffer_start(args: &[Value]) -> Result<Vec<Value>, Exce
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::BufferStart).await?;
+    data.move_cursor(cursor_index, CursorDirection::BufferStart, |_| Ok(false)).await?;
     Ok(Vec::new())
 }
 
@@ -361,7 +481,7 @@ pub async fn move_cursor_buffer_end(args: &[Value]) -> Result<Vec<Value>, Except
     let data = get_data(&major_mode).await?;
     let cursor_index: SimpleNumber = cursor_index.clone().try_into()?;
     let cursor_index = cursor_index.try_into()?;
-    data.move_cursor(cursor_index, CursorDirection::BufferEnd).await?;
+    data.move_cursor(cursor_index, CursorDirection::BufferEnd, |_| Ok(false)).await?;
     Ok(Vec::new())
 }
 
@@ -606,7 +726,7 @@ pub async fn insert_text_at_cursor(
     let data = get_data(&major_mode).await?;
     let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    let new_cursors = handle.insert(text, cursor_index, cursors).await;
+    let new_cursors = handle.insert(text, cursor_index, cursors).await?;
     data.set_cursors(new_cursors).await;
     Ok(())
 }
@@ -661,7 +781,7 @@ pub async fn delete_text_back(args: &[Value]) -> Result<Vec<Value>, Exception> {
     let data = get_data(&major_mode).await?;
     let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    let new_cursors = handle.delete_back(cursor_index, cursors).await;
+    let new_cursors = handle.delete_back(cursor_index, cursors).await?;
     data.set_cursors(new_cursors).await;
     Ok(Vec::new())
 }
@@ -681,7 +801,7 @@ pub async fn delete_text_forward(args: &[Value]) -> Result<Vec<Value>, Exception
     let data = get_data(&major_mode).await?;
     let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    let new_cursors = handle.delete_forward(cursor_index, cursors).await;
+    let new_cursors = handle.delete_forward(cursor_index, cursors).await?;
     data.set_cursors(new_cursors).await;
     Ok(Vec::new())
 }
@@ -701,7 +821,7 @@ pub async fn delete_text_region(args: &[Value]) -> Result<Vec<Value>, Exception>
     let data = get_data(&major_mode).await?;
     let cursors = data.get_cursors().await;
     let handle: BufferHandle = data.get_buffer_handle().await?;
-    let new_cursors = handle.delete_region(cursor_index, cursors).await;
+    let new_cursors = handle.delete_region(cursor_index, cursors).await?;
     data.set_cursors(new_cursors).await;
     Ok(Vec::new())
 }
@@ -727,7 +847,7 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Exception> {
             let data = get_data(&major_mode).await?;
             let cursors = data.get_cursors().await;
             let handle: BufferHandle = data.get_buffer_handle().await?;
-            let new_cursors = handle.replace(text, cursor_index, cursors).await;
+            let new_cursors = handle.replace(text, cursor_index, cursors).await?;
             data.set_cursors(new_cursors).await;
             return Ok(Vec::new());
         }
@@ -739,7 +859,7 @@ pub async fn replace_text(args: &[Value]) -> Result<Vec<Value>, Exception> {
             let data = get_data(&major_mode).await?;
             let cursors = data.get_cursors().await;
             let handle: BufferHandle = data.get_buffer_handle().await?;
-            let new_cursors = handle.replace(letter.to_string(), cursor_index, cursors).await;
+            let new_cursors = handle.replace(letter.to_string(), cursor_index, cursors).await?;
             data.set_cursors(new_cursors).await;
             Ok(Vec::new())
         }
