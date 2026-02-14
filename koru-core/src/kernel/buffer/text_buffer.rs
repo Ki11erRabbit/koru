@@ -178,7 +178,7 @@ impl TextBuffer {
                 Ok(cursor)
             }
             CursorDirection::BufferEnd => {
-                while cursor.line() != self.buffer.line_len() {
+                while cursor.line() < self.buffer.line_len() - 1 {
                     cursor.move_down(&self.buffer);
                 }
                 while cursor.column() != self.buffer.line_length(cursor.line()) {
