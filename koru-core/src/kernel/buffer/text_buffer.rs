@@ -87,12 +87,10 @@ impl TextBuffer {
 
     /// Pred returns false if we should terminate and true if we should loop on a given grapheme.
     pub fn move_cursor(&self, mut cursor: Cursor, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception>) -> Result<Cursor, Exception> {
-        let mut looped_once = false;
+        let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
         match direction {
             CursorDirection::Left { wrap } => {
-                let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
-                while !looped_once || pred(&char)? {
-                    looped_once = true;
+                loop  {
                     let at_line_start = cursor.at_line_start();
                     if at_line_start && wrap && cursor.line() != 0 {
                         let Some((_, length, end)) = self.buffer.previous_line_information(cursor.line()) else {
@@ -106,16 +104,17 @@ impl TextBuffer {
                     } else if !at_line_start {
                         cursor.move_left(self.buffer.line_length(cursor.line()));
                     }
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    if !pred(&char)? {
+                        break;
+                    }
                 }
                 Ok(cursor)
             }
             CursorDirection::Right {
                 wrap,
             } => {
-                let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
-                while !looped_once || pred(&char)? {
-                    looped_once = true;
+                loop {
                     let at_line_end = cursor.at_line_end(&self.buffer);
                     if at_line_end && wrap {
                         cursor.move_down(&self.buffer);
@@ -129,25 +128,30 @@ impl TextBuffer {
                     } else if !at_line_end {
                         cursor.move_right(self.buffer.line_length(cursor.line()));
                     }
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    if !pred(&char)? {
+                        break;
+                    }
                 }
                 Ok(cursor)
             }
             CursorDirection::Up => {
-                let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
-                while !looped_once || pred(&char)? {
-                    looped_once = true;
+                loop {
                     cursor.move_up(&self.buffer);
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    if !pred(&char)? {
+                        break;
+                    }
                 }
                 Ok(cursor)
             }
             CursorDirection::Down => {
-                let mut char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
-                while !looped_once || pred(&char)? {
-                    looped_once = true;
+                loop {
                     cursor.move_down(&self.buffer);
-                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column() - 1).next().unwrap();
+                    char = self.buffer.line(cursor.line()).graphemes().skip(cursor.column().saturating_sub(1)).next().unwrap();
+                    if !pred(&char)? {
+                        break;
+                    }
                 }
                 Ok(cursor)
             }
