@@ -21,7 +21,7 @@ use keypress_localize::KeyboardRegion;
 use crate::kernel::broker::{BackendMessage, BrokerClient, MessageKind};
 use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress, KeyValue};
-use crate::kernel::scheme_api::command::Command;
+use crate::kernel::scheme_api::command::{Command, CommandTree};
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::minor_mode::MinorMode;
 use crate::kernel::scheme_api::session::keymap::SchemeKeyMap;
@@ -242,6 +242,94 @@ impl SessionState {
             state.read().await.command_bar.clone()
         };
         command_bar
+    }
+
+    /**
+    Reads from a string a command to execute.
+    Then executes the command from the name, doing nothing if the command is not valid.
+    */
+    pub async fn execute_command(command_bar_string: &str) {
+        let mut command_name = String::new();
+        let mut argument = String::new();
+        let mut command_args = Vec::new();
+        let mut completed_command = false;
+        let mut found_escape = false;
+        let mut in_single_quotes = false;
+        let mut in_double_quotes = false;
+        for ch in command_bar_string.chars() {
+            match ch {
+                c if c.is_whitespace() => {
+                    if !completed_command {
+                        completed_command = true;
+                    } else if in_single_quotes || in_double_quotes {
+                        argument.push(ch);
+                    } else if !argument.is_empty() {
+                        command_args.push(argument);
+                        argument = String::new();
+                    }
+                }
+                'n' if found_escape => {
+                    found_escape = false;
+                    argument.push('\n')
+                }
+                't' if found_escape => {
+                    found_escape = false;
+                    argument.push('\t')
+                }
+                '\\' if found_escape => {
+                    found_escape = false;
+                    argument.push('\\');
+                }
+                '"' if found_escape => {
+                    found_escape = false;
+                    argument.push('"');
+                }
+                '\'' if found_escape => {
+                    found_escape = false;
+                    argument.push('\'');
+                }
+                '\\' => {
+                    found_escape = true;
+                }
+                '"' if in_double_quotes => {
+                    in_double_quotes = false;
+                    command_args.push(argument);
+                    argument = String::new();
+                }
+                '\'' if in_single_quotes => {
+                    in_single_quotes = false;
+                    command_args.push(argument);
+                    argument = String::new();
+                }
+                '\'' => {
+                    in_single_quotes = true;
+                }
+                '"' => {
+                    in_double_quotes = true;
+                }
+                c => {
+                    if !completed_command {
+                        command_name.push(c);
+                    } else {
+                        argument.push(c);
+                    }
+                }
+            }
+        }
+
+        let Some(command) = CommandTree::lookup(&command_name).await else {
+            // TODO: send a notification to the user
+            error!("Unknown command: {}", command_name);
+            return;
+        };
+
+        match command.execute(&command_args).await {
+            Err(err) => {
+                error!("{}", err);
+            }
+            _ => {}
+        }
+
     }
 
     pub async fn set_current_buffer(buffer_name: String) {
@@ -1017,6 +1105,13 @@ pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Exception>
         suffix,
     })).await?;
     
+    Ok(Vec::new())
+}
+
+#[bridge(name = "command-execute", lib = "(koru-session)")]
+pub async fn command_bar_execute(string: &Value) -> Result<Vec<Value>, Exception> {
+    let string: String = string.clone().try_into()?;
+    SessionState::execute_command(&string).await;
     Ok(Vec::new())
 }
 

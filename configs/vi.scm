@@ -172,7 +172,7 @@
       "Enters into command mode"
       (lambda (keys)
         (vi-callback-set! (minor-mode-get 'vi-mode)
-          (lambda () (command-bar-take)))
+          (lambda () (command-execute (command-bar-take))))
         (vi-prefix-set! (minor-mode-get 'vi-mode) ":")
         (command-bar-show)
         (command-bar-update (vi-prefix (minor-mode-get 'vi-mode)))

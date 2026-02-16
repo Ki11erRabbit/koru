@@ -131,7 +131,7 @@
       "Enters into command mode"
       (lambda (keys)
         (kakoune-callback-set! (minor-mode-get 'kakoune-mode)
-          (lambda () (command-bar-take)))
+          (lambda () (command-execute (command-bar-take))))
         (kakoune-prefix-set! (minor-mode-get 'kakoune-mode) ":")
         (command-bar-show)
         (command-bar-update (kakoune-prefix (minor-mode-get 'kakoune-mode)))
