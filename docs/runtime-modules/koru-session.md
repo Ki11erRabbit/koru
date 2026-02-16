@@ -478,8 +478,8 @@ This communicates with all sessions that their frontends should update the comma
 (command-bar-update "Enter a command: ")
 ```
 
-### `command-bar-execute`
-Executes the contents of the command bar.
+### `command-execute`
+Executes the contents of a string as a command.
 
 The command name and arguments are derived in this way:
 
@@ -500,5 +500,5 @@ This will execute a command that has been registered globally.
 
 ###### Example
 ```scheme
-(command-bar-update "Enter a command: ")
+(command-bar-execute "edit text.txt")
 ```

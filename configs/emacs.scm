@@ -65,8 +65,9 @@
           (emacs-callback-set!
             emacs-mode
               (lambda ()
-                (command-bar-take)))
+                (command-execute (command-bar-take))))
             (emacs-state-set! emacs-mode 'command)))
+      #t
       'key-sequence))
 
   (define command-insert-text

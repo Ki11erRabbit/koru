@@ -1108,7 +1108,7 @@ pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Exception>
     Ok(Vec::new())
 }
 
-#[bridge(name = "command-bar-execute", lib = "(koru-session)")]
+#[bridge(name = "command-execute", lib = "(koru-session)")]
 pub async fn command_bar_execute(string: &Value) -> Result<Vec<Value>, Exception> {
     let string: String = string.clone().try_into()?;
     SessionState::execute_command(&string).await;
