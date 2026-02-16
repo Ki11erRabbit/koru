@@ -477,3 +477,28 @@ This communicates with all sessions that their frontends should update the comma
 ```scheme
 (command-bar-update "Enter a command: ")
 ```
+
+### `command-bar-execute`
+Executes the contents of the command bar.
+
+The command name and arguments are derived in this way:
+
+Each argument is whitespace delimited, but you can group an argument by single or double quotes.
+The first string is always the command name.
+
+###### Inputs
+command-bar: String, the text to parse.
+
+###### Outputs
+None
+
+###### Errors
+None
+
+###### Behavior
+This will execute a command that has been registered globally.
+
+###### Example
+```scheme
+(command-bar-update "Enter a command: ")
+```
