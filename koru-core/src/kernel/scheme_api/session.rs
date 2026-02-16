@@ -245,10 +245,10 @@ impl SessionState {
     }
 
     /**
-    Reads fom the command bar and parses the bar into a command and arguments.
+    Reads from a string a command to execute.
     Then executes the command from the name, doing nothing if the command is not valid.
     */
-    pub async fn execute_command_bar(command_bar_string: &str) {
+    pub async fn execute_command(command_bar_string: &str) {
         let mut command_name = String::new();
         let mut argument = String::new();
         let mut command_args = Vec::new();
@@ -1111,7 +1111,7 @@ pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Exception>
 #[bridge(name = "command-bar-execute", lib = "(koru-session)")]
 pub async fn command_bar_execute(string: &Value) -> Result<Vec<Value>, Exception> {
     let string: String = string.clone().try_into()?;
-    SessionState::execute_command_bar(&string).await;
+    SessionState::execute_command(&string).await;
     Ok(Vec::new())
 }
 
