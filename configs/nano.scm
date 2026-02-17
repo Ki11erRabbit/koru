@@ -144,7 +144,7 @@
               (command-bar-show)
               (command-bar-update (nano-prefix nano-mode))
               (nano-state-set! nano-mode 'exit))
-            (display "TODO: add function that quits the session\n"))))
+            (command-apply editor-quit))))
       'key-sequence))
 
   (define nano-exit-write-mode-keypress
