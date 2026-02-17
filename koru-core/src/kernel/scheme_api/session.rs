@@ -17,7 +17,9 @@ use scheme_rs::registry::bridge;
 use scheme_rs::symbols::Symbol;
 use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::{RwLock};
+use tokio::task_local;
 use keypress_localize::KeyboardRegion;
+use crate::kernel;
 use crate::kernel::broker::{BackendMessage, BrokerClient, MessageKind};
 use crate::kernel::buffer::{BufferHandle};
 use crate::kernel::input::{KeyBuffer, KeyPress, KeyValue};
@@ -141,6 +143,12 @@ impl CommandBar {
     }
 }
 
+task_local! {
+    pub static CURRENT_SESSION_ID: usize;
+}
+
+
+
 pub struct SessionState {
     buffers: Arc<RwLock<HashMap<String, Buffer>>>,
     hooks: Arc<RwLock<Hooks>>,
@@ -194,6 +202,19 @@ impl SessionState {
             state.read().await.active_sessions.clone()
         };
         active_sessions.write().await.remove(session_id);
+    }
+
+    pub async fn quit_session() {
+        let broker_client = {
+            let state = SessionState::get_state();
+            state.read().await.broker_client.clone()
+        };
+        match broker_client.write().await.send_async(MessageKind::BackEnd(BackendMessage::Quit), CURRENT_SESSION_ID.get()).await {
+            Ok(_) => {}
+            Err(e) => {
+                error!("Failed to send quit message to broker: {}", e);
+            }
+        }
     }
 
     /// This function should only ever be called once.
@@ -583,7 +604,7 @@ impl SessionState {
 
     pub async fn emit_hook(hook_name: Symbol, args: &[Value]) -> Result<(), Exception> {
         let args = args.to_vec();
-        tokio::task::spawn(async move {
+        kernel::session_spawn(CURRENT_SESSION_ID.get(), async move {
             let state = SessionState::get_state();
 
             let hooks = state.read().await.hooks.clone();
@@ -1112,6 +1133,12 @@ pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Exception>
 pub async fn command_bar_execute(string: &Value) -> Result<Vec<Value>, Exception> {
     let string: String = string.clone().try_into()?;
     SessionState::execute_command(&string).await;
+    Ok(Vec::new())
+}
+
+#[bridge(name = "session-quit", lib = "(koru-session)")]
+pub async fn session_quit() -> Result<Vec<Value>, Exception> {
+    SessionState::quit_session().await;
     Ok(Vec::new())
 }
 

@@ -7,6 +7,7 @@ use log::error;
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::attr_set::AttrSet;
+use crate::kernel;
 use crate::kernel::input::KeyPress;
 use crate::kernel::scheme_api::session::SessionState;
 use crate::kernel::session::Session;
@@ -61,6 +62,7 @@ pub enum GeneralMessage {
         body: String,
         suffix: String,
     },
+    Quit,
 }
 
 impl Hash for GeneralMessage {
@@ -89,6 +91,7 @@ pub enum BackendMessage {
         body: String,
         suffix: String,
     },
+    Quit
 }
 
 
@@ -293,7 +296,7 @@ impl Broker {
         let session_client = self.create_client();
         let response = MessageKind::Broker(BrokerMessage::ConnectedToSession(session_client.id()));
         let source = message.source;
-        tokio::spawn(async move {
+        kernel::session_spawn(session_client.id(), async move {
             // We catch the unwind so that we can report to the user that the editor crashed;
             let result = AssertUnwindSafe(Session::run_session(session_client, source)).catch_unwind().await;
             match result {

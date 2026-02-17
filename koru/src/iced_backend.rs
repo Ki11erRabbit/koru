@@ -37,7 +37,8 @@ pub enum UiMessage {
     KeyPress(KeyPress),
     CloseEvent(WindowId),
     CloseRequest(WindowId),
-    CrashLog(Vec<CrashLog>)
+    CrashLog(Vec<CrashLog>),
+    Shutdown,
 }
 
 
@@ -220,6 +221,11 @@ impl App {
                 }
                 Task::done(UiMessage::Nop)
             }
+            UiMessage::Shutdown => {
+                iced::window::get_oldest().and_then(|x| {
+                    iced::window::close(x)
+                })
+            }
         }
     }
 
@@ -279,6 +285,11 @@ impl App {
                     _ => todo!("Handle ANSI color sequences in gui")
                 }
                 Task::none()
+            }
+            MessageKind::General(GeneralMessage::Quit) => {
+                Task::future(async { 
+                    UiMessage::Shutdown
+                })
             }
             MessageKind::Broker(BrokerMessage::Crash) => {
                 match &mut self.initialization_state {

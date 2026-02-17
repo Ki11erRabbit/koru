@@ -18,7 +18,7 @@ use tokio::runtime::Handle;
 use crate::kernel::broker::{BackendMessage, Broker, BrokerMessage, MessageKind};
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse, ClientConnector};
 use crate::kernel::scheme_api::SCHEME_RUNTIME;
-use crate::kernel::scheme_api::session::SessionState;
+use crate::kernel::scheme_api::session::{SessionState, CURRENT_SESSION_ID};
 
 struct ChannelPair {
     sender: Sender<ClientConnectingResponse>,
@@ -161,4 +161,14 @@ where F: AsyncFnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingR
 
     tokio_runtime.block_on(runtime);
     Ok(())
+}
+
+
+pub fn session_spawn<O, F>(session_id: usize, future: F)
+where O: 'static + Send,
+F: Future<Output = O> + 'static + Send
+{
+    tokio::spawn(async move {
+        CURRENT_SESSION_ID.scope(session_id, future).await;
+    });
 }

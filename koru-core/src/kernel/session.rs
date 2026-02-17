@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -254,6 +253,9 @@ impl Session {
                     body,
                     suffix
                 })).await;
+            }
+            BackendMessage::Quit => {
+                self.notify_clients(MessageKind::General(GeneralMessage::Quit)).await;
             }
         }
     }

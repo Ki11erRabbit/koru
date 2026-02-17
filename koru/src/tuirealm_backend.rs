@@ -139,6 +139,10 @@ impl App {
                 ColorDefinitions::insert(color_type, color_value);
                 Ok(())
             }
+            MessageKind::General(GeneralMessage::Quit) => {
+                self.quit = true;
+                Ok(())
+            }
             _ => Ok(())
         }
     }
