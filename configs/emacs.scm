@@ -33,6 +33,12 @@
       #t
       'key-sequence))
 
+  (define kill-koru
+    (command-create
+      'kill-koru
+      "Quits the editor without saving"
+      (lambda () (session-quit))))
+
   (define emacs-cancel
     (command-create
       'emacs-cancel

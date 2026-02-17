@@ -33,6 +33,18 @@
       (lambda (keys) (crash))
       'key-sequence))
 
+  (define q
+    (command-create
+      'q
+      "Quits the editor"
+      (lambda () (command-apply editor-quit))))
+
+  (define q!
+    (command-create
+      'q!
+      "Quits the editor without saving anything"
+      (lambda () (session-quit))))
+
   (define vi-escape
     (command-create
       'vi-escape

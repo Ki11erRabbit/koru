@@ -33,6 +33,30 @@
       (lambda (keys) (crash))
       'key-sequence))
 
+  (define quit
+    (command-create
+      'quit
+      "Quits the editor"
+      (lambda () (command-apply editor-quit))))
+
+  (define q
+    (command-create
+      'q
+      "Quits the editor"
+      (lambda () (command-apply quit))))
+
+  (define quit!
+    (command-create
+      'quit!
+      "Quits the editor without saving"
+      (lambda () (session-quit))))
+
+  (define q!
+    (command-create
+      'q!
+      "Quits the editor"
+      (lambda () (command-apply quit!))))
+
   (define kakoune-escape
     (command-create
       'kakoune-escape

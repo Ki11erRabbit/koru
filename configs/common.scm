@@ -56,7 +56,8 @@
     mode-state-command-callback
     mode-state-command-callback-change
     mode-state-data
-    mode-state-data-change)
+    mode-state-data-change
+    editor-quit)
   (import (rnrs)
     (koru-command)
     (koru-session)
@@ -396,4 +397,10 @@
       "Redoes a text modification in response to a keypress"
       (lambda (keys) (command-apply text-edit-mode-redo))
       #t
-      'key-sequence)))
+      'key-sequence))
+
+  (define editor-quit
+    (command-create
+      'editor-quit
+      "Checks if this is the last open session and prompts the user if there are any unsaved files to save them. Otherwise just exits the session"
+      (lambda () (session-quit)))))

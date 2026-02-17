@@ -502,3 +502,24 @@ This will execute a command that has been registered globally.
 ```scheme
 (command-bar-execute "edit text.txt")
 ```
+
+### `session-quit`
+Quits the current editor session.
+
+###### Inputs
+None
+
+###### Outputs
+None
+
+###### Errors
+None
+
+###### Behavior
+This will shutdown the session and client connected to the session.
+If this is the only session, then the editor will be shutdown.
+
+###### Example
+```scheme
+(session-quit)
+```
