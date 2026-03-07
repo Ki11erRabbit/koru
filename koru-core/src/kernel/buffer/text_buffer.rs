@@ -8,7 +8,7 @@ use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use unicode_segmentation::UnicodeSegmentation;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
-use crate::styled_text::{Highlight, StyledFile, StyledText, TextChunk};
+use crate::styled_text::{ColorType, Highlight, StyledFile, StyledText, TextAttribute, TextChunk};
 
 struct HighlightManager {
     /// Maps bytes to a particular Highlight
@@ -17,8 +17,14 @@ struct HighlightManager {
 
 impl HighlightManager {
     fn new() -> Self {
+        let mut highlights = IntervalMap::new();
+        highlights.insert(55..77, Highlight {
+            fg_color: ColorType::Accent,
+            bg_color: ColorType::Cyan,
+            attribute: TextAttribute::empty()
+        });
         Self {
-            highlights: IntervalMap::new(),
+            highlights,
         }
     }
 
@@ -690,17 +696,20 @@ impl TextBuffer {
             EditValue::Insert {
                 text
             } => {
+                self.highlights.add_remove_offset(edit_info.byte_offset, text.len(), 0);
                 self.buffer.insert(edit_info.byte_offset, text);
             }
             EditValue::Delete {
                 count
             } => {
+                self.highlights.add_remove_offset(edit_info.byte_offset, 0, count);
                 self.buffer.delete(edit_info.byte_offset..(edit_info.byte_offset + count));
             }
             EditValue::Replace {
                 text,
                 count
             } => {
+                self.highlights.add_remove_offset(edit_info.byte_offset, text.len(), count);
                 self.buffer.delete(edit_info.byte_offset..(edit_info.byte_offset + count));
                 self.buffer.insert(edit_info.byte_offset, text);
             }
