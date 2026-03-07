@@ -56,8 +56,8 @@ impl Buffer {
     }
 
     pub async fn render_styled_text(&mut self) {
-        let text = self.handle.get_text().await;
-        self.styled_text = StyledFile::from(text);
+        let text = self.handle.draw().await;
+        self.styled_text = text;
     }
 
     pub fn get_styled_text(&self, cursors: &[Cursor]) -> StyledFile {

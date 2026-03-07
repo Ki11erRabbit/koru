@@ -437,7 +437,6 @@ impl Selection {
 
 #[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub struct StyledFile {
-    #[trace(skip)]
     lines: Vec<Vec<StyledText>>,
 }
 

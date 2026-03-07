@@ -8,7 +8,7 @@ use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use unicode_segmentation::UnicodeSegmentation;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
-use crate::styled_text::Highlight;
+use crate::styled_text::{Highlight, StyledFile, StyledText, TextChunk};
 
 struct HighlightManager {
     /// Maps bytes to a particular Highlight
@@ -747,6 +747,7 @@ impl TextBuffer {
                     match err.kind() {
                         ErrorKind::Interrupted => {
                             continue;
+                println!("pushing line");
                         }
                         _ => return Err(Exception::error(err)),
                     }
@@ -769,6 +770,90 @@ impl TextBuffer {
 
     pub fn get_path(&self) -> Option<String> {
         self.path.as_ref().map(|p| p.to_string_lossy().to_string())
+    }
+
+    pub fn draw(&self) -> StyledFile {
+        let mut current_line = Vec::new();
+        let mut styled_file = StyledFile::new();
+        let mut span_start = 0;
+        let mut i = 0;
+        let mut current_style: Option<Highlight> = None;
+        for ch in self.buffer.graphemes() {
+            i += ch.len();
+            if ch.contains('\n')  {
+                if i > span_start {
+                    if let Some(style) = &current_style {
+                        current_line.push(StyledText::Style {
+                            text: TextChunk::new(self.buffer.clone(), span_start, i),
+                            fg_color: style.fg_color,
+                            bg_color: style.bg_color,
+                            attribute: style.attribute,
+                        });
+                    } else {
+                        current_line.push(StyledText::None { text: TextChunk::new(self.buffer.clone(), span_start, i)});
+                    }
+                }
+                styled_file.push_line(current_line);
+                current_line = Vec::new();
+                span_start = i;
+                continue;
+            }
+
+            match self.highlights.highlights.get(i) {
+                None => {
+                    if let Some(style) = &current_style {
+                        current_line.push(StyledText::Style {
+                            text: TextChunk::new(self.buffer.clone(), span_start, i),
+                            fg_color: style.fg_color,
+                            bg_color: style.bg_color,
+                            attribute: style.attribute,
+                        });
+
+                        span_start = i;
+                        current_style = None;
+                    }
+                }
+                Some(new_style) => {
+                    if let Some(style) = &mut current_style {
+                        if new_style != style {
+                            if i > span_start {
+                                current_line.push(StyledText::Style {
+                                    text: TextChunk::new(self.buffer.clone(), span_start, i),
+                                    fg_color: style.fg_color,
+                                    bg_color: style.bg_color,
+                                    attribute: style.attribute,
+                                });
+                            }
+                            span_start = i;
+                            *style = new_style.clone();
+                        }
+                    } else {
+                        current_line.push(StyledText::None { text: TextChunk::new(self.buffer.clone(), span_start, i)});
+                        span_start = i;
+                        current_style = Some(new_style.clone());
+                    }
+
+                }
+            }
+        }
+
+        // Flush final span and line
+        if span_start < self.buffer.byte_len() {
+            if let Some(style) = &current_style {
+                current_line.push(StyledText::Style {
+                    text: TextChunk::new(self.buffer.clone(), span_start, i),
+                    fg_color: style.fg_color,
+                    bg_color: style.bg_color,
+                    attribute: style.attribute,
+                });
+            } else {
+                current_line.push(StyledText::None { text: TextChunk::new(self.buffer.clone(), span_start, i)});
+            }
+        }
+        if !current_line.is_empty() {
+            styled_file.push_line(current_line);
+        }
+        styled_file
     }
 }
 

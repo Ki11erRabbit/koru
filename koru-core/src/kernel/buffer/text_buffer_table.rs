@@ -16,7 +16,7 @@ use crate::kernel::buffer::text_buffer::TextBuffer;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::Cursors;
 use crate::kernel::scheme_api::session::SessionState;
-use crate::styled_text::Highlight;
+use crate::styled_text::{Highlight, StyledFile};
 
 static OPEN_BUFFERS: LazyLock<RwLock<TextBufferTable>> = LazyLock::new(|| {
     RwLock::new(TextBufferTable::new())
@@ -205,6 +205,10 @@ impl BufferHandle {
         end : (usize, usize)
     ) {
         self.handle.lock().await.insert_highlight(highlight, start, end);
+    }
+    
+    pub async fn draw(&self) -> StyledFile {
+        self.handle.lock().await.draw()
     }
 
     pub async fn save(&self) -> Result<(), Exception> {
