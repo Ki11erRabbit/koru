@@ -1,20 +1,61 @@
 use std::borrow::Cow;
 use std::io::{ErrorKind, SeekFrom};
-use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
-use crop::{Rope, RopeBuilder, RopeSlice};
+use crop::{Rope, RopeBuilder};
+use intervalmap::IntervalMap;
 use scheme_rs::exceptions::Exception;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
-use unicode_normalization::char::is_combining_mark;
 use unicode_segmentation::UnicodeSegmentation;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
-use crate::kernel::buffer::{Cursors, EditOperation, EditValue, UndoTree};
+use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
+use crate::styled_text::{Highlight, StyledFile, StyledText, TextChunk};
+
+struct HighlightManager {
+    /// Maps bytes to a particular Highlight
+    highlights: IntervalMap<usize, Highlight>,
+}
+
+impl HighlightManager {
+    fn new() -> Self {
+        let highlights = IntervalMap::new();
+        Self {
+            highlights,
+        }
+    }
+
+    fn insert_highlight(&mut self, range: impl std::ops::RangeBounds<usize>, highlight: Highlight) {
+        self.highlights.insert(range, highlight);
+    }
+
+    /// Adds and subtracts and offset from the highlights
+    fn add_remove_offset(&mut self, byte_start: usize, add: usize, subtract: usize) {
+        let mut old_highlights = IntervalMap::new();
+        std::mem::swap(&mut old_highlights, &mut self.highlights);
+
+        for (mut interval, highlight) in old_highlights {
+            if interval.contains(&byte_start) {
+                interval.end += add;
+                interval.end -= subtract;
+                self.highlights.insert(interval, highlight);
+            } else if interval.start < byte_start {
+                self.highlights.insert(interval, highlight);
+            } else if interval.start > byte_start {
+                interval.start += add;
+                interval.start -= subtract;
+                interval.end += add;
+                interval.end -= subtract;
+                self.highlights.insert(interval, highlight);
+            }
+        }
+    }
+}
 
 pub struct TextBuffer {
     buffer: Rope,
     name: String,
     path: Option<PathBuf>,
     undo_tree: UndoTree,
+    highlights: HighlightManager,
 }
 
 impl TextBuffer {
@@ -23,12 +64,12 @@ impl TextBuffer {
         let mut builder = RopeBuilder::new();
         builder.append(text);
 
-
         TextBuffer {
             buffer: builder.build(),
             name: name.into(),
             path: None,
             undo_tree: UndoTree::new(),
+            highlights: HighlightManager::new(),
         }
     }
 
@@ -38,6 +79,7 @@ impl TextBuffer {
             name: name.into(),
             path: None,
             undo_tree: UndoTree::new(),
+            highlights: HighlightManager::new(),
         }
     }
 
@@ -57,6 +99,32 @@ impl TextBuffer {
         self.buffer.clone()
     }
 
+    pub fn insert_highlight(
+        &mut self,
+        highlight: Highlight,
+        (start_row, start_col): (usize, usize),
+        (end_row, end_col) : (usize, usize)
+    ) {
+        let start_line = self.buffer.line_start(start_row);
+        let end_line_start = self.buffer.line_end(end_row);
+        let start_line_slice = self.buffer.line(start_row);
+        let end_line_slice = self.buffer.line(end_row);
+        let mut start_byte = start_line;
+        let mut end_byte = end_line_start;
+
+        for (grapheme, _) in start_line_slice.graphemes().zip(0..start_col) {
+            start_byte += grapheme.len();
+        }
+        for (grapheme, _) in end_line_slice.graphemes().zip(0..=end_col) {
+            end_byte += grapheme.len();
+        }
+
+        self.highlights.insert_highlight(start_byte..=end_byte, highlight);
+    }
+
+    pub fn clear_highlights(&mut self) {
+        self.highlights.highlights = IntervalMap::new();
+    }
 
     /// Pred returns false if we should terminate and true if we should loop on a given grapheme.
     pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception> + Clone) -> Result<Vec<Cursor>, Exception> {
@@ -297,6 +365,7 @@ impl TextBuffer {
             }
         }
         self.buffer.insert(byte_offset, &text);
+        self.highlights.add_remove_offset(byte_offset, text.len(), 0);
 
         let editor_cursor = cursors[cursor_index];
 
@@ -354,6 +423,7 @@ impl TextBuffer {
         self.buffer.delete(character_offset..byte_offset);
 
         let mut new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+        self.highlights.add_remove_offset(character_offset, 0, text.len());
 
         new_cursors[cursor_index] = replacement_cursor;
 
@@ -378,6 +448,7 @@ impl TextBuffer {
         self.buffer.delete(range);
 
         let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+        self.highlights.add_remove_offset(byte_offset, 0, text.len());
 
         self.undo_tree.delete(byte_offset, text).await;
         Ok(new_cursors)
@@ -416,6 +487,7 @@ impl TextBuffer {
                 self.buffer.delete(range);
 
                 let new_cursors = self.delete_text(&text, cursor_index, cursors);
+                self.highlights.add_remove_offset(start, 0, text.len());
                 self.undo_tree.delete(start, text).await;
                 new_cursors
             }
@@ -444,6 +516,7 @@ impl TextBuffer {
                 self.buffer.delete(start_offset..range_end);
 
                 let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+                self.highlights.add_remove_offset(start_offset, 0, text.len());
                 self.undo_tree.delete(start_offset, text).await;
                 Ok(new_cursors)
             }
@@ -493,6 +566,7 @@ impl TextBuffer {
 
                         // Actually delete from buffer
                         self.buffer.delete(start_offset..end_offset);
+                        self.highlights.add_remove_offset(start_offset, 0, text_str.len());
                     }
                 }
 
@@ -509,6 +583,7 @@ impl TextBuffer {
                 self.buffer.delete(0..len);
 
                 let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+                self.highlights.add_remove_offset(0, 0, text.len());
                 self.undo_tree.delete(0, text).await;
                 Ok(new_cursors)
             }
@@ -579,6 +654,7 @@ impl TextBuffer {
 
             let cursors = self.delete_text(&old_text, cursor_index, cursors)?;
             let cursors = self.insert_text(start, &text, cursor_index, cursors);
+            self.highlights.add_remove_offset(start - 1, text.len(), old_text.len());
 
             self.undo_tree.replace(start - 1, old_text, text).await;
             cursors
@@ -598,6 +674,7 @@ impl TextBuffer {
 
             let cursors = self.delete_text(&old_text, cursor_index, cursors)?;
             let cursors = self.insert_text(byte_offset, &old_text, cursor_index, cursors);
+            self.highlights.add_remove_offset(byte_offset - 1, text.len(), old_text.len());
 
             self.undo_tree.replace(byte_offset - 1, old_text, text).await;
             cursors
@@ -617,17 +694,20 @@ impl TextBuffer {
             EditValue::Insert {
                 text
             } => {
+                self.highlights.add_remove_offset(edit_info.byte_offset, text.len(), 0);
                 self.buffer.insert(edit_info.byte_offset, text);
             }
             EditValue::Delete {
                 count
             } => {
+                self.highlights.add_remove_offset(edit_info.byte_offset, 0, count);
                 self.buffer.delete(edit_info.byte_offset..(edit_info.byte_offset + count));
             }
             EditValue::Replace {
                 text,
                 count
             } => {
+                self.highlights.add_remove_offset(edit_info.byte_offset, text.len(), count);
                 self.buffer.delete(edit_info.byte_offset..(edit_info.byte_offset + count));
                 self.buffer.insert(edit_info.byte_offset, text);
             }
@@ -674,6 +754,7 @@ impl TextBuffer {
                     match err.kind() {
                         ErrorKind::Interrupted => {
                             continue;
+                println!("pushing line");
                         }
                         _ => return Err(Exception::error(err)),
                     }
@@ -696,6 +777,90 @@ impl TextBuffer {
 
     pub fn get_path(&self) -> Option<String> {
         self.path.as_ref().map(|p| p.to_string_lossy().to_string())
+    }
+
+    pub fn draw(&self) -> StyledFile {
+        let mut current_line = Vec::new();
+        let mut styled_file = StyledFile::new();
+        let mut span_start = 0;
+        let mut i = 0;
+        let mut current_style: Option<Highlight> = None;
+        for ch in self.buffer.graphemes() {
+            i += ch.len();
+            if ch.contains('\n')  {
+                if i > span_start {
+                    if let Some(style) = &current_style {
+                        current_line.push(StyledText::Style {
+                            text: TextChunk::new(self.buffer.clone(), span_start, i),
+                            fg_color: style.fg_color,
+                            bg_color: style.bg_color,
+                            attribute: style.attribute,
+                        });
+                    } else {
+                        current_line.push(StyledText::None { text: TextChunk::new(self.buffer.clone(), span_start, i)});
+                    }
+                }
+                styled_file.push_line(current_line);
+                current_line = Vec::new();
+                span_start = i;
+                continue;
+            }
+
+            match self.highlights.highlights.get(i) {
+                None => {
+                    if let Some(style) = &current_style {
+                        current_line.push(StyledText::Style {
+                            text: TextChunk::new(self.buffer.clone(), span_start, i),
+                            fg_color: style.fg_color,
+                            bg_color: style.bg_color,
+                            attribute: style.attribute,
+                        });
+
+                        span_start = i;
+                        current_style = None;
+                    }
+                }
+                Some(new_style) => {
+                    if let Some(style) = &mut current_style {
+                        if new_style != style {
+                            if i > span_start {
+                                current_line.push(StyledText::Style {
+                                    text: TextChunk::new(self.buffer.clone(), span_start, i),
+                                    fg_color: style.fg_color,
+                                    bg_color: style.bg_color,
+                                    attribute: style.attribute,
+                                });
+                            }
+                            span_start = i;
+                            *style = new_style.clone();
+                        }
+                    } else {
+                        current_line.push(StyledText::None { text: TextChunk::new(self.buffer.clone(), span_start, i)});
+                        span_start = i;
+                        current_style = Some(new_style.clone());
+                    }
+
+                }
+            }
+        }
+
+        // Flush final span and line
+        if span_start < self.buffer.byte_len() {
+            if let Some(style) = &current_style {
+                current_line.push(StyledText::Style {
+                    text: TextChunk::new(self.buffer.clone(), span_start, i),
+                    fg_color: style.fg_color,
+                    bg_color: style.bg_color,
+                    attribute: style.attribute,
+                });
+            } else {
+                current_line.push(StyledText::None { text: TextChunk::new(self.buffer.clone(), span_start, i)});
+            }
+        }
+        if !current_line.is_empty() {
+            styled_file.push_line(current_line);
+        }
+        styled_file
     }
 }
 

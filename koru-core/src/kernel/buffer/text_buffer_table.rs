@@ -5,6 +5,8 @@ use std::sync::{Arc, LazyLock};
 use crop::Rope;
 use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::Gc;
+use scheme_rs::lists::List;
+use scheme_rs::num::Number;
 use scheme_rs::records::Record;
 use scheme_rs::registry::bridge;
 use scheme_rs::value::Value;
@@ -14,6 +16,7 @@ use crate::kernel::buffer::text_buffer::TextBuffer;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::Cursors;
 use crate::kernel::scheme_api::session::SessionState;
+use crate::styled_text::{Highlight, StyledFile};
 
 static OPEN_BUFFERS: LazyLock<RwLock<TextBufferTable>> = LazyLock::new(|| {
     RwLock::new(TextBufferTable::new())
@@ -195,6 +198,23 @@ impl BufferHandle {
         self.handle.lock().await.redo().await;
     }
 
+    pub async fn insert_highlight(
+        &self,
+        highlight: Highlight,
+        start: (usize, usize),
+        end : (usize, usize)
+    ) {
+        self.handle.lock().await.insert_highlight(highlight, start, end);
+    }
+
+    pub async fn clear_highlights(&self) {
+        self.handle.lock().await.clear_highlights();
+    }
+
+    pub async fn draw(&self) -> StyledFile {
+        self.handle.lock().await.draw()
+    }
+
     pub async fn save(&self) -> Result<(), Exception> {
         self.handle.lock().await.save().await
     }
@@ -325,4 +345,78 @@ pub async fn text_edit_draw(args: &[Value]) -> Result<Vec<Value>, Exception> {
 
     let value = Value::from(Record::from_rust_type(styled_text));
     Ok(vec![value])
+}
+
+#[bridge(name = "buffer-place-highlight", lib = "(koru-buffer)")]
+pub async fn place_highlight(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((buffer_name, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let Some((highlight, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let Some((start, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let Some((end, _)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(4, args.len()));
+    };
+    let buffer_name: String = buffer_name.clone().try_into()?;
+    let highlight: Gc<Highlight> = highlight.clone().try_to_rust_type()?;
+    let start: List = start.try_into()?;
+    let end: List = end.try_into()?;
+
+    let buffer = {
+        let state = SessionState::get_state();
+        let guard = state.read().await;
+        let buffers = guard.get_buffers().await;
+        buffers.get(buffer_name.as_str()).cloned()
+    };
+    let Some(buffer) = buffer else {
+        return Err(Exception::error(String::from("Buffer not found")))
+    };
+    let start = start.as_slice();
+    let start = match start {
+        [row, col] => {
+            let row: Number = row.try_into()?;
+            let row: usize = row.try_into()?;
+            let col: Number = col.try_into()?;
+            let col: usize = col.try_into()?;
+            (row, col)
+        }
+        _ => return Err(Exception::error("`start` must contain two integers"))
+    };
+    let end = end.as_slice();
+    let end = match end {
+        [row, col] => {
+            let row: Number = row.try_into()?;
+            let row: usize = row.try_into()?;
+            let col: Number = col.try_into()?;
+            let col: usize = col.try_into()?;
+            (row, col)
+        }
+        _ => return Err(Exception::error("`start` must contain two integers"))
+    };
+
+    let handle = buffer.get_handle();
+    handle.insert_highlight((*highlight).clone(), start, end).await;
+    Ok(vec![])
+}
+
+#[bridge(name = "buffer-clear-highlight", lib = "(koru-buffer)")]
+pub async fn clear_highlights(buffer_name: &Value) -> Result<Vec<Value>, Exception> {
+    let buffer_name: String = buffer_name.clone().try_into()?;
+    let buffer = {
+        let state = SessionState::get_state();
+        let guard = state.read().await;
+        let buffers = guard.get_buffers().await;
+        buffers.get(buffer_name.as_str()).cloned()
+    };
+    let Some(buffer) = buffer else {
+        return Err(Exception::error(String::from("Buffer not found")))
+    };
+
+    let handle = buffer.get_handle();
+    handle.clear_highlights().await;
+    Ok(vec![])
 }

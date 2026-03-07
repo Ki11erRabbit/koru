@@ -266,3 +266,45 @@ This accesses the buffer and causes it to render itself before being rendered.
 ```scheme
 (plain-draw "Temp" (cursors-create))
 ```
+
+### `buffer-place-highlight`
+Places a highlight in the buffer at a given start and end point
+
+###### Inputs
+- name: String, The name of the buffer
+- highlight: Highlight, The text styling to use
+- start: Pair, a pair of integers int the format of `(row . col)`
+- end: Pair, a pair of integers int the format of `(row . col)`
+
+###### Outputs
+None
+###### Errors
+An error is raised if the buffer is not found.
+
+###### Behavior
+This will place the highlight in the buffer so when it is drawn, the text styling will be in place.
+If you place a highlight over another highlight, it will overwrite that highlight.
+
+###### Example
+```scheme
+(buffer-place-highlight "my-buffer" highlight (1 . 2) (4 . 5))
+```
+
+### `buffer-clear-highlight`
+Removes all highlights for a buffer.
+
+###### Inputs
+- name: String, The name of the buffer
+
+###### Outputs
+None
+###### Errors
+An error is raised if the buffer is not found.
+
+###### Behavior
+This will remove all highlights in the buffer so when it is drawn, the text styling will no longer be in place.
+
+###### Example
+```scheme
+(buffer-clear-highlight "my-buffer")
+```
