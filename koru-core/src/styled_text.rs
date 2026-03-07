@@ -191,6 +191,14 @@ impl SchemeCompatible for ColorType {
     }
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Trace)]
+pub struct Highlight {
+    pub fg_color: ColorType,
+    pub bg_color: ColorType,
+    #[trace(skip)]
+    pub attribute: TextAttribute,
+}
+
 
 #[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub enum StyledText {

@@ -1,20 +1,60 @@
 use std::borrow::Cow;
 use std::io::{ErrorKind, SeekFrom};
-use std::ops::RangeBounds;
 use std::path::{Path, PathBuf};
-use crop::{Rope, RopeBuilder, RopeSlice};
+use crop::{Rope, RopeBuilder};
+use intervalmap::IntervalMap;
 use scheme_rs::exceptions::Exception;
 use tokio::io::{AsyncSeekExt, AsyncWriteExt};
-use unicode_normalization::char::is_combining_mark;
 use unicode_segmentation::UnicodeSegmentation;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
-use crate::kernel::buffer::{Cursors, EditOperation, EditValue, UndoTree};
+use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
+use crate::styled_text::Highlight;
+
+struct HighlightManager {
+    /// Maps bytes to a particular Highlight
+    highlights: IntervalMap<usize, Highlight>,
+}
+
+impl HighlightManager {
+    fn new() -> Self {
+        Self {
+            highlights: IntervalMap::new(),
+        }
+    }
+
+    fn insert_highlight(&mut self, range: impl std::ops::RangeBounds<usize>, highlight: Highlight) {
+        self.highlights.insert(range, highlight);
+    }
+
+    /// Adds and subtracts and offset from the highlights
+    fn add_remove_offset(&mut self, byte_start: usize, add: usize, subtract: usize) {
+        let mut old_highlights = IntervalMap::new();
+        std::mem::swap(&mut old_highlights, &mut self.highlights);
+
+        for (mut interval, highlight) in old_highlights {
+            if interval.contains(&byte_start) {
+                interval.end += add;
+                interval.end -= subtract;
+                self.highlights.insert(interval, highlight);
+            } else if interval.start < byte_start {
+                self.highlights.insert(interval, highlight);
+            } else if interval.start > byte_start {
+                interval.start += add;
+                interval.start -= subtract;
+                interval.end += add;
+                interval.end -= subtract;
+                self.highlights.insert(interval, highlight);
+            }
+        }
+    }
+}
 
 pub struct TextBuffer {
     buffer: Rope,
     name: String,
     path: Option<PathBuf>,
     undo_tree: UndoTree,
+    highlights: HighlightManager,
 }
 
 impl TextBuffer {
@@ -23,12 +63,12 @@ impl TextBuffer {
         let mut builder = RopeBuilder::new();
         builder.append(text);
 
-
         TextBuffer {
             buffer: builder.build(),
             name: name.into(),
             path: None,
             undo_tree: UndoTree::new(),
+            highlights: HighlightManager::new(),
         }
     }
 
@@ -38,6 +78,7 @@ impl TextBuffer {
             name: name.into(),
             path: None,
             undo_tree: UndoTree::new(),
+            highlights: HighlightManager::new(),
         }
     }
 
@@ -55,6 +96,29 @@ impl TextBuffer {
     
     pub fn get_buffer(&self) -> Rope {
         self.buffer.clone()
+    }
+
+    pub fn insert_highlight(
+        &mut self,
+        highlight: Highlight,
+        (start_row, start_col): (usize, usize),
+        (end_row, end_col) : (usize, usize)
+    ) {
+        let start_line = self.buffer.line_start(start_row);
+        let end_line_start = self.buffer.line_end(end_row);
+        let start_line_slice = self.buffer.line(start_row);
+        let end_line_slice = self.buffer.line(end_row);
+        let mut start_byte = start_line;
+        let mut end_byte = end_line_start;
+
+        for (grapheme, _) in start_line_slice.graphemes().zip(0..start_col) {
+            start_byte += grapheme.len();
+        }
+        for (grapheme, _) in end_line_slice.graphemes().zip(0..=end_col) {
+            end_byte += grapheme.len();
+        }
+
+        self.highlights.insert_highlight(start_byte..=end_byte, highlight);
     }
 
 
@@ -297,6 +361,7 @@ impl TextBuffer {
             }
         }
         self.buffer.insert(byte_offset, &text);
+        self.highlights.add_remove_offset(byte_offset, text.len(), 0);
 
         let editor_cursor = cursors[cursor_index];
 
@@ -354,6 +419,7 @@ impl TextBuffer {
         self.buffer.delete(character_offset..byte_offset);
 
         let mut new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+        self.highlights.add_remove_offset(character_offset, 0, text.len());
 
         new_cursors[cursor_index] = replacement_cursor;
 
@@ -378,6 +444,7 @@ impl TextBuffer {
         self.buffer.delete(range);
 
         let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+        self.highlights.add_remove_offset(byte_offset, 0, text.len());
 
         self.undo_tree.delete(byte_offset, text).await;
         Ok(new_cursors)
@@ -416,6 +483,7 @@ impl TextBuffer {
                 self.buffer.delete(range);
 
                 let new_cursors = self.delete_text(&text, cursor_index, cursors);
+                self.highlights.add_remove_offset(start, 0, text.len());
                 self.undo_tree.delete(start, text).await;
                 new_cursors
             }
@@ -444,6 +512,7 @@ impl TextBuffer {
                 self.buffer.delete(start_offset..range_end);
 
                 let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+                self.highlights.add_remove_offset(start_offset, 0, text.len());
                 self.undo_tree.delete(start_offset, text).await;
                 Ok(new_cursors)
             }
@@ -493,6 +562,7 @@ impl TextBuffer {
 
                         // Actually delete from buffer
                         self.buffer.delete(start_offset..end_offset);
+                        self.highlights.add_remove_offset(start_offset, 0, text_str.len());
                     }
                 }
 
@@ -509,6 +579,7 @@ impl TextBuffer {
                 self.buffer.delete(0..len);
 
                 let new_cursors = self.delete_text(&text, cursor_index, cursors)?;
+                self.highlights.add_remove_offset(0, 0, text.len());
                 self.undo_tree.delete(0, text).await;
                 Ok(new_cursors)
             }
@@ -579,6 +650,7 @@ impl TextBuffer {
 
             let cursors = self.delete_text(&old_text, cursor_index, cursors)?;
             let cursors = self.insert_text(start, &text, cursor_index, cursors);
+            self.highlights.add_remove_offset(start - 1, text.len(), old_text.len());
 
             self.undo_tree.replace(start - 1, old_text, text).await;
             cursors
@@ -598,6 +670,7 @@ impl TextBuffer {
 
             let cursors = self.delete_text(&old_text, cursor_index, cursors)?;
             let cursors = self.insert_text(byte_offset, &old_text, cursor_index, cursors);
+            self.highlights.add_remove_offset(byte_offset - 1, text.len(), old_text.len());
 
             self.undo_tree.replace(byte_offset - 1, old_text, text).await;
             cursors
