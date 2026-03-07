@@ -199,10 +199,63 @@ pub struct Highlight {
     pub attribute: TextAttribute,
 }
 
+impl SchemeCompatible for Highlight {
+    fn rtd() -> Arc<RecordTypeDescriptor>
+    where
+        Self: Sized
+    {
+        rtd!(name: "&Highlight", sealed: true)
+    }
+}
+
+#[bridge(name = "highlight-create", lib = "(styled-text)")]
+pub fn highlight_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
+    let Some((fg_color, rest)) = args.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()))
+    };
+    let fg_color: String = fg_color.clone().try_into()?;
+    let Some((bg_color, rest)) = rest.split_first() else {
+        return Err(Exception::wrong_num_of_args(2, args.len()));
+    };
+    let bg_color: String = bg_color.clone().try_into()?;
+    let fg_color = match fg_color.as_str().try_into()  {
+        Ok(color) => color,
+        Err(msg) => {
+            return Err(Exception::error(msg));
+        }
+    };
+    let bg_color = match bg_color.as_str().try_into()  {
+        Ok(color) => color,
+        Err(msg) => {
+            return Err(Exception::error(msg));
+        }
+    };
+
+    let mut attributes = TextAttribute::empty();
+
+    for attr in rest {
+        let attr: String = attr.clone().try_into()?;
+        match attr.as_str() {
+            "italic" => attributes |= TextAttribute::Italic,
+            "bold" => attributes |= TextAttribute::Bold,
+            "strikethrough" => attributes |= TextAttribute::Strikethrough,
+            "underline" => attributes |= TextAttribute::Underline,
+            _ => {
+                return Err(Exception::error(String::from("attribute is not one of 'italic, 'bold, 'strikethrough, or 'underline")));
+            }
+        }
+    }
+    let attribute = attributes;
+    let highlight = Highlight {
+        fg_color,
+        bg_color,
+        attribute,
+    };
+    Ok(vec![Value::from(Record::from_rust_type(highlight))])
+}
 
 #[derive(Debug, Clone, Eq, PartialEq, Trace)]
 pub enum StyledText {
-
     None {
         text: TextChunk,
     },
