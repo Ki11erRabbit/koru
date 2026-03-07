@@ -206,7 +206,11 @@ impl BufferHandle {
     ) {
         self.handle.lock().await.insert_highlight(highlight, start, end);
     }
-    
+
+    pub async fn clear_highlights(&self) {
+        self.handle.lock().await.clear_highlights();
+    }
+
     pub async fn draw(&self) -> StyledFile {
         self.handle.lock().await.draw()
     }
@@ -396,5 +400,23 @@ pub async fn place_highlight(args: &[Value]) -> Result<Vec<Value>, Exception> {
 
     let handle = buffer.get_handle();
     handle.insert_highlight((*highlight).clone(), start, end).await;
+    Ok(vec![])
+}
+
+#[bridge(name = "buffer-clear-highlight", lib = "(koru-buffer)")]
+pub async fn clear_highlights(buffer_name: &Value) -> Result<Vec<Value>, Exception> {
+    let buffer_name: String = buffer_name.clone().try_into()?;
+    let buffer = {
+        let state = SessionState::get_state();
+        let guard = state.read().await;
+        let buffers = guard.get_buffers().await;
+        buffers.get(buffer_name.as_str()).cloned()
+    };
+    let Some(buffer) = buffer else {
+        return Err(Exception::error(String::from("Buffer not found")))
+    };
+
+    let handle = buffer.get_handle();
+    handle.clear_highlights().await;
     Ok(vec![])
 }

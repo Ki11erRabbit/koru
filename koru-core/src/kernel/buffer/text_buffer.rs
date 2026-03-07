@@ -8,7 +8,7 @@ use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 use unicode_segmentation::UnicodeSegmentation;
 use crate::kernel::buffer::cursor::{Cursor, CursorDirection};
 use crate::kernel::buffer::{EditOperation, EditValue, UndoTree};
-use crate::styled_text::{ColorType, Highlight, StyledFile, StyledText, TextAttribute, TextChunk};
+use crate::styled_text::{Highlight, StyledFile, StyledText, TextChunk};
 
 struct HighlightManager {
     /// Maps bytes to a particular Highlight
@@ -17,12 +17,7 @@ struct HighlightManager {
 
 impl HighlightManager {
     fn new() -> Self {
-        let mut highlights = IntervalMap::new();
-        highlights.insert(55..77, Highlight {
-            fg_color: ColorType::Accent,
-            bg_color: ColorType::Cyan,
-            attribute: TextAttribute::empty()
-        });
+        let highlights = IntervalMap::new();
         Self {
             highlights,
         }
@@ -127,6 +122,9 @@ impl TextBuffer {
         self.highlights.insert_highlight(start_byte..=end_byte, highlight);
     }
 
+    pub fn clear_highlights(&mut self) {
+        self.highlights.highlights = IntervalMap::new();
+    }
 
     /// Pred returns false if we should terminate and true if we should loop on a given grapheme.
     pub fn move_cursors(&self, cursors: Vec<Cursor>, direction: CursorDirection, pred: impl Fn(&str) -> Result<bool, Exception> + Clone) -> Result<Vec<Cursor>, Exception> {

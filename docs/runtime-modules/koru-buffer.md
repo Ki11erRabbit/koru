@@ -287,5 +287,24 @@ If you place a highlight over another highlight, it will overwrite that highligh
 
 ###### Example
 ```scheme
-(buffer-place-highlight "my-buffer" highlight (1 . 2) (4 . 5) )
+(buffer-place-highlight "my-buffer" highlight (1 . 2) (4 . 5))
+```
+
+### `buffer-clear-highlight`
+Removes all highlights for a buffer.
+
+###### Inputs
+- name: String, The name of the buffer
+
+###### Outputs
+None
+###### Errors
+An error is raised if the buffer is not found.
+
+###### Behavior
+This will remove all highlights in the buffer so when it is drawn, the text styling will no longer be in place.
+
+###### Example
+```scheme
+(buffer-clear-highlight "my-buffer")
 ```
