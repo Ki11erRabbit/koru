@@ -9,7 +9,10 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 use tabled::Table;
 use tuirealm::{Application, AttrValue, Attribute, EventListenerCfg, PollStrategy, Sub, SubClause, SubEventClause, Update};
+use tuirealm::props::{Color, Layout};
+use tuirealm::ratatui::layout::{Constraint, Direction};
 use tuirealm::ratatui::style::Styled;
+use tuirealm::ratatui::widgets::Clear;
 use tuirealm::terminal::{CrosstermTerminalAdapter, TerminalBridge};
 use koru_core::kernel::broker::{BrokerClient, BrokerMessage, GeneralMessage, Message, MessageKind};
 use koru_core::kernel::client::{ClientConnectingMessage, ClientConnectingResponse};
@@ -18,6 +21,7 @@ use crate::tuirealm_backend::components::TextView;
 use crate::tuirealm_backend::events::BrokerPort;
 use buffer_state::BufferState;
 use koru_core::KoruLogger;
+use koru_core::styled_text::{ColorType, ColorValue, StyledFile};
 use crate::crash_logs::CrashLog;
 use crate::tuirealm_backend::colors::ColorDefinitions;
 
@@ -44,31 +48,48 @@ struct App {
     pub broker_client: BrokerClient,
     session_address: Option<usize>,
     message_bar: String,
+    command_bar: StyledFile,
+    show_command_bar: bool,
     key_buffer: KeyBuffer,
     buffer_state: BufferState,
 }
 
 impl App {
     pub fn view(&mut self, app: &mut Application<Id, UiMessage, UiMessage>) {
+        let bg_color = match ColorDefinitions::get(&ColorType::Base) {
+            ColorValue::Rgb { r, g, b } => {
+                Color::Rgb(r, g, b)
+            }
+            ColorValue::Ansi(index) => Color::Indexed(index),
+        };
+        let total_area = self.terminal.raw_mut().get_frame().area();
+        self.buffer_state.line_count = (total_area.height - 1) as usize;
+        self.buffer_state.column_count = total_area.width as usize;
 
-        app.attr(&Id::Buffer, Attribute::Text, TextView::lines(&self.buffer_state.text)).expect("Invalid attribute");
-        app.attr(&Id::Buffer, Attribute::Custom("LineOffset"), AttrValue::Number(self.buffer_state.line_offset as isize)).expect("Invalid attribute");
+        app.attr(&Id::Buffer, Attribute::Text, TextView::lines(&self.buffer_state.text, self.buffer_state.line_offset, self.buffer_state.line_count)).expect("Invalid attribute");
         app.attr(&Id::Buffer, Attribute::Custom("ColumnOffset"), AttrValue::Number(self.buffer_state.column_offset as isize)).expect("Invalid attribute");
-        app.attr(&Id::MessageBar, Attribute::Text, AttrValue::String(self.message_bar.clone())).expect("Invalid attribute");
-        
+        app.attr(&Id::Buffer, Attribute::Custom("Background"), AttrValue::Color(bg_color)).expect("Invalid attribute");
+
+        app.attr(&Id::MessageBar, Attribute::Custom("ColumnOffset"), AttrValue::Number(0)).expect("Invalid attribute");
+        app.attr(&Id::MessageBar, Attribute::Custom("Background"), AttrValue::Color(bg_color)).expect("Invalid attribute");
+        if self.show_command_bar {
+            app.attr(&Id::MessageBar, Attribute::Text, TextView::lines(&self.command_bar, 0, 1)).expect("Invalid attribute");
+        } else {
+            app.attr(&Id::MessageBar, Attribute::Text, TextView::lines(&StyledFile::new(), 0, 1)).expect("Invalid attribute");
+        }
+
         self.terminal.draw(|frame| {
-            
-            let mut text_area = frame.area();
-            text_area.height -= 1;
-            self.buffer_state.line_count = text_area.height as usize;
-            self.buffer_state.column_count = text_area.width as usize;
-            
-            let mut message_area = frame.area();
-            message_area.height = 1;
-            message_area.y += text_area.height;
-            
-            app.view(&Id::Buffer, frame, text_area);
-            app.view(&Id::MessageBar, frame, message_area);
+
+            let layout = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(&[
+                    Constraint::Min(0),
+                    Constraint::Length(1)
+                ])
+                .chunks(frame.area());
+
+            app.view(&Id::Buffer, frame, layout[0]);
+            app.view(&Id::MessageBar, frame, layout[1]);
             
         }).unwrap();
     }
@@ -116,17 +137,17 @@ impl App {
                 Ok(())
             }
             MessageKind::General(GeneralMessage::HideCommandBar) => {
+                self.redraw = true;
+                self.show_command_bar = false;
                 Ok(())
             }
             MessageKind::General(GeneralMessage::ShowCommandBar) => {
+                self.redraw = true;
+                self.show_command_bar = true;
                 Ok(())
             }
-            MessageKind::General(GeneralMessage::UpdateCommandBar {
-                prefix,
-                body,
-                suffix,
-                                 }) => {
-                self.message_bar = prefix + body.as_str() + suffix.as_str();
+            MessageKind::General(GeneralMessage::UpdateCommandBar(text)) => {
+                self.command_bar = text;
                 Ok(())
             }
             MessageKind::Broker(BrokerMessage::Crash) => {
@@ -224,13 +245,13 @@ pub async fn real_main(
     
     application.mount(
         Id::Buffer,
-        Box::from(components::TextView::new()),
+        Box::from(TextView::new()),
         vec![]
     ).expect("Failed to mount textview");
 
     application.mount(
         Id::MessageBar,
-        Box::from(components::MessageBar::new()),
+        Box::from(TextView::new()),
         vec![
             Sub::new(SubEventClause::Any, SubClause::Always),
         ]
@@ -244,6 +265,8 @@ pub async fn real_main(
         broker_client: client,
         session_address: None,
         message_bar: String::new(),
+        command_bar: StyledFile::new(),
+        show_command_bar: false,
         key_buffer: KeyBuffer::new(),
         buffer_state: BufferState::default(),
     };
