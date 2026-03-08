@@ -1149,24 +1149,41 @@ pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Exception>
         SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
         return Ok(Vec::new());
     };
-    let prefix: String = prefix.clone().try_into()?;
-    string.prepend_segment(0, StyledText::Style {
-        text: TextChunk::new(Rope::from(prefix.as_str()), 0, prefix.len()),
-        fg_color: ColorType::Text,
-        bg_color: ColorType::Base,
-        attribute: TextAttribute::empty(),
-    });
+
+    let prefix = if let Ok(prefix) = prefix.clone().try_into() {
+        let prefix: String = prefix;
+        StyledText::Style {
+            text: TextChunk::new(Rope::from(prefix.as_str()), 0, prefix.len()),
+            fg_color: ColorType::Text,
+            bg_color: ColorType::Base,
+            attribute: TextAttribute::empty(),
+        }
+    } else if let Ok(text) = prefix.clone().try_to_rust_type::<StyledText>() {
+        let prefix: Gc<StyledText> = text;
+        (*prefix).clone()
+    } else {
+        return Err(Exception::type_error("String or StyledText", prefix.type_name()));
+    };
+    string.prepend_segment(0, prefix);
     let Some((suffix, _)) = rest.split_first() else {
         SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
         return Ok(Vec::new());
     };
-    let suffix: String = suffix.clone().try_into()?;
-    string.append_segment(0, StyledText::Style {
-        text: TextChunk::new(Rope::from(suffix.as_str()), 0, suffix.len()),
-        fg_color: ColorType::Text,
-        bg_color: ColorType::Base,
-        attribute: TextAttribute::empty(),
-    });
+    let suffix = if let Ok(suffix) = suffix.clone().try_into() {
+        let suffix: String = suffix;
+        StyledText::Style {
+            text: TextChunk::new(Rope::from(suffix.as_str()), 0, suffix.len()),
+            fg_color: ColorType::Text,
+            bg_color: ColorType::Base,
+            attribute: TextAttribute::empty(),
+        }
+    } else if let Ok(text) = suffix.clone().try_to_rust_type::<StyledText>() {
+        let suffix: Gc<StyledText> = text;
+        (*suffix).clone()
+    } else {
+        return Err(Exception::type_error("String or StyledText", suffix.type_name()));
+    };
+    string.append_segment(0, suffix);
 
     SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
     

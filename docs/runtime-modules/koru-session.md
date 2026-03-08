@@ -461,8 +461,8 @@ Notifies the sessions that the command-bar has changed and needs to be updated.
 It can also take in strings for added context in the command bar.
 
 ###### Inputs
-- prefix: Optional String, what to display in front of the command bar.
-- suffix: Optional String, what to display after the command bar.
+- prefix: Optional String or StyledText, what to display in front of the command bar.
+- suffix: Optional String or StyledText, what to display after the command bar.
 
 ###### Outputs
 None
