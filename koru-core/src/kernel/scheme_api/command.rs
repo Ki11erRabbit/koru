@@ -6,7 +6,7 @@ use scheme_rs::proc::Procedure;
 use scheme_rs::records::{rtd, Record, RecordTypeDescriptor, SchemeCompatible};
 use scheme_rs::registry::bridge;
 use scheme_rs::symbols::Symbol;
-use scheme_rs::value::Value;
+use scheme_rs::value::{UnpackedValue, Value};
 use tokio::sync::RwLock;
 
 struct CommandTreeNode {
@@ -410,9 +410,12 @@ pub async fn command_create(args: &[Value]) -> Result<Vec<Value>, Exception> {
 
     let mut arguments: Vec<ArgumentDef> = Vec::new();
     for arg in rest {
-        if let Ok(hide_command) = TryInto::<bool>::try_into(arg.clone()) {
-            hide = hide_command;
-            continue;
+        match arg.clone().unpack() {
+            UnpackedValue::Boolean(hide_command) => {
+                hide = hide_command;
+                continue;
+            }
+            _ => {}
         }
 
         let arg: Symbol = match arg.clone().try_into() {

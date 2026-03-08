@@ -45,6 +45,16 @@
       "Quits the editor without saving anything"
       (lambda () (session-quit))))
 
+  (define w
+    (command-create
+      'w
+      "Writes a file. Optionally Takes in a filename"
+      (lambda args (if (> (length args) 0)
+                     (let ((file-name (car args)))
+                       (buffer-save-as (current-buffer-name) file-name))
+                     (buffer-save (current-buffer-name))))
+      'variable:path))
+
   (define vi-escape
     (command-create
       'vi-escape

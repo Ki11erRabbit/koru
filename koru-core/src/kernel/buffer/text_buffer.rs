@@ -763,7 +763,6 @@ impl TextBuffer {
                     match err.kind() {
                         ErrorKind::Interrupted => {
                             continue;
-                println!("pushing line");
                         }
                         _ => return Err(Exception::error(err)),
                     }

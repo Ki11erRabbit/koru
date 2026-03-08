@@ -386,6 +386,9 @@ impl SessionState {
                 }
             }
         }
+        if !argument.is_empty() {
+            command_args.push(argument);
+        }
 
         let Some(command) = CommandTree::lookup(&command_name).await else {
             // TODO: send a notification to the user
