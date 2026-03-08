@@ -13,3 +13,4 @@
   * [koru-cursor](runtime-modules/koru-cursor.md)
   * [koru-modal](runtime-modules/koru-modal.md)
   * [koru-theme](runtime-modules/koru-theme.md)
+  * [koru-task](runtime-modules/koru-task.md)
