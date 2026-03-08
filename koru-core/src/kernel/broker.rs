@@ -1,10 +1,9 @@
 use std::collections::VecDeque;
 use std::error::Error;
 use std::hash::Hash;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe};
 use futures::FutureExt;
 use log::error;
-use tokio::runtime::Handle;
 use tokio::sync::mpsc::{Receiver, Sender};
 use crate::attr_set::AttrSet;
 use crate::kernel;
@@ -57,11 +56,7 @@ pub enum GeneralMessage {
     MainCursorPosition(usize, usize),
     ShowCommandBar,
     HideCommandBar,
-    UpdateCommandBar {
-        prefix: String,
-        body: String,
-        suffix: String,
-    },
+    UpdateCommandBar(StyledFile),
     Quit,
 }
 
@@ -86,11 +81,7 @@ pub enum BrokerMessage {
 pub enum BackendMessage {
     ShowCommandBar,
     HideCommandBar,
-    UpdateCommandBar {
-        prefix: String,
-        body: String,
-        suffix: String,
-    },
+    UpdateCommandBar(StyledFile),
     Quit
 }
 

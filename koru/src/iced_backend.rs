@@ -22,7 +22,7 @@ use buffer_state::BufferState;
 use iced_core::window::Id as WindowId;
 use tabled::Table;
 use koru_core::{KoruLogger, LogEntry};
-use koru_core::styled_text::ColorValue;
+use koru_core::styled_text::{ColorValue, StyledFile};
 use crate::crash_logs::CrashLog;
 use crate::iced_backend::colors::ColorDefinitions;
 
@@ -78,7 +78,8 @@ enum AppInitializationState {
 struct App {
     initialization_state: AppInitializationState,
     session_address: Option<usize>,
-    message_bar: String,
+    command_bar: StyledFile,
+    hide_command_bar: bool,
     key_buffer: KeyBuffer,
     buffer_state: BufferState,
 }
@@ -95,7 +96,8 @@ impl App {
                 client_connection: (client_connector, client_receiver),
             },
             session_address: None,
-            message_bar: String::new(),
+            command_bar: StyledFile::new(),
+            hide_command_bar: true,
             key_buffer: KeyBuffer::new(),
             buffer_state: BufferState::default(),
         }
@@ -248,8 +250,8 @@ impl App {
                     MessageKind::General(GeneralMessage::RequestMainCursor)
                 ])
             }
-            MessageKind::General(GeneralMessage::UpdateMessageBar(message_bar)) => {
-                self.message_bar = message_bar;
+            MessageKind::General(GeneralMessage::UpdateMessageBar(_message_bar)) => {
+                //self.message_bar = message_bar;
                 Task::none()
             }
             MessageKind::General(GeneralMessage::FlushKeyBuffer) => {
@@ -263,17 +265,15 @@ impl App {
                 Task::none()
             }
             MessageKind::General(GeneralMessage::ShowCommandBar) => {
+                self.hide_command_bar = false;
                 Task::none()
             }
             MessageKind::General(GeneralMessage::HideCommandBar) => {
+                self.hide_command_bar = true;
                 Task::none()
             }
-            MessageKind::General(GeneralMessage::UpdateCommandBar { 
-                                     prefix,
-                                    body,
-                                    suffix 
-                                 }) => {
-                self.message_bar = prefix + body.as_str() + suffix.as_str();
+            MessageKind::General(GeneralMessage::UpdateCommandBar(text)) => {
+                self.command_bar = text;
                 Task::none()
             }
             MessageKind::General(GeneralMessage::SetColorDef(definition)) => {
@@ -314,11 +314,20 @@ impl App {
     fn view(&self) -> Element<UiMessage> {
         match &self.initialization_state {
             AppInitializationState::Initialized(_) => {
+                let command_bar: Element<UiMessage> = if self.hide_command_bar {
+                    styled_text::rich_simple(Vec::new())
+                        .font(iced::font::Font::MONOSPACE)
+                        .into()
+                } else {
+                    styled_text::rich(&self.command_bar.lines(), 0, 0, |_| {})
+                        .font(iced::font::Font::MONOSPACE)
+                        .into()
+                };
                 column!(
                     styled_text::rich(&self.buffer_state.text.lines(), self.buffer_state.line_offset, self.buffer_state.column_offset, self.buffer_state.text_metrics_callback())
                         .font(iced::font::Font::MONOSPACE)
                         .height(Length::Fill),
-                    text(&self.message_bar)
+                    command_bar
                 ).into()
             }
             AppInitializationState::Crashed(None) => {

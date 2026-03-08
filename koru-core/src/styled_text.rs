@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::hash::Hash;
 use std::sync::{Arc};
 use bitflags::bitflags;
 use crop::Rope;
@@ -788,7 +789,11 @@ impl StyledFile {
     }
 }
 
-
+impl Hash for StyledFile {
+    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {
+        
+    }
+}
 
 impl Default for StyledFile {
     fn default() -> Self {

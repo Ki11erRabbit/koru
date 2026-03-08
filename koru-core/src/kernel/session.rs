@@ -243,16 +243,8 @@ impl Session {
             BackendMessage::HideCommandBar => {
                 self.notify_clients(MessageKind::General(GeneralMessage::HideCommandBar)).await;
             }
-            BackendMessage::UpdateCommandBar {
-                prefix,
-                body,
-                suffix
-            } => {
-                self.notify_clients(MessageKind::General(GeneralMessage::UpdateCommandBar {
-                    prefix,
-                    body,
-                    suffix
-                })).await;
+            BackendMessage::UpdateCommandBar(text) => {
+                self.notify_clients(MessageKind::General(GeneralMessage::UpdateCommandBar(text))).await;
             }
             BackendMessage::Quit => {
                 self.notify_clients(MessageKind::General(GeneralMessage::Quit)).await;

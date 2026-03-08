@@ -7,7 +7,8 @@ pub use buffer::*;
 
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock};
-use log::{error, info};
+use crop::Rope;
+use log::error;
 use scheme_rs::exceptions::Exception;
 use scheme_rs::gc::Gc;
 use scheme_rs::lists;
@@ -28,6 +29,7 @@ use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::minor_mode::MinorMode;
 use crate::kernel::scheme_api::session::keymap::SchemeKeyMap;
 use crate::keymap::KeyMap;
+use crate::styled_text::{ColorType, StyledFile, StyledText, TextAttribute, TextChunk};
 
 pub struct Hooks {
     hooks: HashMap<Symbol, HashMap<Symbol, Procedure>>,
@@ -130,6 +132,53 @@ impl CommandBar {
 
     pub fn get(&self) -> String {
         self.buffer.clone()
+    }
+
+    pub fn style(&self) -> StyledFile {
+        let rope = Rope::from(self.buffer.clone());
+        let mut styled_file = StyledFile::new();
+        let mut line = Vec::new();
+        let mut byte_start = 0;
+        let mut byte_end = 0;
+        let mut placed_cursor = false;
+        for (i, c) in self.buffer.chars().enumerate() {
+            let tmp_end = byte_end + c.len_utf8();
+            if i == self.cursor {
+                line.push(StyledText::Style {
+                    text: TextChunk::new(rope.clone(), byte_start, byte_end),
+                    fg_color: ColorType::Text,
+                    bg_color: ColorType::Base,
+                    attribute: TextAttribute::empty(),
+                });
+                placed_cursor = true;
+                line.push(StyledText::Style {
+                    text: TextChunk::new(rope.clone(), byte_end, tmp_end),
+                    fg_color: ColorType::Text,
+                    bg_color: ColorType::Cursor,
+                    attribute: TextAttribute::empty(),
+                });
+                byte_start = tmp_end;
+            }
+            byte_end = tmp_end;
+        }
+        line.push(StyledText::Style {
+            text: TextChunk::new(rope.clone(), byte_start, byte_end),
+            fg_color: ColorType::Text,
+            bg_color: ColorType::Base,
+            attribute: TextAttribute::empty(),
+        });
+        if !placed_cursor {
+            line.push(StyledText::Style {
+                text: TextChunk::new(Rope::from(" "), 0, ' '.len_utf8()),
+                fg_color: ColorType::Text,
+                bg_color: ColorType::Cursor,
+                attribute: TextAttribute::empty(),
+            });
+        }
+
+        styled_file.push_line(line);
+
+        styled_file
     }
 
     pub fn insert(&mut self, value: &str) {
@@ -1094,37 +1143,49 @@ pub async fn command_bar_hide() -> Result<Vec<Value>, Exception> {
 
 #[bridge(name = "command-bar-update", lib = "(koru-session)")]
 pub async fn command_bar_update(args: &[Value]) -> Result<Vec<Value>, Exception> {
-    let Some((prefix, rest)) = args.split_first() else {
-        let command_buffer = SessionState::get_command_bar().await;
-        let string = command_buffer.read().await.get();
-        SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar {
-            body: string,
-            prefix: String::new(),
-            suffix: String::new(),
-        })).await?;
-        return Ok(Vec::new());
-    };
-    let prefix: String = prefix.clone().try_into()?;
-    let Some((suffix, rest)) = rest.split_first() else {
-        let command_buffer = SessionState::get_command_bar().await;
-        let string = command_buffer.read().await.get();
-        SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar {
-            prefix,
-            body: string,
-            suffix: String::new(),
-            
-        })).await?;
-        return Ok(Vec::new());
-    };
-    let suffix: String = suffix.clone().try_into()?;
-
     let command_buffer = SessionState::get_command_bar().await;
-    let string = command_buffer.read().await.get();
-    SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar {
-        prefix,
-        body: string,
-        suffix,
-    })).await?;
+    let mut string = command_buffer.read().await.style();
+    let Some((prefix, rest)) = args.split_first() else {
+        SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
+        return Ok(Vec::new());
+    };
+
+    let prefix = if let Ok(prefix) = prefix.clone().try_into() {
+        let prefix: String = prefix;
+        StyledText::Style {
+            text: TextChunk::new(Rope::from(prefix.as_str()), 0, prefix.len()),
+            fg_color: ColorType::Text,
+            bg_color: ColorType::Base,
+            attribute: TextAttribute::empty(),
+        }
+    } else if let Ok(text) = prefix.clone().try_to_rust_type::<StyledText>() {
+        let prefix: Gc<StyledText> = text;
+        (*prefix).clone()
+    } else {
+        return Err(Exception::type_error("String or StyledText", prefix.type_name()));
+    };
+    string.prepend_segment(0, prefix);
+    let Some((suffix, _)) = rest.split_first() else {
+        SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
+        return Ok(Vec::new());
+    };
+    let suffix = if let Ok(suffix) = suffix.clone().try_into() {
+        let suffix: String = suffix;
+        StyledText::Style {
+            text: TextChunk::new(Rope::from(suffix.as_str()), 0, suffix.len()),
+            fg_color: ColorType::Text,
+            bg_color: ColorType::Base,
+            attribute: TextAttribute::empty(),
+        }
+    } else if let Ok(text) = suffix.clone().try_to_rust_type::<StyledText>() {
+        let suffix: Gc<StyledText> = text;
+        (*suffix).clone()
+    } else {
+        return Err(Exception::type_error("String or StyledText", suffix.type_name()));
+    };
+    string.append_segment(0, suffix);
+
+    SessionState::send_message(MessageKind::BackEnd(BackendMessage::UpdateCommandBar(string))).await?;
     
     Ok(Vec::new())
 }
