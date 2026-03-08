@@ -404,6 +404,9 @@ impl TextBuffer {
     }
 
     pub async fn delete_back(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
+        if self.buffer.byte_len() == 0 {
+            return Ok(cursors);
+        }
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
         let line = self.buffer.line(cursors[cursor_index].line());
         let extra_bytes = if cursors[cursor_index].line() != 0 && cursors[cursor_index].at_line_start() {
@@ -432,6 +435,9 @@ impl TextBuffer {
     }
 
     pub async fn delete_forward(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
+        if self.buffer.byte_len() == 0 {
+            return Ok(cursors);
+        }
         let byte_offset = self.calculate_byte_offset(cursors[cursor_index].line(), cursors[cursor_index].column());
         let line_no = cursors[cursor_index].line();
         let line = self.buffer.line_slice(line_no..(line_no + 1));
@@ -459,6 +465,9 @@ impl TextBuffer {
 
     pub async fn delete_region(&mut self, cursor_index: usize, cursors: Vec<Cursor>) -> Result<Vec<Cursor>, Exception> {
         use crate::kernel::buffer::cursor::CursorMark;
+        if self.buffer.byte_len() == 0 {
+            return Ok(cursors);
+        }
 
         if !cursors[cursor_index].is_mark_set() {
             return Ok(cursors);
