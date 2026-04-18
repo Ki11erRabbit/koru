@@ -223,6 +223,8 @@
       (key-map-insert vi-key-map "x" editor-delete-forward-keypress)
       (key-map-insert vi-key-map "$" editor-cursor-line-end-keypress)
       (key-map-insert vi-key-map "^" editor-cursor-line-start-keypress)
+      (key-map-insert vi-key-map "g g" editor-cursor-buffer-start-keypress)
+      (key-map-insert vi-key-map "G" editor-cursor-buffer-end-keypress)
       vi-key-map))
 
   (define (vi-visual-mode-keymap)
