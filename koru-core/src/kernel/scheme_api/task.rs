@@ -34,7 +34,7 @@ impl TaskGroup {
         let handle = tokio::spawn(async move {
             func.call(&[]).await
         });
-        while id < self.task.len() {
+        while id >= self.task.len() {
             self.task.push(None);
         }
         self.task[id] = Some(handle);
@@ -47,7 +47,7 @@ impl TaskGroup {
         } else {
             self.task.len()
         };
-        while id < self.task.len() {
+        while id >= self.task.len() {
             self.task.push(None);
         }
         self.task[id] = Some(handle);
@@ -77,7 +77,7 @@ impl TaskGroup {
             }
         }
     }
-    
+
     fn remove_completed_tasks(&mut self) {
         for (i, mut task) in self.task.iter_mut().enumerate() {
             if let Some(the_task) = &mut task && the_task.is_finished() {
