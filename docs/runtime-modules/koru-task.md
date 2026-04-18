@@ -23,6 +23,26 @@ The function will be run in the async runtime and can be awaited or canceled
 (spawn-task (lambda () (do-something)))
 ```
 
+### `spawn-ephemeral-task`
+Takes in a parameterless function and runs it in the background.
+It is not possible to await this task.
+
+###### Inputs
+- func: Procedure, the body of the task
+
+###### Outputs
+None
+###### Errors
+None
+
+###### Behavior
+The function will be run in the async runtime and can be canceled.
+
+###### Example
+```scheme
+(spawn-ephemeral-task (lambda () (do-something)))
+```
+
 ### `await-task`
 Takes in a task id and awaits the task until completion.
 
@@ -62,4 +82,24 @@ The task will be shutdown.
 ```scheme
 (let ((id (spawn-task (lambda () (do-something)))))
     (cancel-task id))
+```
+
+### `cancel-tasks`
+Cancels all tasks
+
+###### Inputs
+None
+###### Outputs
+None
+###### Errors
+None
+
+###### Behavior
+All tasks will be shutdown. 
+This includes both normal and ephemeral tasks.
+
+###### Example
+```scheme
+(let ((id (spawn-task (lambda () (do-something)))))
+    (cancel-tasks))
 ```
