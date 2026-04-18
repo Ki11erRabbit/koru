@@ -41,6 +41,19 @@ impl TaskGroup {
 
         id
     }
+    fn new_task_internal_rust(&mut self, handle: JoinHandle<Result<Vec<Value>, Exception>>) -> usize {
+        let id = if let Some(id) = self.free_list.pop_front() {
+            id
+        } else {
+            self.task.len()
+        };
+        while id < self.task.len() {
+            self.task.push(None);
+        }
+        self.task[id] = Some(handle);
+
+        id
+    }
 
     fn get_task_internal(&mut self, id: usize) -> Option<JoinHandle<Result<Vec<Value>, Exception>>> {
         if self.task[id].is_none() {
@@ -96,6 +109,18 @@ impl TaskManager {
     pub async fn new_emphemeral_task(func: Procedure) -> usize {
         let mut guard = TASK_MANAGER.lock().await;
         let out = guard.ephemeral_tasks.new_task_internal(func);
+        guard.ephemeral_tasks.remove_completed_tasks();
+        out
+    }
+
+    pub async fn new_task_rust(handle: JoinHandle<Result<Vec<Value>, Exception>>) -> usize {
+        let mut guard = TASK_MANAGER.lock().await;
+        guard.tasks.new_task_internal_rust(handle)
+    }
+
+    pub async fn new_emphemeral_task_rust(handle: JoinHandle<Result<Vec<Value>, Exception>>) -> usize {
+        let mut guard = TASK_MANAGER.lock().await;
+        let out = guard.ephemeral_tasks.new_task_internal_rust(handle);
         guard.ephemeral_tasks.remove_completed_tasks();
         out
     }
