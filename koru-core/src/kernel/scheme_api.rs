@@ -14,6 +14,7 @@ pub mod session;
 mod minor_mode;
 mod modal;
 pub mod theme;
+mod task;
 
 pub static SCHEME_RUNTIME: LazyLock<Mutex<Option<Runtime>>> = LazyLock::new(|| {
     Mutex::new(Some(Runtime::new()))

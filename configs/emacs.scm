@@ -7,6 +7,7 @@
     (minor-mode)
     (koru-buffer)
     (koru-modal)
+    (koru-task)
     (configs common)
     (scheme text-edit-mode))
 
@@ -42,13 +43,14 @@
   (define emacs-cancel
     (command-create
       'emacs-cancel
-      "Removes the mark at the primary cursor and flushes the keybuffer"
+      "Removes the mark at the primary cursor and flushes the keybuffer. This also cancels any running tasks"
       (lambda () (begin
                        (flush-key-buffer)
                        (command-bar-take)
                        (command-bar-update)
                        (command-bar-hide)
                        (command-apply editor-remove-mark)
+                       (cancel-tasks)
                        (emacs-state-set! (minor-mode-get 'emacs-mode) 'edit)))))
 
   (define emacs-cancel-keypress

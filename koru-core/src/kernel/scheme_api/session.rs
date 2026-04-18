@@ -28,6 +28,7 @@ use crate::kernel::scheme_api::command::{Command, CommandTree};
 use crate::kernel::scheme_api::major_mode::MajorMode;
 use crate::kernel::scheme_api::minor_mode::MinorMode;
 use crate::kernel::scheme_api::session::keymap::SchemeKeyMap;
+use crate::kernel::scheme_api::task;
 use crate::keymap::KeyMap;
 use crate::styled_text::{ColorType, StyledFile, StyledText, TextAttribute, TextChunk};
 
@@ -656,7 +657,8 @@ impl SessionState {
 
     pub async fn emit_hook(hook_name: Symbol, args: &[Value]) -> Result<(), Exception> {
         let args = args.to_vec();
-        kernel::session_spawn(CURRENT_SESSION_ID.get(), async move {
+
+        let handle = kernel::session_spawn(CURRENT_SESSION_ID.get(), async move {
             let state = SessionState::get_state();
 
             let hooks = state.read().await.hooks.clone();
@@ -664,10 +666,14 @@ impl SessionState {
             match hooks.execute_hook(&hook_name, &args).await {
                 Err(err) => {
                     error!("{err}");
+                    return Err(err);
                 }
                 _ => {}
             }
+            return Ok(Vec::new())
         });
+
+        task::TaskManager::new_emphemeral_task_rust(handle).await;
 
         Ok(())
     }

@@ -15,6 +15,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use log::{error, info};
 use tokio::runtime::Handle;
+use tokio::task::JoinHandle;
 use crate::kernel::broker::{BackendMessage, Broker, BrokerMessage, MessageKind};
 use crate::kernel::client::{ClientConnectingMessage, ClientConnectingResponse, ClientConnector};
 use crate::kernel::scheme_api::SCHEME_RUNTIME;
@@ -164,11 +165,11 @@ where F: AsyncFnOnce(Sender<ClientConnectingMessage>, Receiver<ClientConnectingR
 }
 
 
-pub fn session_spawn<O, F>(session_id: usize, future: F)
+pub fn session_spawn<O, F>(session_id: usize, future: F) -> JoinHandle<O>
 where O: 'static + Send,
 F: Future<Output = O> + 'static + Send
 {
     tokio::spawn(async move {
-        CURRENT_SESSION_ID.scope(session_id, future).await;
-    });
+        CURRENT_SESSION_ID.scope(session_id, future).await
+    })
 }
